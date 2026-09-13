@@ -1,0 +1,215 @@
+# XeroLinux optional package groups
+# Consumed by the "packagechooser" job (see PackageChooserJob).
+---
+- id: internet-browsers
+  name: "Internet Browsers"
+  description: "Firefox and other web browsers"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: firefox
+      description: "Default Browser"
+    - package: floorp
+      description: "Privacy-focused Firefox fork with enhanced customization"
+    - package: filezilla
+      description: "Cross-platform FTP and SFTP Browser"
+    - package: brave-bin
+      description: "Privacy-first browser with built-in ad blocking"
+    - package: librewolf
+      description: "Privacy-hardened Firefox fork without telemetry"
+    - package: vivaldi-meta
+      description: "Feature-rich, customizable Chromium-based browser"
+    - package: tor-browser-bin
+      description: "Anonymous browsing through the Tor network"
+    - package: mullvad-browser-bin
+      description: "Privacy-focused browser by Mullvad VPN"
+    - package: helium-browser-bin
+      description: "Private & fast web browser based on Chromium"
+    - package: zen-browser-bin
+      description: "Performance oriented Firefox-based web browser"
+    - package: ungoogled-chromium-bin
+      description: "Chromium without Google services"
+
+- id: social-communication
+  name: "Social & Communication"
+  description: "Stay connected with friends and communities"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: zapzap
+      description: "WhatsApp desktop client for Linux"
+    - package: tokodon
+      description: "Mastodon client for KDE Plasma"
+    - package: discord
+      description: "Voice, video and text chat platform"
+    - package: vesktop
+      description: "A Discord Alternative with Vencord"
+    - package: element-desktop
+      description: "Secure Matrix messenger client"
+    - package: telegram-desktop
+      description: "Fast and secure messaging app"
+    - package: nheko
+      description: "Desktop client for the Matrix protocol"
+    - package: ferdium-bin
+      description: "All-in-one messaging app organizer"
+
+- id: development-tools
+  name: "Development Tools"
+  description: "Tools for coding and version control"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: hugo
+      description: "Fast static site generator written in Go"
+    - package: meld
+      description: "Visual diff and merge tool"
+    - package: vscodium-bin
+      description: "VS Code without Microsoft telemetry"
+    - package: github-desktop
+      description: "Git GUI client for GitHub"
+
+- id: password-managers
+  name: "Password Managers"
+  description: "Securely store and manage your passwords"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: keepassxc
+      description: "Cross-platform offline password manager"
+    - package: bitwarden
+      description: "Open source cloud password manager"
+
+- id: android-development
+  name: "Android Development"
+  description: "Tools for Android device management and development"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: heimdall
+      description: "Flash firmware to Samsung devices"
+    - package: qtscrcpy
+      description: "Display and control Android via USB/WiFi"
+    - package: adbmanager
+      description: "Graphical ADB management tool"
+    - package: android-udev
+      description: "USB access rules for Android devices"
+    - package: android-tools
+      description: "ADB and fastboot utilities"
+    - package: android-platform
+      description: "Core platform development tools"
+    - package: android-sdk-platform-tools
+      description: "Official SDK tools from Google"
+
+- id: graphics-design
+  name: "Graphics & Design"
+  description: "Image editing, 3D modeling and creative tools"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: gimp
+      description: "Powerful open source image editor"
+    - package: godot
+      description: "Feature-packed 2D and 3D game engine"
+    - package: krita
+      description: "Professional digital painting application"
+    - package: inkscape
+      description: "Professional vector graphics editor"
+    - package: blender
+      description: "3D creation suite for modeling and animation"
+
+- id: audio-tools
+  name: "Audio Tools"
+  description: "Music players and audio production tools"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: amarok
+      description: "Feature-rich music player for KDE"
+    - package: spotify
+      description: "Music streaming service client"
+    - package: tenacity
+      description: "Multi-track audio editor (Audacity fork)"
+    - package: jamesdsp
+      description: "Audio effects processor for PipeWire"
+    - package: easyeffects
+      description: "Audio effects for PipeWire applications"
+
+- id: video-production
+  name: "Video Production"
+  description: "Video Players & editing tools"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: mpv
+      description: "Lightweight, powerful media player"
+    - package: mystiq
+      description: "FFmpeg-based video converter with GUI"
+    - package: makemkv
+      description: "DVD and Blu-ray to MKV converter"
+    - package: kdenlive
+      description: "Professional non-linear video editor"
+    - package: avidemux-qt
+      description: "Simple video cutting and encoding"
+    - package: mkvtoolnix-gui
+      description: "Matroska file editing and inspection"
+    - package: losslesscut-bin
+      description: "Fast lossless video/audio trimming"
+
+- id: additional-fonts
+  name: "Additional Fonts"
+  description: "Extended font collections for better typography"
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - package: noto-fonts
+      description: "Google's font family covering all languages"
+    - package: ttf-dejavu
+      description: "Improved Bitstream Vera fonts"
+    - package: asian-fonts
+      description: "CJK (Chinese, Japanese, Korean) fonts"
+    - package: ttf-caladea
+      description: "Metric-compatible Cambria replacement"
+    - package: ttf-carlito
+      description: "Metric-compatible Calibri replacement"
+    - package: ttf-liberation
+      description: "Metric-compatible MS fonts replacement"
+    - package: ttf-linux-libertine-g
+      description: "Elegant serif and sans-serif fonts"
+    - package: adobe-source-code-pro-fonts
+      description: "Monospace font for coding"
+    - package: adobe-source-serif-pro-fonts
+      description: "Elegant serif font by Adobe"
+
+- id: libreoffice
+  name: "LibreOffice Suite"
+  description: "LibreOffice Fresh version"
+  screenshot: "assets/libreoffice-screenshot.png"
+  details: "Installs Writer, Calc, Impress and Draw, plus spelling dictionaries, LaTeX math support and a Writer-to-LaTeX export tool."
+  hidden: false
+  selected: false
+  critical: false
+  expanded: false
+  packages:
+    - hunspell
+    - hunspell-$LOCALE
+    - libreoffice-fresh
+    - libreoffice-extension-texmaths
+    - libreoffice-extension-writer2latex

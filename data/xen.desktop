@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install XeroLinux
+GenericName=System Installer
+Comment=Xen - modular XeroLinux installer
+Exec=xen-polkit
+TryExec=xen-polkit
+Icon=org.xerolinux.xen
+StartupWMClass=xen
+Terminal=false
+Categories=Qt;System;Settings;

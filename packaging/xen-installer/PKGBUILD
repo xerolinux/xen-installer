@@ -1,0 +1,146 @@
+# Maintainer: DarkXero <info@techxero.com>
+#
+# Single split-package PKGBUILD building all 3 Xen Installer packages:
+#   xen-app                    - the installer application (Python/PySide6)
+#   xen-cfg-xerolinux          - job pipeline config for the Intel/AMD ISO
+#   xen-cfg-xerolinux-nvidia   - job pipeline config for the nVidia ISO
+#
+# The two config packages are mutually exclusive (each installs to the same
+# /etc/xen/xerolinux.yaml filename so the live-ISO launcher never needs to
+# know which GPU profile is installed) - only the file content differs:
+# services enabled and the finalize script list (nouveau vs nvramfs). Each
+# profile runs online or offline from that one file - see xerolinux.yaml's
+# own header comment for how the offline-skip works.
+#
+# Built locally from this repo checkout (../../ from this PKGBUILD's own
+# directory is the XeroInstaller repo root) - no separate git source until
+# these packages are split into their own repos, matching how the Calamares
+# equivalents (calamaresx-app / calamaresx-cfg / calamaresx-nv-cfg) each
+# live in their own repo.
+
+pkgbase=xen-installer
+pkgname=(xen-app xen-cfg-xerolinux xen-cfg-xerolinux-nvidia)
+pkgver=1.0.0
+pkgrel=35
+arch=('any')
+url="https://xerolinux.xyz"
+license=('GPL3')
+
+makedepends=(
+  python-build
+  python-installer
+  python-hatchling
+  python-wheel
+)
+
+_repo_root="${startdir}/../.."
+_etc_dir="/etc/xen"
+
+build() {
+	cd "${_repo_root}"
+	python -m build --wheel --no-isolation --outdir "${srcdir}/dist"
+}
+
+package_xen-app() {
+	pkgdesc="Distribution-independent installer framework (Python/PySide6, Calamares alternative)"
+	depends=(
+		python
+		pyside6
+		python-pydantic
+		python-yaml
+		python-tzdata
+		qt6-declarative
+		polkit
+		arch-install-scripts
+		rsync
+		parted
+		gptfdisk
+		cryptsetup
+		dosfstools
+		e2fsprogs
+		xfsprogs
+		btrfs-progs
+		grub
+		pciutils
+	)
+	provides=('xen')
+	conflicts=('calamares')
+	options=(!strip)
+
+	cd "${_repo_root}"
+
+	python -m installer --destdir="${pkgdir}" --prefix=/usr "${srcdir}"/dist/*.whl
+
+	# App icon (hicolor theme; matches org.xerolinux.xen lookup in
+	# main.py's packaged-layout fallback).
+	install -Dm644 data/icons/org.xerolinux.xen.svg \
+		"${pkgdir}/usr/share/icons/hicolor/scalable/apps/org.xerolinux.xen.svg"
+
+	# i18n .conf files: NOT bundled in the wheel (they live at
+	# <repo>/config/i18n, outside the src/xen/ package tree) -
+	# translator.py's packaged-layout fallback expects them at
+	# <prefix>/share/xen/config/i18n/.
+	install -dm755 "${pkgdir}/usr/share/xen/config/i18n"
+	install -Dm644 config/i18n/*.conf "${pkgdir}/usr/share/xen/config/i18n/"
+
+	# Desktop entry + its polkit launch wrapper (root, same model as
+	# XeroLinux's Calamares: the whole app runs elevated, no IPC hop).
+	install -Dm644 data/xen.desktop \
+		"${pkgdir}/usr/share/applications/xen.desktop"
+	install -Dm755 data/xen-polkit \
+		"${pkgdir}/usr/bin/xen-polkit"
+
+	# Polkit policy for pkexec elevation of the Engine process.
+	install -Dm644 data/polkit/org.xen.installer.policy \
+		"${pkgdir}/usr/share/polkit-1/actions/org.xen.installer.policy"
+}
+
+package_xen-cfg-xerolinux() {
+	pkgdesc="Xen installer config for XeroLinux (Intel/AMD)"
+	depends=()
+	conflicts=('xen-cfg-xerolinux-nvidia')
+	provides=("xen-cfg-xerolinux")
+	options=(!strip !emptydirs)
+
+	install -dm755 "${pkgdir}${_etc_dir}"
+
+	install -Dm644 "${_repo_root}/config/examples/xerolinux.yaml" \
+		"${pkgdir}${_etc_dir}/xerolinux.yaml"
+	install -Dm644 "${_repo_root}/config/examples/packages-optional.yaml" \
+		"${pkgdir}${_etc_dir}/packages-optional.yaml"
+
+	# Branding logo referenced by branding.assets.logo (relative to the
+	# config dir at runtime).
+	install -Dm644 "${_repo_root}/config/examples/assets/xerolinux-logo.png" \
+		"${pkgdir}${_etc_dir}/assets/xerolinux-logo.png"
+
+	# LibreOffice Suite screenshot shown on the Optional Software page.
+	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
+		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
+}
+
+package_xen-cfg-xerolinux-nvidia() {
+	pkgdesc="Xen installer config for XeroLinux (nVidia)"
+	depends=()
+	conflicts=('xen-cfg-xerolinux')
+	provides=("xen-cfg-xerolinux-nvidia")
+	options=(!strip !emptydirs)
+
+	install -dm755 "${pkgdir}${_etc_dir}"
+
+	# Source file is the *-nvidia* variant, but installed under the SAME
+	# filename as xen-cfg-xerolinux so the live-ISO launcher's
+	# `--config /etc/xen/xerolinux.yaml` command is identical on both ISO
+	# profiles - only the content (nvidia-suspend/hibernate/resume services,
+	# nvramfs finalize script) differs.
+	install -Dm644 "${_repo_root}/config/examples/xerolinux-nvidia.yaml" \
+		"${pkgdir}${_etc_dir}/xerolinux.yaml"
+	install -Dm644 "${_repo_root}/config/examples/packages-optional.yaml" \
+		"${pkgdir}${_etc_dir}/packages-optional.yaml"
+
+	install -Dm644 "${_repo_root}/config/examples/assets/xerolinux-logo.png" \
+		"${pkgdir}${_etc_dir}/assets/xerolinux-logo.png"
+
+	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
+		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
+}

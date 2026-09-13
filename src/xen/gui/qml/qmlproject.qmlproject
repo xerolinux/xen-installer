@@ -1,0 +1,31 @@
+// Qt Creator QML Project File for Xen GUI
+import QmlProject
+
+Project {
+    mainFile: "Main.qml"
+
+    // QML files
+    QmlFiles {
+        directory: "."
+    }
+
+    QmlFiles {
+        directory: "components"
+    }
+
+    // JavaScript files (if any)
+    JavaScriptFiles {
+        directory: "."
+    }
+
+    // Image/asset files
+    ImageFiles {
+        directory: "."
+    }
+
+    // Import paths for Qt Quick modules
+    importPaths: [
+        ".",
+        "components"
+    ]
+}

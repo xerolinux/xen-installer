@@ -1,0 +1,56 @@
+# =============================================================================
+# Xen Installer - Configuration Template
+# =============================================================================
+# Copiez ce fichier vers xen.yaml et personnalisez-le pour votre distribution.
+# Voir config/examples/ pour des configurations complètes.
+
+version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Branding - Identité visuelle de votre distribution
+# -----------------------------------------------------------------------------
+branding:
+  name: "My Linux"
+  version: "1.0"
+  edition: ""
+
+  colors:
+    primary: "#3B82F6"
+    secondary: "#60A5FA"
+    accent: "#F59E0B"
+    background: "#1F2937"
+    surface: "#374151"
+    text: "#F9FAFB"
+    text_muted: "#9CA3AF"
+
+  assets:
+    logo: ""
+    background: ""
+
+  strings:
+    welcome_title: "Welcome"
+    welcome_subtitle: "Let's install your new system."
+    install_button: "Install"
+    finished_title: "Installation Complete"
+    finished_message: "Your system is ready. Please reboot."
+
+# -----------------------------------------------------------------------------
+# Jobs - Étapes d'installation (ordre séquentiel)
+# -----------------------------------------------------------------------------
+jobs:
+  - name: welcome
+  - name: locale
+  - name: partition
+  - name: install
+  - name: bootloader
+  - name: finished
+
+# -----------------------------------------------------------------------------
+# Options avancées
+# -----------------------------------------------------------------------------
+advanced:
+  log_level: info
+  log_file: "/var/log/xen-install.log"
+  ipc_socket: "/run/xen/ipc.sock"
+  job_timeout: 3600
+  debug_mode: false

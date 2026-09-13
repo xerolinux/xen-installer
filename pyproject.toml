@@ -1,0 +1,139 @@
+[project]
+name = "xen-installer"
+version = "0.6.1"
+description = "Next-generation, modular, and universal Linux installer"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.11"
+authors = [
+    { name = "XeroLinux Team" }
+]
+keywords = ["linux", "installer", "qt6", "pyside6", "calamares-alternative"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Installation/Setup",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "PySide6>=6.6.0",
+    "pydantic>=2.5.0",
+    "PyYAML>=6.0",
+    # Fallback IANA tz database for zoneinfo when the host provides none
+    # (some non-FHS live/portable environments ship no system tz database).
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-qt>=4.2.0",
+    "mypy>=1.7.0",
+    "ruff>=0.1.6",
+    "types-PyYAML>=6.0",
+    "bandit>=1.7.0",
+]
+
+[project.scripts]
+xen = "xen.main:main"
+
+[project.urls]
+Homepage = "https://xerolinux.xyz"
+Repository = "https://github.com/xerolinux/xen-installer.git"
+Issues = "https://github.com/xerolinux/xen-installer/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xen"]
+
+# =============================================================================
+# Ruff - Linting & Formatting
+# =============================================================================
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "UP042",  # str+Enum délibéré (protocole IPC sérialisable), pas StrEnum
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["xen"]
+
+# =============================================================================
+# MyPy - Static Type Checking
+# =============================================================================
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+# Pydantic plugin requires pydantic to be installed
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "xen.gui.bridge",
+]
+# PySide6 decorators (@Property, @Slot) are untyped
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = [
+    "xen.main",
+]
+# app.exec() returns Any
+warn_return_any = false
+
+# =============================================================================
+# Pytest
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/xen"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

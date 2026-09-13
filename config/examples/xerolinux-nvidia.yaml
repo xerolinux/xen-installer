@@ -1,0 +1,252 @@
+# =============================================================================
+# Xen Installer - Configuration XeroLinux nVidia
+# =============================================================================
+#
+# Same pipeline as xerolinux.yaml, for the nVidia ISO profile:
+# nvidia-suspend/hibernate/resume services enabled, and the finalization
+# step runs nvramfs (mkinitcpio + GRUB nvidia-drm.modeset + power/env
+# tuning) instead of nouveau (nouveau blacklist only). The GPU driver
+# packages themselves (nvidia-open-dkms, nvidia-utils, ...) ship on the
+# nVidia live ISO's own squashfs and land on the target via the install
+# job's squashfs extraction — no package-list difference belongs in this config.
+#
+# Single profile for both online and offline installs - see xerolinux.yaml's
+# header for how the packagechooser/systemupdate offline-skip works.
+
+version: "1.0"
+
+branding:
+  name: "XeroLinux"
+  version: "2025"
+  edition: "nVidia"
+
+  assets:
+    logo: "assets/xerolinux-logo.png"
+    logo_small: "assets/xerolinux-logo.png"
+
+  colors:
+    primary: "#5597e6"
+    secondary: "#333333"
+    accent: "#5597e6"
+    background: "#1a1a1a"
+    surface: "#161B22"
+    text: "#fffded"
+    text_muted: "#8B949E"
+
+  strings:
+    welcome_title: "Welcome to XeroLinux"
+    welcome_subtitle: "A modern, KDE-first Arch Linux experience."
+    install_button: "Install XeroLinux"
+    finished_title: "Installation Complete"
+    finished_message: "Welcome to XeroLinux."
+
+jobs:
+  - name: welcome
+    config:
+      show_release_notes: false
+      requirements:
+        ram:
+          enabled: true
+          min_gb: 4
+          warn_gb: 16
+          recommended_gb: 16
+        disk:
+          enabled: true
+          min_gb: 32
+          recommended_gb: 128
+        internet:
+          enabled: true
+          required: false
+          recommended: true
+
+  - name: packagechooser
+    # Skips cleanly offline (no repos to fetch optional packages from).
+    config:
+      groups_file: "packages-optional.yaml"
+
+  - name: partition
+    config:
+      default_filesystem: xfs
+      allow_encryption: true
+      allow_manual_partitioning: true
+
+  - name: install
+    # Extracts the live ISO's own squashfs image (InstallJob's built-in
+    # default, matching Calamares's unpackfs module) - auto-detected from
+    # the standard archiso runtime mount, so no config is needed here.
+
+  - name: luksbootkeyfile
+    # Mirrors Calamares's luksbootkeyfile module: embeds a keyfile in the
+    # initramfs and adds it as an extra LUKS keyslot, so an encrypted root
+    # only prompts for the passphrase once (at GRUB), not again when the
+    # kernel's "encrypt" hook mounts root. No-op when encryption is off.
+    # Must run before systemconfig rebuilds the initramfs.
+
+  - name: before
+    # Mirrors Calamares's shellprocess@before: re-inits the pacman keyring,
+    # installs the GRUB theme, and swaps in the real mkinitcpio preset -
+    # must run before systemconfig rewrites HOOKS and rebuilds the initramfs.
+    config:
+      timeout: 999
+      commands:
+        - "/usr/local/bin/xerolinux-before"
+
+  - name: systemconfig
+    # Regenerates target-specific /etc/fstab, /etc/machine-id, and the
+    # initramfs (with the encrypt/resume hooks the user's choices need) -
+    # install's squashfs extraction correctly excludes/regenerates these as
+    # live-session/build-specific.
+
+  - name: locale
+    # Runs after the target is mounted and populated (partition/install/
+    # systemconfig) - locale.conf, timezone, keyboard, and hwclock all
+    # write into the target filesystem via arch-chroot.
+    config:
+      default_language: "en_US"
+      default_timezone: "UTC"
+
+  - name: removeuser
+    # Mirrors Calamares's removeuser: deletes archiso's default "liveuser"
+    # account baked into the live image before the users job creates the
+    # real account - otherwise the new user doesn't get UID 1000.
+    config:
+      username: liveuser
+
+  - name: users
+    config:
+      require_root_password: true
+      default_shell: "/bin/bash"
+      default_groups:
+        - wheel
+        - video
+        - audio
+
+  - name: services
+    config:
+      units:
+        # Mirrors Calamares's separate displaymanager module: without this
+        # enabled, the installed system boots to a text console, not a
+        # graphical login (matches the plasma-login-manager package in
+        # ~/XeroBuild's packages.x86_64 - XeroLinux ships no sddm package).
+        - name: "plasmalogin"
+          action: enable
+          mandatory: true
+        - name: "cups.socket"
+          action: enable
+          mandatory: false
+        - name: "saned.socket"
+          action: enable
+          mandatory: false
+        - name: "NetworkManager"
+          action: enable
+          mandatory: true
+        - name: "systemd-time-wait-sync"
+          action: disable
+          mandatory: false
+        - name: "reflector"
+          action: disable
+          mandatory: false
+        - name: "vboxservice"
+          action: enable
+          mandatory: false
+        - name: "bluetooth"
+          action: enable
+          mandatory: true
+        - name: "pacman-init"
+          action: disable
+          mandatory: false
+        - name: "power-profiles-daemon"
+          action: enable
+          mandatory: false
+        - name: "switcheroo-control"
+          action: enable
+          mandatory: false
+        - name: "preload"
+          action: enable
+          mandatory: false
+        - name: "sshd"
+          action: enable
+          mandatory: true
+        - name: "fstrim.timer"
+          action: enable
+          mandatory: true
+        - name: "nvidia-suspend"
+          action: enable
+          mandatory: true
+        - name: "nvidia-hibernate"
+          action: enable
+          mandatory: true
+        - name: "nvidia-resume"
+          action: enable
+          mandatory: true
+        - name: "xero-gpu-check"
+          action: enable
+          mandatory: false
+
+  - name: systemupdate
+    # Skips cleanly offline (nothing to sync/upgrade without a connection).
+    # Ranks mirrors (reflector) before the first sync - a deliberate
+    # deviation from Calamares, which only runs reflector as a one-shot
+    # service after first boot (see the "reflector" unit below).
+    config:
+      timeout_syncdb: 600
+      timeout_keyring: 300
+      timeout_upgrade: 5400
+
+  - name: packages
+    config:
+      remove:
+        # falkon: Calamares removes it only when online (packages.conf) and
+        # keeps it offline (packages-offline.conf, fallback browser since
+        # packagechooser's options aren't reachable without a connection).
+        # packages.py applies that same online/offline split at runtime.
+        - falkon
+        - ckbcomp
+        - qt6-doc
+        - qt6-examples
+        - memtest86+-efi
+        - live-launcher
+        - calamaresx-app
+        - calamaresx-cfg
+        # Xen removes itself from the freshly installed system too, same
+        # principle Calamares applies to its own packages above. Safe to
+        # list a package that isn't actually installed - packages.py only
+        # ever asks pacman to remove what's actually present.
+        - xen-app
+        - xen-cfg-xerolinux-nvidia
+      # Only installed when filesystem: btrfs was chosen (packages.py
+      # merges this in - see src/xen/jobs/packages.py's _get_package_list).
+      btrfs_packages:
+        - snapper
+        - snap-pac
+        - grub-btrfs
+        - btrfs-assistant
+
+  - name: snapshots
+    # Configures Snapper's "root" config and grub-btrfs's boot-menu
+    # integration - values/units copied from CachyOS's real, shipped
+    # config (cachyos-snapper-support, grub-btrfs-support). No-ops
+    # entirely unless filesystem: btrfs was chosen. Must run after
+    # packages (needs snapper/grub-btrfs already installed) and before
+    # bootloader (so its grub-mkconfig call picks up the integration).
+
+  - name: bootloader
+    config:
+      type: grub
+
+  - name: finalize
+    config:
+      timeout: 300
+      commands:
+        - "/usr/local/bin/vcheck"
+        - "/usr/local/bin/all-cores"
+        - "/usr/local/bin/xerolinux-final"
+        - "/usr/local/bin/skel"
+        - "/usr/local/bin/services"
+        - "/usr/local/bin/dmcheck"
+        - "/usr/local/bin/ucode"
+        - "/usr/local/bin/igpudetect"
+        - "/usr/local/bin/fsprogschk"
+        - "/usr/local/bin/nvramfs"
+
+  - name: finished
