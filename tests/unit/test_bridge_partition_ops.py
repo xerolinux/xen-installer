@@ -290,6 +290,21 @@ class TestApplySelectionsToContext:
         bridge.applySelectionsToContext()
         assert bridge._engine._selections["disk"] == "/dev/nvme0n1"
 
+    def test_stale_auto_encryption_flag_cleared_in_manual_mode(
+        self, bridge: EngineBridge
+    ) -> None:
+        """A user who toggled AUTO-mode encryption on, then switched to
+        manual mode, must not leak that flag into manual mode's selections -
+        luksbootkeyfile.py would otherwise try (and fail) to run against
+        whatever root_partition happens to be, and finished.py's cleanup
+        would add "cryptroot" to its close list even when that's not this
+        install's actual manual-mode mapper situation."""
+        bridge.setEncryption(True)
+
+        bridge.applySelectionsToContext()
+
+        assert bridge._engine._selections.get("encryption") is False
+
 
 class TestManualEncryptionRedaction:
     def test_operation_passphrase_registered_with_redactor(self, bridge: EngineBridge) -> None:

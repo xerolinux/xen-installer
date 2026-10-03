@@ -207,6 +207,60 @@ class FinishedJob(BaseJob):
             logger.error("umount command not found")
             return False
 
+    def _safe_unmount_recursive(self, target_root: Path) -> bool:
+        """Recursively unmount every mountpoint still active under
+        target_root in one shot (umount -R), instead of only the two
+        hardcoded paths (/boot/efi and target_root itself) the old
+        two-step unmount knew about - manual mode can mount an arbitrary
+        extra partition (e.g. /home) under target_root that must come
+        down before any LUKS mapper gets closed, or the close can race a
+        still-busy mount.
+        """
+        if not os.path.ismount(target_root):
+            logger.debug(f"{target_root} not mounted, skipping recursive unmount")
+            return True
+
+        try:
+            subprocess.run(
+                ["umount", "-R", str(target_root)],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            logger.info(f"Recursively unmounted {target_root}")
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.warning(
+                f"Recursive unmount of {target_root} failed: {e.stderr}; retrying lazy"
+            )
+        except subprocess.TimeoutExpired:
+            logger.error(f"Recursive unmount timeout for {target_root}")
+            return False
+        except FileNotFoundError:
+            logger.error("umount command not found")
+            return False
+
+        try:
+            subprocess.run(
+                ["umount", "-R", "-l", str(target_root)],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            logger.info(f"Recursively lazy-unmounted {target_root}")
+            return True
+        except subprocess.CalledProcessError as lazy_error:
+            logger.error(f"Failed to recursively unmount {target_root}: {lazy_error.stderr}")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.error(f"Recursive lazy unmount timeout for {target_root}")
+            return False
+        except FileNotFoundError:
+            logger.error("umount command not found")
+            return False
+
     def _cleanup_mounts(self, context: JobContext) -> JobResult:
         """
         Clean up all mounted filesystems.
@@ -225,14 +279,19 @@ class FinishedJob(BaseJob):
         target_root = Path(context.target_root)
         errors = []
 
-        # Unmount EFI partition first (child)
+        # Unmount EFI partition first (belt-and-suspenders - the recursive
+        # unmount below covers it too, but doing it explicitly surfaces an
+        # EFI-specific unmount failure distinctly).
         efi_mount = target_root / "boot" / "efi"
         if os.path.ismount(efi_mount) and not self._safe_unmount(efi_mount):
             errors.append(f"Failed to unmount EFI partition: {efi_mount}")
 
-        # Unmount root partition
-        if os.path.ismount(target_root) and not self._safe_unmount(target_root):
-            errors.append(f"Failed to unmount root partition: {target_root}")
+        # Recursively unmount target_root and everything still mounted
+        # under it (root itself, plus any manual-mode extra mountpoint
+        # like /home) - must happen before any LUKS mapper is closed below,
+        # or a close can race a still-busy mount.
+        if not self._safe_unmount_recursive(target_root):
+            errors.append(f"Failed to unmount target root and its submounts: {target_root}")
 
         # Close every LUKS mapper this install opened (root's fixed name,
         # plus whatever manual mode's partition_assignments resolved to) so
@@ -247,16 +306,21 @@ class FinishedJob(BaseJob):
 
         for mapper_name in mapper_names:
             try:
-                subprocess.run(
+                close_result = subprocess.run(
                     ["cryptsetup", "luksClose", mapper_name],
                     check=False,
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
-                logger.info(f"Closed LUKS mapper {mapper_name}")
+                if close_result.returncode == 0:
+                    logger.info(f"Closed LUKS mapper {mapper_name}")
+                else:
+                    logger.warning(
+                        f"Failed to close LUKS mapper {mapper_name}: {close_result.stderr}"
+                    )
             except Exception as e:
-                logger.debug(f"Failed to close LUKS mapper {mapper_name}: {e}")
+                logger.warning(f"Failed to close LUKS mapper {mapper_name}: {e}")
 
         # Deactivate swap if it was used
         swap_partition = context.selections.get("swap_partition")

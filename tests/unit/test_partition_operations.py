@@ -574,6 +574,91 @@ class TestValidateOperations:
         assert valid is False
         assert "passphrase" in error.lower()
 
+    def test_rejects_non_root_encryption_without_encrypted_root(self) -> None:
+        """A non-root encrypted partition's entire security model depends
+        on its auto-unlock keyfile being inaccessible to an attacker, which
+        requires it to live on an encrypted root - otherwise anyone who
+        boots a live USB can read /etc/cryptsetup-keys.d/<name>.key
+        straight off the plaintext root filesystem and decrypt it."""
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {
+                        "path": "/dev/sda3",
+                        "fstype": "ext4",
+                        "mountpoint": "/home",
+                        "encrypt": True,
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "root" in error.lower()
+
+    def test_accepts_non_root_encryption_when_root_also_encrypted(self) -> None:
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda2",
+                    "params": {
+                        "path": "/dev/sda2",
+                        "fstype": "ext4",
+                        "mountpoint": "/",
+                        "encrypt": True,
+                        "encryption_passphrase": "S3cretRootPass!",
+                    },
+                }
+            ),
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {
+                        "path": "/dev/sda3",
+                        "fstype": "ext4",
+                        "mountpoint": "/home",
+                        "encrypt": True,
+                    },
+                }
+            ),
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is True
+        assert error == ""
+
+    def test_encrypted_swap_without_encrypted_root_is_allowed(self) -> None:
+        """Swap is exempt from the root-encryption requirement: it uses a
+        fresh /dev/urandom key every boot (plain dm-crypt, no LUKS header,
+        no keyfile), so there is nothing for a live-USB attacker reading
+        the plaintext root to recover."""
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {
+                        "path": "/dev/sda3",
+                        "fstype": "swap",
+                        "mountpoint": "swap",
+                        "encrypt": True,
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is True
+        assert error == ""
+
     def test_rejects_past_gpt_tail(self) -> None:
         disk = _existing_disk()
         start = disk["segments"][1]["startSector"] + disk["segments"][1]["sizeSectors"]

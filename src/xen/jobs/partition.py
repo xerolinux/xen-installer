@@ -527,6 +527,28 @@ def validate_operations(
         if target is not None and _is_efi_segment(target, flags):
             return False, "The EFI System Partition cannot be encrypted"
 
+    # A non-root encrypted partition's entire security model depends on its
+    # auto-unlock keyfile (systemconfig.py's _write_manual_keyfile) being
+    # inaccessible to an attacker - which requires it to live on an
+    # ENCRYPTED root. If root is plaintext, anyone who boots a live USB can
+    # just read /etc/cryptsetup-keys.d/<name>.key straight off the
+    # unencrypted root filesystem and decrypt the "encrypted" partition
+    # trivially. Swap is exempt: it uses a fresh /dev/urandom key every
+    # boot (plain dm-crypt, no keyfile, no LUKS header to protect). Checked
+    # last among the encryption rules so a plan that already violates a
+    # more specific rule (ESP, passphrase) reports that rule's message.
+    if not encrypted_roots:
+        for op in operations:
+            if op.type != "format" or not op.params.get("encrypt"):
+                continue
+            mountpoint = op.params.get("mountpoint")
+            if mountpoint not in ("/", "swap"):
+                return False, (
+                    "Encrypting a partition other than root or swap requires "
+                    "root to also be encrypted - otherwise its unlock key "
+                    "would sit readable on an unencrypted filesystem"
+                )
+
     roots = [s for s in parts if s["mountpoint"] == "/"]
     if len(roots) != 1:
         return False, "Exactly one partition must be mounted at /"

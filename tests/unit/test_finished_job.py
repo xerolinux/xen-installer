@@ -1,6 +1,7 @@
 """Unit tests for FinishedJob."""
 
 import json
+import logging
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -466,6 +467,76 @@ class TestCleanupMounts:
                 if "luksClose" in call[0][0]
             }
             assert closed_names == {"cryptroot", "crypthome"}
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("xen.jobs.finished.os.path.ismount")
+    @patch("subprocess.run")
+    def test_cleanup_recursively_unmounts_before_closing_mappers(
+        self, mock_run: Mock, mock_ismount: Mock, mock_unmount: Mock
+    ) -> None:
+        """A manual non-root mount (e.g. /home) still active under
+        target_root must come down - via a recursive unmount covering
+        every submount, not just the hardcoded /boot/efi + root two-step -
+        BEFORE any LUKS mapper gets closed, or the close can race a
+        still-busy mount."""
+        mock_unmount.return_value = True
+        mock_ismount.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = FinishedJob()
+            context = JobContext(
+                target_root=tmpdir,
+                selections={
+                    "partition_assignments": [
+                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
+                    ]
+                },
+            )
+
+            result = job._cleanup_mounts(context)
+
+        assert result.success is True
+        calls = [call[0][0] for call in mock_run.call_args_list]
+        recursive_unmount_index = next(
+            i for i, cmd in enumerate(calls) if cmd[:2] == ["umount", "-R"]
+        )
+        luks_close_index = next(i for i, cmd in enumerate(calls) if "luksClose" in cmd)
+        assert recursive_unmount_index < luks_close_index
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount_recursive", return_value=True)
+    @patch("subprocess.run")
+    def test_cleanup_logs_failure_not_false_success_when_luks_close_fails(
+        self,
+        mock_run: Mock,
+        mock_unmount_recursive: Mock,
+        mock_unmount: Mock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A failed luksClose (e.g. mapper still busy) must be logged as a
+        failure, not unconditionally claimed as "Closed LUKS mapper ..."
+        regardless of whether the command actually succeeded."""
+        mock_run.return_value = MagicMock(returncode=1, stderr="device is busy")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = FinishedJob()
+            context = JobContext(target_root=tmpdir, selections={"encryption": True})
+
+            with caplog.at_level(logging.WARNING, logger="xen.jobs.finished"):
+                result = job._cleanup_mounts(context)
+
+        # Mapper-close failures stay non-fatal/best-effort (matches the
+        # existing swap-deactivation-from-layout precedent) - but must be
+        # visible, not silently claimed as success.
+        assert result.success is True
+        assert any(
+            "Failed to close LUKS mapper cryptroot" in record.message
+            for record in caplog.records
+        )
+        assert not any(
+            "Closed LUKS mapper cryptroot" in record.message for record in caplog.records
+        )
 
     @patch("xen.jobs.finished.FinishedJob._safe_unmount")
     @patch("xen.jobs.finished.os.path.ismount")

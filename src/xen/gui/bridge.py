@@ -3179,6 +3179,15 @@ class EngineBridge(QObject):
         # Manual partitioning: forward the per-partition assignment plan, keeping
         # only entries the user actually touched (a mount point and/or a format).
         if normalized.get("partition_mode") == "manual":
+            # A stale AUTO-mode "encryption" flag (toggled on before switching
+            # to manual mode) must not leak through: luksbootkeyfile.py would
+            # try to run against whatever root_partition happens to be (and
+            # fail, aborting the install at the very end), and finished.py's
+            # cleanup would add "cryptroot" to its close list even when
+            # that's not this install's actual manual-mode mapper situation.
+            # Manual mode threads its own encryption intent entirely through
+            # partition_assignments/manual_luks_passphrases instead.
+            normalized["encryption"] = False
             normalized["partition_assignments"] = [
                 {
                     "name": name,

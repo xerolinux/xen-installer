@@ -146,20 +146,94 @@ class SystemConfigJob(BaseJob):
             logger.warning(f"blkid failed for {device}: {e}")
             return None
 
+    def _blkid_partuuid(self, device: str) -> str | None:
+        """Get the GPT partition's own PARTUUID, or None if unavailable.
+
+        Unlike a filesystem/LUKS UUID, PARTUUID is stable across reboots
+        for a device that gets reformatted every boot - exactly the case
+        for encrypted swap, which is fresh-mkswap'd with a random key on
+        every boot (ArchWiki: dm-crypt/Swap encryption)."""
+        try:
+            result = subprocess.run(
+                ["blkid", "-s", "PARTUUID", "-o", "value", device],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            partuuid = result.stdout.strip()
+            return partuuid or None
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logger.warning(f"blkid failed for {device}: {e}")
+            return None
+
+    @staticmethod
+    def _crypttab_mapper_names(content: str) -> set[str]:
+        """Parse each non-comment line's first (mapper name) field, so an
+        existing-entry check can't false-positive on a substring match
+        (e.g. "cryptdata" matching inside an existing "cryptdata-srv" line)."""
+        names: set[str] = set()
+        for line in content.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            parts = stripped.split()
+            if parts:
+                names.add(parts[0])
+        return names
+
+    def _ensure_swap_fstab_entry(self, target_root: str, mapper_name: str) -> JobResult:
+        """Add the /etc/fstab line that actually activates an encrypted
+        swap mapper at boot. genfstab (run before this job, against the
+        live Apply's filesystems) has no idea about a mapper that doesn't
+        exist until crypttab's "swap" option mkswaps it fresh at boot -
+        crypttab alone only creates the mapper, something else (fstab)
+        has to swapon it."""
+        fstab_path = Path(target_root) / "etc" / "fstab"
+        try:
+            existing = fstab_path.read_text(encoding="utf-8") if fstab_path.exists() else ""
+        except OSError as e:
+            return JobResult.fail(f"Failed to read {fstab_path}: {e}", error_code=118)
+
+        mapper_device = f"/dev/mapper/{mapper_name}"
+        for line in existing.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.split()[0] == mapper_device:
+                return JobResult.ok("fstab already has swap mapper entry")
+
+        line = f"{mapper_device} none swap defaults 0 0\n"
+        try:
+            fstab_path.parent.mkdir(parents=True, exist_ok=True)
+            fstab_path.write_text(existing + line, encoding="utf-8")
+        except OSError as e:
+            return JobResult.fail(f"Failed to write {fstab_path}: {e}", error_code=118)
+
+        logger.info(f"Added swap fstab entry for {mapper_device}")
+        return JobResult.ok("fstab swap entry added")
+
     def _generate_crypttab(self, target_root: str, selections: dict[str, Any]) -> JobResult:
         """Write /etc/crypttab: the encrypted root (unlocked at boot via
         GRUB/mkinitcpio - bootloader.py's cryptdevice= kernel param), any
         other manually-encrypted partition (unlocked automatically via a
         per-partition keyfile added as a second LUKS keyslot, written
         here), and any encrypted swap (plain dm-crypt, a fresh random key
-        every boot - never LUKS, never a remembered secret)."""
-        raw_partition = selections.get("root_partition")
-        partition_assignments = selections.get("partition_assignments", [])
+        every boot - never LUKS, never a remembered secret).
 
-        if not raw_partition and not partition_assignments:
+        Root encryption is resolved via _resolve_root_encryption (AUTO
+        mode's selections["encryption"]/["root_partition"], or manual
+        mode's partition_assignments) rather than trusting
+        selections["root_partition"] directly: in manual mode that key is
+        always set to whatever the real root partition is, encrypted or
+        not, and - when it IS encrypted - set to the mapper path, not the
+        raw LUKS partition _resolve_root_encryption actually needs."""
+        is_root_encrypted, raw_partition = self._resolve_root_encryption(selections)
+        if is_root_encrypted and not raw_partition:
             return JobResult.fail(
                 "encryption selected but no root_partition recorded", error_code=107
             )
+
+        partition_assignments = selections.get("partition_assignments", [])
 
         crypttab_path = Path(target_root) / "etc" / "crypttab"
         try:
@@ -167,9 +241,11 @@ class SystemConfigJob(BaseJob):
         except OSError as e:
             return JobResult.fail(f"Failed to read {crypttab_path}: {e}", error_code=109)
 
+        existing_mappers = self._crypttab_mapper_names(existing)
         lines: list[str] = []
+        pending_swap_fstab_mappers: list[str] = []
 
-        if raw_partition and "cryptroot" not in existing:
+        if is_root_encrypted and "cryptroot" not in existing_mappers:
             luks_uuid = self._blkid_uuid(raw_partition)
             if not luks_uuid:
                 return JobResult.fail(
@@ -184,18 +260,26 @@ class SystemConfigJob(BaseJob):
             if not path.startswith("/dev/mapper/"):
                 continue
             mapper_name = path.rsplit("/", 1)[-1]
-            if mapper_name == "cryptroot" or mapper_name in existing:
+            if mapper_name == "cryptroot" or mapper_name in existing_mappers:
                 continue
 
             if mountpoint == "swap":
                 raw_swap_path = str(assignment.get("raw_path", ""))
-                swap_uuid = self._blkid_uuid(raw_swap_path) if raw_swap_path else None
-                if not swap_uuid:
-                    continue
+                partuuid = self._blkid_partuuid(raw_swap_path) if raw_swap_path else None
+                if not partuuid:
+                    return JobResult.fail(
+                        f"Could not determine PARTUUID for swap partition {raw_swap_path}",
+                        error_code=117,
+                    )
                 lines.append(
-                    f"{mapper_name} UUID={swap_uuid} /dev/urandom "
+                    f"{mapper_name} PARTUUID={partuuid} /dev/urandom "
                     "swap,cipher=aes-xts-plain64,size=256\n"
                 )
+                # Deferred until after crypttab is actually written below -
+                # an fstab entry for a mapper crypttab never ends up
+                # creating (e.g. a later partition in this same plan fails)
+                # would try to swapon a mapper that doesn't exist at boot.
+                pending_swap_fstab_mappers.append(mapper_name)
                 continue
 
             raw_path = str(assignment.get("raw_path", ""))
@@ -223,6 +307,11 @@ class SystemConfigJob(BaseJob):
         except OSError as e:
             return JobResult.fail(f"Failed to write {crypttab_path}: {e}", error_code=109)
 
+        for mapper_name in pending_swap_fstab_mappers:
+            fstab_result = self._ensure_swap_fstab_entry(target_root, mapper_name)
+            if not fstab_result.success:
+                return fstab_result
+
         logger.info(f"Wrote {crypttab_path}")
         return JobResult.ok("crypttab generated")
 
@@ -240,8 +329,14 @@ class SystemConfigJob(BaseJob):
         full_path = Path(target_root) / keyfile_path.lstrip("/")
         try:
             full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_bytes(os.urandom(4096))
-            os.chmod(full_path, 0o000)
+            # Create with mode 000 from the very first write (no separate
+            # chmod) - a write-then-chmod sequence leaves the file briefly
+            # world-readable at the default umask in between.
+            fd = os.open(str(full_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o000)
+            try:
+                os.write(fd, os.urandom(4096))
+            finally:
+                os.close(fd)
         except OSError as e:
             return JobResult.fail(f"Failed to write keyfile {keyfile_path}: {e}", error_code=115)
 
@@ -330,7 +425,7 @@ class SystemConfigJob(BaseJob):
             return JobResult.fail(f"No HOOKS=(...) line found in {conf_path}", error_code=99)
 
         hooks = match.group("hooks").split()
-        encryption, _raw_root = self._resolve_root_encryption(selections)
+        encryption, _ = self._resolve_root_encryption(selections)
         hibernate = selections.get("swap_strategy") == "hibernate"
         changed = False
 

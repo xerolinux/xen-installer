@@ -44,11 +44,15 @@ class LuksBootKeyfileJob(BaseJob):
         # selections for the whole run; manual mode's root passphrase is
         # consumed live during Apply (fed straight into luksFormat) and is
         # never persisted for later reuse - only non-root partitions'
-        # generated passphrases survive, via manual_luks_passphrases. So a
-        # manual-mode encrypted root correctly no-ops here rather than
-        # failing on a missing passphrase - at the cost of a second
-        # boot-time prompt (GRUB decrypts once, mkinitcpio's "encrypt" hook
-        # prompts again to mount root). Known, acceptable limitation.
+        # generated passphrases survive, via manual_luks_passphrases. This
+        # job no-ops for manual mode (relying on bridge.py's
+        # applySelectionsToContext forcing selections["encryption"] = False
+        # whenever partition_mode is "manual", so a stale AUTO-mode toggle
+        # can't leak through and make this job try and fail instead) rather
+        # than attempt to run and hit "LUKS passphrase missing" below - at
+        # the cost of a second boot-time prompt for a manual-mode encrypted
+        # root (GRUB decrypts once, mkinitcpio's "encrypt" hook prompts
+        # again to mount root). Known, acceptable limitation.
         if not context.selections.get("encryption"):
             context.report_progress(100, "Encryption not enabled")
             return JobResult.ok("Encryption not enabled, skipping LUKS keyfile")
@@ -87,8 +91,14 @@ class LuksBootKeyfileJob(BaseJob):
         keyfile_path = Path(target_root) / self.KEYFILE_PATH.lstrip("/")
         try:
             keyfile_path.parent.mkdir(parents=True, exist_ok=True)
-            keyfile_path.write_bytes(os.urandom(self.KEYFILE_SIZE))
-            os.chmod(keyfile_path, 0o000)
+            # Create with mode 000 from the very first write (no separate
+            # chmod) - a write-then-chmod sequence leaves the file briefly
+            # world-readable at the default umask in between.
+            fd = os.open(str(keyfile_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o000)
+            try:
+                os.write(fd, os.urandom(self.KEYFILE_SIZE))
+            finally:
+                os.close(fd)
         except OSError as e:
             return JobResult.fail(f"Failed to write LUKS keyfile: {e}", error_code=112)
         return JobResult.ok("Keyfile written")
