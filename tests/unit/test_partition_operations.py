@@ -472,6 +472,84 @@ class TestValidateOperations:
         assert valid is False
         assert "mounted or backs the live system" in error
 
+    def test_rejects_two_encrypted_roots(self) -> None:
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda2",
+                    "params": {
+                        "path": "/dev/sda2",
+                        "fstype": "ext4",
+                        "mountpoint": "/",
+                        "encrypt": True,
+                        "encryption_passphrase": "S3cretPass!",
+                    },
+                }
+            ),
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {
+                        "path": "/dev/sda3",
+                        "fstype": "ext4",
+                        "mountpoint": "/",
+                        "encrypt": True,
+                        "encryption_passphrase": "An0therPass!",
+                    },
+                }
+            ),
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "one" in error.lower()
+
+    def test_rejects_encrypted_esp(self) -> None:
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda1",
+                    "params": {
+                        "path": "/dev/sda1",
+                        "fstype": "vfat",
+                        "mountpoint": "/boot/efi",
+                        "encrypt": True,
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "esp" in error.lower() or "efi" in error.lower()
+
+    def test_rejects_passphrase_on_non_root_encrypted_partition(self) -> None:
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {
+                        "path": "/dev/sda3",
+                        "fstype": "ext4",
+                        "mountpoint": "/home",
+                        "encrypt": True,
+                        "encryption_passphrase": "ShouldNotBeHere!",
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "passphrase" in error.lower()
+
     def test_rejects_past_gpt_tail(self) -> None:
         disk = _existing_disk()
         start = disk["segments"][1]["startSector"] + disk["segments"][1]["sizeSectors"]

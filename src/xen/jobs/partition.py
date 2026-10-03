@@ -491,6 +491,27 @@ def validate_operations(
             "UEFI with systemd-boot, not GRUB. Remove it to continue."
         )
 
+    encrypted_roots = [
+        op
+        for op in operations
+        if op.type == "format" and op.params.get("encrypt") and op.params.get("mountpoint") == "/"
+    ]
+    if len(encrypted_roots) > 1:
+        return False, "At most one partition may be encrypted and mounted at /"
+
+    for op in operations:
+        if op.type != "format" or not op.params.get("encrypt"):
+            continue
+        fstype = str(op.params.get("fstype", "")).lower()
+        mountpoint = op.params.get("mountpoint")
+        if fstype in ("vfat", "fat", "fat32") and mountpoint in ("/boot/efi", "/boot"):
+            return False, "The EFI System Partition cannot be encrypted"
+        if mountpoint != "/" and op.params.get("encryption_passphrase"):
+            return False, (
+                "Only the partition mounted at / takes a passphrase - every "
+                "other encrypted partition unlocks automatically"
+            )
+
     simulated = simulate_operations(disk_geom.get("segments", []), operations)
     parts = [s for s in simulated if s["kind"] != "free" and not s["pendingDelete"]]
 
