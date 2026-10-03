@@ -2614,3 +2614,66 @@ class TestTargetDiskRelease:
             result = job._release_target_disk("/dev/sda", "/mnt/target")
 
         assert result is None
+
+    def test_manual_mode_real_run_does_not_release_the_disk(self) -> None:
+        """Reproduces a real install failure: live Apply already LUKS-opened
+        and mounted everything manual mode needs - run() unconditionally
+        releasing the disk here closes that mapper moments before
+        _mount_manual tries to use it ("Can't lookup blockdev"). The
+        running-system safety check and the target_root unmount must still
+        run for manual mode - only the holder-wipe is skipped."""
+        job = PartitionJob()
+
+        with (
+            patch.object(job, "validate", return_value=JobResult.ok()),
+            patch.object(job, "_partition_manual", return_value=JobResult.ok()),
+            patch(
+                "xen.jobs.partition.disk_release.holds_running_system", return_value=False
+            ) as mock_holds,
+            patch("xen.jobs.partition.disk_release.release_disk") as mock_release,
+            patch("xen.jobs.partition.disk_release.disk_holders", return_value=[]),
+            patch("xen.jobs.partition.subprocess.run") as mock_run,
+        ):
+            context = JobContext(
+                selections={
+                    "disk": "/dev/sda",
+                    "partition_mode": "manual",
+                    "partition_assignments": [
+                        {"name": "sda2", "path": "/dev/mapper/cryptroot", "mountpoint": "/"}
+                    ],
+                    "dry_run": False,
+                    "confirmed": True,
+                }
+            )
+            result = job.run(context)
+
+        assert result.success is True
+        mock_holds.assert_called_once_with("/dev/sda")
+        assert mock_run.call_args_list[0].args[0][:2] == ["umount", "-R"]
+        mock_release.assert_not_called()
+
+    def test_auto_mode_real_run_still_releases_the_disk(self) -> None:
+        """AUTO mode wipes the whole disk and needs stale holders gone
+        first - the holder-wipe must still run for it."""
+        job = PartitionJob()
+
+        with (
+            patch.object(job, "validate", return_value=JobResult.ok()),
+            patch.object(job, "_partition_auto", return_value=JobResult.ok()),
+            patch("xen.jobs.partition.disk_release.holds_running_system", return_value=False),
+            patch("xen.jobs.partition.disk_release.release_disk", return_value=[]) as mock_release,
+            patch("xen.jobs.partition.disk_release.disk_holders", return_value=[]),
+            patch("xen.jobs.partition.subprocess.run"),
+        ):
+            context = JobContext(
+                selections={
+                    "disk": "/dev/sda",
+                    "partition_mode": "auto",
+                    "dry_run": False,
+                    "confirmed": True,
+                }
+            )
+            result = job.run(context)
+
+        assert result.success is True
+        mock_release.assert_called_once_with("/dev/sda")

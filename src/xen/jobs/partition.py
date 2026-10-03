@@ -1345,7 +1345,9 @@ class PartitionJob(BaseJob):
                 logger.warning("⚠️  All data will be PERMANENTLY LOST!")
 
             if not dry_run:
-                refusal = self._release_target_disk(disk, context.target_root)
+                refusal = self._release_target_disk(
+                    disk, context.target_root, wipe_holders=mode == PartitionMode.AUTO.value
+                )
                 if refusal is not None:
                     return refusal
 
@@ -1400,7 +1402,9 @@ class PartitionJob(BaseJob):
             passphrase = ""
             del passphrase
 
-    def _release_target_disk(self, disk: str, target_root: str) -> JobResult | None:
+    def _release_target_disk(
+        self, disk: str, target_root: str, wipe_holders: bool = True
+    ) -> JobResult | None:
         """
         Free the target disk before any destructive operation.
 
@@ -1408,6 +1412,13 @@ class PartitionJob(BaseJob):
         enabled or mappers open, which makes ``wipefs``/``parted`` fail with EBUSY.
         A residual ``target_root`` mount also makes ``partprobe`` keep stale nodes
         (« superbloc erroné » on the next mount), so it is torn down too.
+
+        ``wipe_holders=False`` skips closing LUKS/LVM/md holders on the disk
+        (still runs the running-system check and the target_root unmount) -
+        manual mode's own live Apply already opened exactly the holders it
+        wants (e.g. an encrypted root's LUKS mapper) and doesn't wipe
+        anything here, so closing them would pull the mapper out from under
+        the mount that's about to happen.
 
         Returns a failing JobResult when the disk must not or cannot be touched,
         None when it is free.
@@ -1423,6 +1434,9 @@ class PartitionJob(BaseJob):
             check=False,
             capture_output=True,
         )
+
+        if not wipe_holders:
+            return None
 
         for action in disk_release.release_disk(disk):
             logger.info(f"Released target disk: {action}")
