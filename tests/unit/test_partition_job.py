@@ -2,6 +2,7 @@
 
 import subprocess
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -2067,6 +2068,149 @@ class TestManualEncryption:
         assert any(
             "mkfs.ext4" in cmd and "/dev/mapper/cryptroot" in cmd for cmd in format_cmds
         )
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_wipe_signatures_runs_before_luks_format_not_after(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        """wipefs on the raw partition must run BEFORE luksFormat/luksOpen.
+
+        Running it after would erase the crypto_LUKS header that was just
+        written (or hit EBUSY against the now-open mapper) - either way the
+        install looks successful but the partition is unbootable/unreadable
+        on first reboot. Both subprocess boundaries are recorded into one
+        shared, ordered list so the real call order is observable - mocking
+        them separately (as the other tests in this class do) cannot catch
+        a reordering bug like this.
+        """
+        job = PartitionJob()
+        calls: list[tuple[str, list[str]]] = []
+
+        def record_run(cmd: list[str], **_kwargs: Any) -> JobResult:
+            calls.append(("run", list(cmd)))
+            return JobResult.ok()
+
+        def record_secret(cmd: list[str], **_kwargs: Any) -> JobResult:
+            calls.append(("secret", list(cmd)))
+            return JobResult.ok()
+
+        mock_run_cmd.side_effect = record_run
+        mock_secret.side_effect = record_secret
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretPass!"},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+        assert result.success is True
+
+        def is_wipe(cmd: list[str]) -> bool:
+            return cmd[:2] == ["wipefs", "-af"] and "/dev/sda2" in cmd
+
+        wipe_idx = next(i for i, (_, cmd) in enumerate(calls) if is_wipe(cmd))
+        luks_format_idx = next(i for i, (_, cmd) in enumerate(calls) if "luksFormat" in cmd)
+        luks_open_idx = next(i for i, (_, cmd) in enumerate(calls) if "luksOpen" in cmd)
+
+        assert wipe_idx < luks_format_idx < luks_open_idx
+        # No wipefs on the raw, now-encrypted path after the header exists.
+        assert not any(is_wipe(cmd) for _, cmd in calls[luks_open_idx + 1 :])
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_unsupported_fstype_with_encrypt_fails_before_any_luks_call(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        """An unsupported fstype must fail before any destructive LUKS side
+        effect - formatting-then-discovering-unsupported-fstype would leave
+        a freshly LUKS-formatted, opened mapper behind for no reason."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "reiserfs", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretPass!"},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+
+        assert result.success is False
+        assert mock_secret.call_count == 0
+        wipe_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list if c.args]
+        assert not any(cmd[:2] == ["wipefs", "-af"] for cmd in wipe_cmds)
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_opened_manual_mapper_is_closed_on_cleanup_after_failure(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        """A LUKS mapper opened during a manual apply that later fails must
+        be closed by cleanup(), else a retry fails at luksOpen/luksFormat
+        with 'device already exists'/'device busy' and needs a manual
+        `cryptsetup luksClose` outside the app to recover."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretPass!"},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+        assert result.success is True
+        assert "cryptroot" in job._manual_opened_mappers
+
+        with patch("xen.jobs.partition.subprocess.run") as mock_subprocess:
+            mock_subprocess.return_value = MagicMock(returncode=0)
+            job.cleanup(JobContext(target_root="/mnt"))
+
+        close_cmds = [list(c.args[0]) for c in mock_subprocess.call_args_list]
+        assert any("luksClose" in cmd and "cryptroot" in cmd for cmd in close_cmds)
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_colliding_mapper_name_fails_cleanly_instead_of_opaque_cryptsetup_error(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        """Two encrypted partitions that sanitize to the same mapper name
+        (e.g. both blank-mountpoint 'cryptdata') must fail with a clear,
+        early JobResult rather than letting the second luksOpen blow up with
+        an opaque 'device already exists' after the first container was
+        already formatted."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        first = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda3",
+            "params": {"path": "/dev/sda3", "fstype": "ext4",
+                       "mountpoint": "", "encrypt": True,
+                       "encryption_passphrase": "S3cretPass!"},
+        })
+        second = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda4",
+            "params": {"path": "/dev/sda4", "fstype": "ext4",
+                       "mountpoint": "", "encrypt": True,
+                       "encryption_passphrase": "AnotherPass!"},
+        })
+
+        first_result = job._op_format(
+            first, dry_run=False, bootloader="systemd-boot", has_separate_boot=False
+        )
+        assert first_result.success is True
+
+        second_result = job._op_format(
+            second, dry_run=False, bootloader="systemd-boot", has_separate_boot=False
+        )
+        assert second_result.success is False
+        assert "cryptdata" in second_result.message
+
+        # The collision must be caught before the second luksFormat runs.
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        assert sum(1 for cmd in secret_cmds if "luksFormat" in cmd) == 1
 
 
 class TestRunEncryptionValidation:

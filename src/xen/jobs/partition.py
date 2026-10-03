@@ -988,6 +988,7 @@ class PartitionJob(BaseJob):
         self._manual_generated_passphrases: dict[str, str] = {}
         self._manual_bootloader: str = "systemd-boot"
         self._manual_has_separate_boot: bool = False
+        self._manual_opened_mappers: list[str] = []
 
     def validate(self, context: JobContext) -> JobResult:
         """
@@ -1944,6 +1945,21 @@ class PartitionJob(BaseJob):
         if encrypt and fstype.lower() == "swap":
             return JobResult.ok(f"Encrypted swap {path}: no persistent format needed")
 
+        # Validate the filesystem BEFORE any destructive step (wipe or LUKS
+        # setup) - an unsupported fstype must fail with zero side effects,
+        # not leave a freshly LUKS-formatted, opened mapper behind.
+        if self._mkfs_command(fstype, path, label=label) is None:
+            return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
+
+        # Wipe stale signatures on the RAW partition before it is wrapped in
+        # LUKS. Doing this after luksFormat/luksOpen would erase the
+        # crypto_LUKS header just written (or hit EBUSY against the now-open
+        # mapper) - either way the partition is unbootable/unreadable on
+        # first boot despite an apparently successful install.
+        wipe = self._wipe_signatures(path, dry_run)
+        if not wipe.success:
+            return wipe
+
         target = path
         if encrypt:
             mapper_name = _manual_mapper_name(mountpoint)
@@ -1955,11 +1971,6 @@ class PartitionJob(BaseJob):
             target = f"/dev/mapper/{mapper_name}"
 
         mkfs = self._mkfs_command(fstype, target, label=label)
-        if mkfs is None:
-            return JobResult.fail(f"Unsupported filesystem for {target}: {fstype}", error_code=51)
-        wipe = self._wipe_signatures(path, dry_run)
-        if not wipe.success:
-            return wipe
         result = self._run_partitioning_command(
             mkfs, description=f"Formatting {target} ({fstype})", dry_run=dry_run
         )
@@ -1992,6 +2003,13 @@ class PartitionJob(BaseJob):
         later per-partition keyfile step (real install time - see
         systemconfig.py).
         """
+        if mapper_name in self._manual_opened_mappers:
+            return JobResult.fail(
+                f"LUKS mapper name collision: {mapper_name!r} is already in use by "
+                "another encrypted partition in this plan",
+                error_code=63,
+            )
+
         is_root = mountpoint == "/"
         if not is_root:
             passphrase = secrets.token_urlsafe(32)
@@ -2021,6 +2039,7 @@ class PartitionJob(BaseJob):
         if not opened.success:
             return opened
 
+        self._manual_opened_mappers.append(mapper_name)
         return JobResult.ok(f"LUKS container {mapper_name} ready")
 
     def _create_manual_btrfs_subvolumes(
@@ -2797,6 +2816,22 @@ class PartitionJob(BaseJob):
         if self._succeeded:
             # Mounted target handed off to the downstream install job; do not tear it down.
             return
+
+        # Close every manually-opened LUKS mapper regardless of ``self._layout``
+        # (auto mode's single root mapper is handled below, keyed off _layout) -
+        # otherwise a retry after a failed manual apply hits luksOpen/luksFormat
+        # with "device already exists"/"device busy" and needs a manual
+        # `cryptsetup luksClose` outside the app to recover.
+        for mapper_name in self._manual_opened_mappers:
+            try:
+                subprocess.run(
+                    ["cryptsetup", "luksClose", mapper_name],
+                    check=False,
+                    capture_output=True,
+                )
+                logger.info(f"Closed manual LUKS mapper {mapper_name}")
+            except Exception as e:
+                logger.debug(f"Failed to close LUKS mapper {mapper_name}: {e}")
 
         if not self._layout:
             return
