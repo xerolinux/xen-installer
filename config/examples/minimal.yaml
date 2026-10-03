@@ -14,6 +14,7 @@ jobs:
   - welcome
   - locale
   - partition
+  - bootloader
   - packages  # Package/flavor selection
   - install
   - finished

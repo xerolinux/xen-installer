@@ -31,6 +31,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from xen.core.engine import Engine  # noqa: E402
 from xen.gui.bridge import EngineBridge  # noqa: E402
+from xen.jobs.bootloader import BootloaderJob  # noqa: E402
 from xen.jobs.partition import _ALIGN, _SECTOR_SIZE  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -422,3 +423,23 @@ class TestOperationsApplicable:
 
         assert results and results[0][0] is False
         assert bridge.partitionApplying is False
+
+
+class TestBootloaderType:
+    """engine.bootloaderType - read-only, used by PartitionView.qml to show
+    the GRUB/Argon2id compatibility note. Set by the distro's config YAML,
+    never by the user."""
+
+    def test_defaults_to_systemd_boot(self, bridge: EngineBridge) -> None:
+        # MINIMAL_CONFIG's bootloader job entry has no "type:" override.
+        assert bridge.bootloaderType == "systemd-boot"
+
+    def test_reads_grub_from_job_config(self, bridge: EngineBridge) -> None:
+        for job in bridge._engine.jobs:
+            if job.name == "bootloader":
+                job._config["type"] = "grub"
+        assert bridge.bootloaderType == "grub"
+
+    def test_defaults_when_no_bootloader_job_present(self, bridge: EngineBridge) -> None:
+        bridge._engine.jobs = [j for j in bridge._engine.jobs if j.name != "bootloader"]
+        assert bridge.bootloaderType == "systemd-boot"

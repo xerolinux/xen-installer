@@ -125,6 +125,11 @@ class BaseJob(ABC):
         """Update job status."""
         self._status = value
 
+    @property
+    def config(self) -> dict[str, Any]:
+        """This job's own configuration dict, as given at construction."""
+        return self._config
+
     @abstractmethod
     def run(self, context: JobContext) -> JobResult:
         """

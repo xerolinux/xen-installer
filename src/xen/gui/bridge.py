@@ -1722,6 +1722,17 @@ class EngineBridge(QObject):
         """
         return os.environ.get("QT_QUICK_BACKEND", "") == "software"
 
+    @Property(str, constant=True)
+    def bootloaderType(self) -> str:
+        """Which bootloader this install profile configures ("grub" or
+        "systemd-boot") - set by the distro's config YAML, never changed by
+        the user. Used only to decide whether to show the GRUB/Argon2id
+        LUKS2 compatibility note near the encryption passphrase field."""
+        for job in self._engine.jobs:
+            if job.name == "bootloader":
+                return str(job.config.get("type", "systemd-boot"))
+        return "systemd-boot"
+
     # =========================================================================
     # Font Properties for Non-Latin Languages
     # =========================================================================
