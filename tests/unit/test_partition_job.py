@@ -15,6 +15,7 @@ try:
         PartitionJob,
         PartitionLayout,
         PartitionMode,
+        PartitionOperation,
         _luks_kdf_args,
         part_path,
     )
@@ -1906,6 +1907,166 @@ class TestEncryption:
         assert result.success is True
         for record in caplog.records:
             assert sentinel not in record.getMessage()
+
+
+class TestManualEncryption:
+    """LUKS wrapping for manual-mode format/create operations."""
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_root_format_op_luks_wraps_before_mkfs(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretPass!"},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+        assert result.success is True
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        assert any("luksFormat" in cmd and "/dev/sda2" in cmd for cmd in secret_cmds)
+        assert any("luksOpen" in cmd for cmd in secret_cmds)
+
+        format_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
+        assert any(
+            "mkfs.ext4" in cmd and "/dev/mapper/cryptroot" in cmd for cmd in format_cmds
+        )
+        # Never mkfs the raw, still-encrypted partition directly.
+        assert not any("mkfs.ext4" in cmd and "/dev/sda2" in cmd for cmd in format_cmds)
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_non_root_format_op_generates_passphrase_internally(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda3",
+            "params": {"path": "/dev/sda3", "fstype": "ext4",
+                       "mountpoint": "/home", "encrypt": True},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+        assert result.success is True
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        assert any("luksFormat" in cmd and "/dev/sda3" in cmd for cmd in secret_cmds)
+        assert any("luksOpen" in cmd and "crypthome" in cmd for cmd in secret_cmds)
+
+        # The generated passphrase is recorded for the keyfile step later
+        # (Task 8), keyed by the real device path.
+        assert "/dev/sda3" in job._manual_generated_passphrases
+        assert job._manual_generated_passphrases["/dev/sda3"]
+
+        format_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
+        assert any(
+            "mkfs.ext4" in cmd and "/dev/mapper/crypthome" in cmd for cmd in format_cmds
+        )
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_encrypted_swap_skips_luks_and_mkswap(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        """Swap encryption is plain dm-crypt with a random key at every boot
+        (crypttab's "swap" option, wired in Task 7) - never LUKS, never a
+        persistent mkswap here."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda4",
+            "params": {"path": "/dev/sda4", "fstype": "swap",
+                       "mountpoint": "swap", "encrypt": True},
+        })
+        result = job._op_format(op, dry_run=False, bootloader="systemd-boot", has_separate_boot=False)
+        assert result.success is True
+        assert mock_secret.call_count == 0
+
+        format_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
+        assert not any("mkswap" in cmd for cmd in format_cmds)
+
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_grub_root_uses_pbkdf2(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
+    ) -> None:
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+
+        op = PartitionOperation.from_dict({
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretPass!"},
+        })
+        job._op_format(op, dry_run=False, bootloader="grub", has_separate_boot=False)
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        luks_format_cmd = next(cmd for cmd in secret_cmds if "luksFormat" in cmd)
+        assert "--pbkdf" in luks_format_cmd
+
+    @patch("xen.jobs.partition.PartitionJob._mount_partitions")
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_new_partition_create_op_with_encrypt_routes_through_op_create(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock, mock_mount: MagicMock
+    ) -> None:
+        """The New Partition dialog bundles encrypt/encryption_passphrase
+        into the single "create" op it queues (see Task 6) - a brand-new
+        encrypted partition never produces a separate "format" op, so
+        _op_create (not _op_format) must be the one that actually LUKS-wraps
+        it. Goes through _apply_operations end-to-end (not _op_create
+        directly) since _op_create reads self._manual_bootloader /
+        self._manual_has_separate_boot, which only _apply_operations sets."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+        mock_mount.return_value = JobResult.ok()
+
+        context = JobContext(
+            selections={
+                "disk": "/dev/sda",
+                "partition_operations": [{
+                    "type": "create",
+                    "target": "free:2048",
+                    "params": {
+                        "start_sector": 2048,
+                        "size_sectors": 2048000,
+                        "fstype": "ext4",
+                        "name": "NEW-123",
+                        "mountpoint": "/",
+                        "encrypt": True,
+                        "encryption_passphrase": "S3cretPass!",
+                        "number": 2,
+                    },
+                }],
+                "bootloader": "systemd-boot",
+                "has_separate_boot": False,
+            }
+        )
+        result = job._apply_operations(
+            context, "/dev/sda", context.selections, dry_run=False
+        )
+        assert result.success is True
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        assert any("luksFormat" in cmd and "/dev/sda2" in cmd for cmd in secret_cmds)
+        assert any("luksOpen" in cmd and "cryptroot" in cmd for cmd in secret_cmds)
+
+        format_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
+        assert any(
+            "mkfs.ext4" in cmd and "/dev/mapper/cryptroot" in cmd for cmd in format_cmds
+        )
 
 
 class TestRunEncryptionValidation:

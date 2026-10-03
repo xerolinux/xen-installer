@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import secrets
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
@@ -984,6 +985,9 @@ class PartitionJob(BaseJob):
         # are then a deliverable for the downstream install job, so cleanup() must
         # NOT tear them down (see cleanup() for the full rationale).
         self._succeeded: bool = False
+        self._manual_generated_passphrases: dict[str, str] = {}
+        self._manual_bootloader: str = "systemd-boot"
+        self._manual_has_separate_boot: bool = False
 
     def validate(self, context: JobContext) -> JobResult:
         """
@@ -1626,6 +1630,11 @@ class PartitionJob(BaseJob):
         # Record a coarse layout for the summary (root/ESP if discernible).
         self._record_operations_layout(operations)
 
+        # Consumed by _op_create/_op_format via _run_operation - set once
+        # per batch so neither has to carry these through its own signature.
+        self._manual_bootloader = str(selections.get("bootloader", "systemd-boot"))
+        self._manual_has_separate_boot = bool(selections.get("has_separate_boot", False))
+
         deletes = [op for op in operations if op.type == "delete"]
         shrinks, grows = self._split_resizes(operations)
         creates = [op for op in operations if op.type == "create"]
@@ -1711,7 +1720,10 @@ class PartitionJob(BaseJob):
         if op.type == "create":
             return self._op_create(disk, op, dry_run)
         if op.type == "format":
-            return self._op_format(op, dry_run)
+            return self._op_format(
+                op, dry_run, bootloader=self._manual_bootloader,
+                has_separate_boot=self._manual_has_separate_boot,
+            )
         if op.type == "setflag":
             return self._op_setflag(disk, op, dry_run)
         if op.type == "resize":
@@ -1776,7 +1788,16 @@ class PartitionJob(BaseJob):
 
         path = _dev_path(str(params.get("path") or part_path(disk, number)))
         return self._format_with_optional_subvolumes(
-            path, fstype, params.get("subvolumes"), dry_run, label=str(params.get("label", ""))
+            path,
+            fstype,
+            params.get("subvolumes"),
+            dry_run,
+            label=str(params.get("label", "")),
+            encrypt=bool(params.get("encrypt", False)),
+            passphrase=str(params.get("encryption_passphrase", "")),
+            mountpoint=str(params.get("mountpoint", "")),
+            bootloader=self._manual_bootloader,
+            has_separate_boot=self._manual_has_separate_boot,
         )
 
     def _disk_has_label(self, disk: str) -> bool:
@@ -1856,7 +1877,13 @@ class PartitionJob(BaseJob):
             digits = digits[len(base_digits) :]
         return int(digits) if digits else 1
 
-    def _op_format(self, op: PartitionOperation, dry_run: bool) -> JobResult:
+    def _op_format(
+        self,
+        op: PartitionOperation,
+        dry_run: bool,
+        bootloader: str = "systemd-boot",
+        has_separate_boot: bool = False,
+    ) -> JobResult:
         """Format an existing partition (mkfs) without touching the table."""
         path = _dev_path(str(op.params["path"]))
         fstype = str(op.params["fstype"])
@@ -1866,6 +1893,11 @@ class PartitionJob(BaseJob):
             op.params.get("subvolumes"),
             dry_run,
             label=str(op.params.get("label", "")),
+            encrypt=bool(op.params.get("encrypt", False)),
+            passphrase=str(op.params.get("encryption_passphrase", "")),
+            mountpoint=str(op.params.get("mountpoint", "")),
+            bootloader=bootloader,
+            has_separate_boot=has_separate_boot,
         )
 
     def _wipe_signatures(self, path: str, dry_run: bool) -> JobResult:
@@ -1890,21 +1922,46 @@ class PartitionJob(BaseJob):
         subvolumes: list[dict[str, Any]] | None,
         dry_run: bool,
         label: str = "",
+        encrypt: bool = False,
+        passphrase: str = "",
+        mountpoint: str = "",
+        bootloader: str = "systemd-boot",
+        has_separate_boot: bool = False,
     ) -> JobResult:
         """
-        Wipe stale signatures, mkfs ``path``, then create Btrfs subvolumes if
-        ``subvolumes`` is given. Shared by the M2 create/format operations and
-        the M1 per-partition reformat path, so a user-defined subvolume layout
+        Wipe stale signatures, optionally LUKS-wrap, mkfs ``path`` (or its
+        LUKS mapper), then create Btrfs subvolumes if ``subvolumes`` is
+        given. Shared by the M2 create/format operations and the M1
+        per-partition reformat path, so a user-defined subvolume layout
         works identically regardless of which path created the filesystem.
+
+        ``encrypt`` on a swap partition is handled entirely differently:
+        swap encryption is plain dm-crypt with a random key regenerated
+        every boot (crypttab's "swap" option, wired up at install time in
+        systemconfig.py) - there's no persistent LUKS container and no
+        mkswap to run here at all.
         """
-        mkfs = self._mkfs_command(fstype, path, label=label)
+        if encrypt and fstype.lower() == "swap":
+            return JobResult.ok(f"Encrypted swap {path}: no persistent format needed")
+
+        target = path
+        if encrypt:
+            mapper_name = _manual_mapper_name(mountpoint)
+            luks_result = self._setup_manual_luks(
+                path, mapper_name, mountpoint, passphrase, bootloader, has_separate_boot, dry_run
+            )
+            if not luks_result.success:
+                return luks_result
+            target = f"/dev/mapper/{mapper_name}"
+
+        mkfs = self._mkfs_command(fstype, target, label=label)
         if mkfs is None:
-            return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
+            return JobResult.fail(f"Unsupported filesystem for {target}: {fstype}", error_code=51)
         wipe = self._wipe_signatures(path, dry_run)
         if not wipe.success:
             return wipe
         result = self._run_partitioning_command(
-            mkfs, description=f"Formatting {path} ({fstype})", dry_run=dry_run
+            mkfs, description=f"Formatting {target} ({fstype})", dry_run=dry_run
         )
         if not result.success:
             return result
@@ -1913,9 +1970,58 @@ class PartitionJob(BaseJob):
             ok, reason = validate_btrfs_subvolumes(subvolumes)
             if not ok:
                 return JobResult.fail(f"Invalid Btrfs subvolume layout: {reason}", error_code=61)
-            return self._create_manual_btrfs_subvolumes(path, subvolumes, dry_run)
+            return self._create_manual_btrfs_subvolumes(target, subvolumes, dry_run)
 
         return result
+
+    def _setup_manual_luks(
+        self,
+        raw_path: str,
+        mapper_name: str,
+        mountpoint: str,
+        passphrase: str,
+        bootloader: str,
+        has_separate_boot: bool,
+        dry_run: bool,
+    ) -> JobResult:
+        """LUKS-format + open one manually-encrypted partition.
+
+        Root's passphrase is the user's own; every other partition gets an
+        internally-generated one (never shown in the UI) recorded in
+        ``self._manual_generated_passphrases`` keyed by ``raw_path`` for the
+        later per-partition keyfile step (real install time - see
+        systemconfig.py).
+        """
+        is_root = mountpoint == "/"
+        if not is_root:
+            passphrase = secrets.token_urlsafe(32)
+            self._manual_generated_passphrases[raw_path] = passphrase
+
+        if dry_run:
+            logger.info(f"[DRY-RUN] Would LUKS-format and open {raw_path} as {mapper_name}")
+            return JobResult.ok("[DRY-RUN] Manual LUKS setup")
+
+        if not passphrase:
+            return JobResult.fail("LUKS passphrase missing", error_code=46)
+
+        kdf_args = _luks_kdf_args(bootloader, has_separate_boot) if is_root else []
+        fmt = self._run_secret_command(
+            ["cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", *kdf_args, raw_path],
+            passphrase=passphrase,
+            description=f"LUKS formatting {raw_path}",
+        )
+        if not fmt.success:
+            return fmt
+
+        opened = self._run_secret_command(
+            ["cryptsetup", "luksOpen", raw_path, mapper_name],
+            passphrase=passphrase,
+            description=f"Opening LUKS container {mapper_name}",
+        )
+        if not opened.success:
+            return opened
+
+        return JobResult.ok(f"LUKS container {mapper_name} ready")
 
     def _create_manual_btrfs_subvolumes(
         self, path: str, subvolumes: list[dict[str, Any]], dry_run: bool
