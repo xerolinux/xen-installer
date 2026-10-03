@@ -510,8 +510,11 @@ def validate_operations(
         elif op.type == "format":
             subvolumes_by_name[_op_partition_name(op)] = op.params.get("subvolumes")
     roots = [
-        s for s in parts
-        if _is_root_entry({"mountpoint": s["mountpoint"], "subvolumes": subvolumes_by_name.get(s["name"])})
+        s
+        for s in parts
+        if _is_root_entry(
+            {"mountpoint": s["mountpoint"], "subvolumes": subvolumes_by_name.get(s["name"])}
+        )
     ]
     if len(roots) != 1:
         return False, "Exactly one partition must be mounted at /"
@@ -565,7 +568,11 @@ def _validate_esp(parts: list[dict[str, Any]], flags: dict[int, set[str]]) -> tu
     # error even when no conforming ESP exists anywhere on the plan.
     ok, reason = _validate_boot_mountpoint_consistency(
         [
-            {"fstype": s["fstype"], "is_efi": _is_efi_segment(s, flags), "mountpoint": s["mountpoint"]}
+            {
+                "fstype": s["fstype"],
+                "is_efi": _is_efi_segment(s, flags),
+                "mountpoint": s["mountpoint"],
+            }
             for s in parts
         ]
     )
@@ -942,7 +949,9 @@ def validate_manual_encryption(assignments: list[dict[str, Any]]) -> tuple[bool,
                 "/ as its mount point to set a root passphrase"
             )
         if assign is not root and mapper == "cryptroot":
-            return False, f"{name} holds the root LUKS container (cryptroot) but is not mounted at /"
+            return False, (
+                f"{name} holds the root LUKS container (cryptroot) but is not mounted at /"
+            )
         if not root_encrypted and not is_swap_entry(assign):
             return False, (
                 f"{name} is encrypted but root is not - its unlock key would sit "
@@ -970,7 +979,10 @@ def validate_encryption_rules(
         str(a.get("name", "")) for a in applied if _is_mapper_path(a.get("path"))
     }
     for op in operations:
-        if op.type in ("delete", "format", "resize") and _op_partition_name(op) in already_encrypted:
+        if (
+            op.type in ("delete", "format", "resize")
+            and _op_partition_name(op) in already_encrypted
+        ):
             return False, (
                 f"{_op_partition_name(op)} was encrypted by an earlier Apply and its LUKS "
                 "container is still open - it can't be deleted, resized or reformatted "
@@ -987,7 +999,9 @@ def validate_encryption_rules(
     if len(encrypted_batch_roots) > 1:
         return False, "At most one partition may be encrypted and mounted at /"
     if encrypted_batch_roots and applied_root_encrypted:
-        return False, "Root is already encrypted by an earlier Apply - only one root can be encrypted"
+        return False, (
+            "Root is already encrypted by an earlier Apply - only one root can be encrypted"
+        )
 
     for op in encrypting:
         passphrase = str(op.params.get("encryption_passphrase") or "")
@@ -1718,7 +1732,8 @@ class PartitionJob(BaseJob):
         if selections.get("partition_operations"):
             # Encryption needs the live Apply's post-Apply reconciliation
             # (mapper paths, carried passphrases) that this path never gets.
-            if any(op.get("params", {}).get("encrypt") for op in selections["partition_operations"]):
+            pending_ops = selections["partition_operations"]
+            if any(op.get("params", {}).get("encrypt") for op in pending_ops):
                 return JobResult.fail(
                     "Encrypted partitions must be created with Apply Changes before installing",
                     error_code=64,

@@ -277,14 +277,8 @@ class SystemConfigJob(BaseJob):
                         f"{mapper_name} PARTUUID={partuuid} /dev/urandom "
                         "swap,cipher=aes-xts-plain64,size=256\n"
                     )
-                # Queued whether the crypttab line is new or already
-                # present from an earlier attempt - a retry that got as
-                # far as writing crypttab but not fstab last time must
-                # still get the fstab line regenerated. Actually written
-                # only after crypttab's own write below succeeds, so a
-                # later partition's failure in this same plan can't leave
-                # a dangling fstab entry pointing at a mapper crypttab
-                # never ends up creating.
+                # Queued regardless of already_in_crypttab - see the loop
+                # below for why.
                 pending_swap_fstab_mappers.append(mapper_name)
                 continue
 
@@ -314,10 +308,11 @@ class SystemConfigJob(BaseJob):
             except OSError as e:
                 return JobResult.fail(f"Failed to write {crypttab_path}: {e}", error_code=109)
 
-        # Runs even when crypttab itself needed no new lines (e.g. every
-        # entry already existed from a prior attempt) - a retry that got
-        # as far as writing crypttab but not fstab last time must still
-        # get the swap fstab line regenerated.
+        # Runs even when crypttab needed no new lines - a retry that wrote
+        # crypttab but not fstab last time still needs the fstab line, and
+        # this only runs after crypttab's own write above succeeds, so a
+        # later partition's failure can't leave a dangling fstab entry for
+        # a mapper crypttab never ends up creating.
         for mapper_name in pending_swap_fstab_mappers:
             fstab_result = self._ensure_swap_fstab_entry(target_root, mapper_name)
             if not fstab_result.success:
@@ -361,9 +356,12 @@ class SystemConfigJob(BaseJob):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=300,  # Argon2id on weak hardware can genuinely take this long.
             )
         except subprocess.CalledProcessError as e:
             return JobResult.fail(f"luksAddKey failed for {raw_path}: {e.stderr}", error_code=116)
+        except subprocess.TimeoutExpired:
+            return JobResult.fail(f"luksAddKey timed out for {raw_path}", error_code=119)
         finally:
             passphrase = ""  # noqa: F841 - SECURITY: clear from this frame
 

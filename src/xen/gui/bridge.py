@@ -2758,7 +2758,8 @@ class EngineBridge(QObject):
             self._manual_ops_valid = False
             self._manual_ops_error = str(exc)
             if self._debug:
-                print(f"[Engine] REJECTED partition op ({exc}): {self._redactor.redact(repr(op_dict))}")
+                redacted = self._redactor.redact(repr(op_dict))
+                print(f"[Engine] REJECTED partition op ({exc}): {redacted}")
             self.partitionOperationsChanged.emit()
             return
         self._partition_operations.append(op_dict)

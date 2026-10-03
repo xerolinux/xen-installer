@@ -209,14 +209,8 @@ class FinishedJob(BaseJob):
             return False
 
     def _safe_unmount_recursive(self, target_root: Path) -> bool:
-        """Recursively unmount every mountpoint still active under
-        target_root in one shot (umount -R), instead of only the two
-        hardcoded paths (/boot/efi and target_root itself) the old
-        two-step unmount knew about - manual mode can mount an arbitrary
-        extra partition (e.g. /home) under target_root that must come
-        down before any LUKS mapper gets closed, or the close can race a
-        still-busy mount.
-        """
+        """umount -R target_root - manual mode can mount extra partitions
+        (e.g. /home) under it, so a fixed set of paths isn't enough."""
         if not os.path.ismount(target_root):
             logger.debug(f"{target_root} not mounted, skipping recursive unmount")
             return True
@@ -290,10 +284,8 @@ class FinishedJob(BaseJob):
         if os.path.ismount(efi_mount) and not self._safe_unmount(efi_mount):
             errors.append(f"Failed to unmount EFI partition: {efi_mount}")
 
-        # Recursively unmount target_root and everything still mounted
-        # under it (root itself, plus any manual-mode extra mountpoint
-        # like /home) - must happen before any LUKS mapper is closed below,
-        # or a close can race a still-busy mount.
+        # Must happen before any mapper close below, or the close can race
+        # a still-busy mount.
         if not self._safe_unmount_recursive(target_root):
             errors.append(f"Failed to unmount target root and its submounts: {target_root}")
 
