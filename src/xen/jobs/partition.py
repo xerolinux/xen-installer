@@ -1120,8 +1120,16 @@ class PartitionJob(BaseJob):
             JobResult indicating success or failure
         """
         context.report_progress(0, "Starting partitioning job...")
-        # Reset the hand-off flag so a retry starts from a clean slate.
+        # Reset the hand-off flag and manual-LUKS bookkeeping so a retry on
+        # the SAME job instance (bridge.resetInstallation reuses it, resetting
+        # only job status) starts from a clean slate - stale opened-mapper
+        # names from a prior failed attempt would otherwise cause a false
+        # collision (Important #3's check) even though cleanup() already
+        # closed them, and stale passphrases would otherwise linger for
+        # partitions dropped from a changed plan.
         self._succeeded = False
+        self._manual_opened_mappers = []
+        self._manual_generated_passphrases = {}
 
         # Validate first
         validation = self.validate(context)
