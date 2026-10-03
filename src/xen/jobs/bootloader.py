@@ -277,8 +277,8 @@ editor no
             # cryptdevice= tells mkinitcpio's "encrypt" hook which raw LUKS
             # partition to unlock before root=UUID=<mapper-fs-uuid> can mount.
             crypt_param = ""
-            if context.selections.get("encryption"):
-                raw_partition = context.selections.get("root_partition")
+            is_encrypted, raw_partition = self._resolve_root_encryption(context)
+            if is_encrypted:
                 if raw_partition:
                     luks_uuid = self._blkid_uuid(raw_partition)
                     if luks_uuid:
@@ -392,8 +392,8 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             content = self._set_grub_default_key(content, "GRUB_SAVEDEFAULT", "false")
 
         kernel_params = list(self._GRUB_KERNEL_PARAMS)
-        if context.selections.get("encryption"):
-            raw_partition = context.selections.get("root_partition")
+        is_encrypted, raw_partition = self._resolve_root_encryption(context)
+        if is_encrypted:
             if raw_partition:
                 luks_uuid = self._blkid_uuid(raw_partition)
                 if luks_uuid:
@@ -473,7 +473,8 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         if not defaults_result.success:
             return defaults_result
 
-        if context.selections.get("encryption"):
+        is_encrypted, _ = self._resolve_root_encryption(context)
+        if is_encrypted:
             cryptodisk_result = self._enable_grub_cryptodisk(context.target_root)
             if not cryptodisk_result.success:
                 return cryptodisk_result
@@ -702,6 +703,23 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             logger.warning(f"Failed to get root UUID: {e}")
 
         return None
+
+    def _resolve_root_encryption(self, context: JobContext) -> tuple[bool, str]:
+        """(is_root_encrypted, raw_root_partition_path) - from the single
+        AUTO-mode selection, or from the manual plan's resolved mount
+        assignments when partition_mode is "manual"."""
+        if context.selections.get("partition_mode") == "manual":
+            for assignment in context.selections.get("partition_assignments", []):
+                if assignment.get("mountpoint") != "/":
+                    continue
+                path = str(assignment.get("path", ""))
+                if path.startswith("/dev/mapper/"):
+                    raw_path = str(assignment.get("raw_path", ""))
+                    return bool(raw_path), raw_path
+                return False, ""
+            return False, ""
+        encrypted = bool(context.selections.get("encryption"))
+        return encrypted, str(context.selections.get("root_partition", "")) if encrypted else ""
 
     def _get_bootloader_type(self, context: JobContext) -> str:
         """Resolve which bootloader to install: the yaml profile's own

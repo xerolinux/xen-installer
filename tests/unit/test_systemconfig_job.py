@@ -67,6 +67,120 @@ class TestGenerateCrypttab:
         mock_run.assert_not_called()
         assert crypttab.read_text() == "cryptroot UUID=existing none luks\n"
 
+    @patch("subprocess.run")
+    def test_generate_crypttab_adds_non_root_keyfile_entries(
+        self, mock_run: Mock, tmp_path: Path
+    ) -> None:
+        """A non-root encrypted partition (e.g. /home) gets its own crypttab
+        line pointing at a per-partition keyfile, plus the keyfile itself
+        written and added as a LUKS keyslot - using the passphrase carried
+        over from live-Apply."""
+        target = tmp_path / "target"
+        target.mkdir()
+
+        def run_side_effect(cmd: list[str], **kwargs: object) -> Mock:
+            if cmd[0] == "blkid":
+                if cmd[-1] == "/dev/sda3":
+                    return Mock(returncode=0, stdout="home-uuid\n", stderr="")
+                return Mock(returncode=0, stdout="\n", stderr="")
+            if cmd[:2] == ["cryptsetup", "luksAddKey"]:
+                return Mock(returncode=0, stdout="", stderr="")
+            raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+        mock_run.side_effect = run_side_effect
+        job = SystemConfigJob()
+        selections = {
+            "partition_assignments": [
+                {
+                    "path": "/dev/mapper/crypthome",
+                    "mountpoint": "/home",
+                    "raw_path": "/dev/sda3",
+                },
+            ],
+            "manual_luks_passphrases": {"sda3": "generated-pass"},
+        }
+
+        result = job._generate_crypttab(str(target), selections)
+
+        assert result.success is True
+        content = (target / "etc" / "crypttab").read_text()
+        assert content == (
+            "crypthome UUID=home-uuid /etc/cryptsetup-keys.d/crypthome.key luks\n"
+        )
+        keyfile = target / "etc" / "cryptsetup-keys.d" / "crypthome.key"
+        assert keyfile.exists()
+        assert keyfile.stat().st_mode & 0o777 == 0
+
+        luks_add_key_calls = [
+            c
+            for c in mock_run.call_args_list
+            if c.args[0][:2] == ["cryptsetup", "luksAddKey"]
+        ]
+        assert len(luks_add_key_calls) == 1
+        assert luks_add_key_calls[0].args[0][2] == "/dev/sda3"
+        # Never assert/log the literal passphrase string - only that the
+        # call happened, authenticated via stdin (--key-file=-).
+        assert luks_add_key_calls[0].args[0][-1] == "--key-file=-"
+        assert luks_add_key_calls[0].kwargs["input"] == "generated-pass"
+
+    @patch("subprocess.run")
+    def test_generate_crypttab_adds_swap_random_key_entry(
+        self, mock_run: Mock, tmp_path: Path
+    ) -> None:
+        """An encrypted swap partition gets a plain dm-crypt crypttab line
+        using /dev/urandom - no LUKS, no keyfile, no passphrase at all."""
+        target = tmp_path / "target"
+        target.mkdir()
+        mock_run.return_value = Mock(returncode=0, stdout="swap-raw-uuid\n", stderr="")
+        job = SystemConfigJob()
+        selections = {
+            "partition_assignments": [
+                {
+                    "path": "/dev/mapper/cryptswap",
+                    "mountpoint": "swap",
+                    "raw_path": "/dev/sda4",
+                },
+            ],
+        }
+
+        result = job._generate_crypttab(str(target), selections)
+
+        assert result.success is True
+        content = (target / "etc" / "crypttab").read_text()
+        assert content == (
+            "cryptswap UUID=swap-raw-uuid /dev/urandom "
+            "swap,cipher=aes-xts-plain64,size=256\n"
+        )
+        assert not (target / "etc" / "cryptsetup-keys.d").exists()
+        calls = [c.args[0] for c in mock_run.call_args_list]
+        assert calls and all(cmd[0] == "blkid" for cmd in calls)
+
+    @patch("subprocess.run")
+    def test_generate_crypttab_fails_without_carried_over_passphrase(
+        self, mock_run: Mock, tmp_path: Path
+    ) -> None:
+        """Without a carried-over passphrase, a non-root keyfile cannot be
+        authenticated against the LUKS header - fail rather than silently
+        skip the partition (it would never auto-unlock at boot)."""
+        target = tmp_path / "target"
+        target.mkdir()
+        job = SystemConfigJob()
+        selections = {
+            "partition_assignments": [
+                {
+                    "path": "/dev/mapper/crypthome",
+                    "mountpoint": "/home",
+                    "raw_path": "/dev/sda3",
+                },
+            ],
+        }
+
+        result = job._generate_crypttab(str(target), selections)
+
+        assert result.success is False
+        assert result.error_code == 114
+        mock_run.assert_not_called()
+
 
 class TestGenerateMachineId:
     """Mirrors Calamares's machineid.conf (dbus: true, dbus-symlink:

@@ -234,20 +234,29 @@ class FinishedJob(BaseJob):
         if os.path.ismount(target_root) and not self._safe_unmount(target_root):
             errors.append(f"Failed to unmount root partition: {target_root}")
 
-        # Close the LUKS mapper (partition.py's default name; there is no UI
-        # to change it) so the disk is safe to remove right after install.
+        # Close every LUKS mapper this install opened (root's fixed name,
+        # plus whatever manual mode's partition_assignments resolved to) so
+        # the disk is safe to remove right after install.
+        mapper_names = set()
         if context.selections.get("encryption"):
+            mapper_names.add("cryptroot")
+        for assignment in context.selections.get("partition_assignments", []):
+            path = str(assignment.get("path", ""))
+            if path.startswith("/dev/mapper/"):
+                mapper_names.add(path.rsplit("/", 1)[-1])
+
+        for mapper_name in mapper_names:
             try:
                 subprocess.run(
-                    ["cryptsetup", "luksClose", "cryptroot"],
+                    ["cryptsetup", "luksClose", mapper_name],
                     check=False,
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
-                logger.info("Closed LUKS mapper cryptroot")
+                logger.info(f"Closed LUKS mapper {mapper_name}")
             except Exception as e:
-                logger.debug(f"Failed to close LUKS mapper: {e}")
+                logger.debug(f"Failed to close LUKS mapper {mapper_name}: {e}")
 
         # Deactivate swap if it was used
         swap_partition = context.selections.get("swap_partition")

@@ -583,6 +583,40 @@ class TestInstallGrub:
         assert result.error_code == 63
 
     @patch("xen.jobs.bootloader.subprocess.run")
+    def test_install_grub_enables_cryptodisk_for_manual_mode_encrypted_root(
+        self, mock_subprocess: MagicMock
+    ) -> None:
+        """GRUB_ENABLE_CRYPTODISK must get set for a manual-mode encrypted
+        root the same way it does for AUTO mode's single encryption
+        selection - without it, grub-install omits the cryptodisk/luks2
+        modules and grub-mkconfig won't detect the LUKS device."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = BootloaderJob()
+            job._efi_mount = Path(tmpdir) / "boot" / "efi"
+            job._efi_mount.mkdir(parents=True, exist_ok=True)
+
+            mock_subprocess.return_value = MagicMock(returncode=0, stdout="Success")
+
+            context = JobContext(
+                target_root=tmpdir,
+                selections={
+                    "partition_mode": "manual",
+                    "partition_assignments": [
+                        {
+                            "path": "/dev/mapper/cryptroot",
+                            "mountpoint": "/",
+                            "raw_path": "/dev/sda2",
+                        },
+                    ],
+                },
+            )
+            result = job._install_grub(context)
+
+            assert result.success is True
+            content = (Path(tmpdir) / "etc" / "default" / "grub").read_text()
+            assert "GRUB_ENABLE_CRYPTODISK=y" in content
+
+    @patch("xen.jobs.bootloader.subprocess.run")
     def test_install_grub_install_fails(self, mock_subprocess: MagicMock) -> None:
         """Should handle grub-install failure."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -976,6 +1010,35 @@ class TestWriteGrubDefaults:
         content = (tmp_path / "etc" / "default" / "grub").read_text()
         assert "cryptkey=" not in content
 
+    @patch("xen.jobs.bootloader.BootloaderJob._blkid_uuid")
+    def test_adds_cryptdevice_for_manual_mode_encrypted_root(
+        self, mock_blkid: MagicMock, tmp_path: Path
+    ) -> None:
+        """Manual mode's encrypted root (a mapper path at mountpoint "/" in
+        partition_assignments) must produce the same cryptdevice= kernel
+        param as AUTO mode's single encryption selection."""
+        mock_blkid.return_value = "abe5431a-d024-485c-9bd0-bd146e2fac1f"
+        job = BootloaderJob()
+        context = JobContext(
+            selections={
+                "partition_mode": "manual",
+                "partition_assignments": [
+                    {
+                        "path": "/dev/mapper/cryptroot",
+                        "mountpoint": "/",
+                        "raw_path": "/dev/sda2",
+                    },
+                ],
+            }
+        )
+
+        result = job._write_grub_defaults(str(tmp_path), context)
+
+        assert result.success is True
+        content = (tmp_path / "etc" / "default" / "grub").read_text()
+        assert "cryptdevice=UUID=abe5431a-d024-485c-9bd0-bd146e2fac1f:cryptroot" in content
+        mock_blkid.assert_called_once_with("/dev/sda2")
+
 
 class TestEnableGrubCryptodisk:
     def test_sets_unquoted_y(self, tmp_path: Path) -> None:
@@ -1138,6 +1201,84 @@ class TestGetBootloaderType:
 
         assert result.success is True
         mock_install.assert_called_once()
+
+
+class TestResolveRootEncryption:
+    """is_root_encrypted/raw_root_partition resolution: the single
+    AUTO-mode selection pair, or - when partition_mode is "manual" - the
+    manual plan's resolved mount assignments, so GRUB/mkinitcpio's
+    cryptdevice= works correctly whichever mode produced the encrypted
+    root."""
+
+    def test_auto_mode_encrypted(self) -> None:
+        job = BootloaderJob()
+        context = JobContext(selections={"encryption": True, "root_partition": "/dev/sda2"})
+
+        assert job._resolve_root_encryption(context) == (True, "/dev/sda2")
+
+    def test_auto_mode_not_encrypted(self) -> None:
+        job = BootloaderJob()
+        context = JobContext(selections={"encryption": False})
+
+        assert job._resolve_root_encryption(context) == (False, "")
+
+    def test_manual_mode_root_encryption_detected_from_assignments(self) -> None:
+        """When partition_mode is manual, "is root encrypted" comes from
+        partition_assignments (a mapper path at mountpoint "/"), not the
+        single auto-mode encryption selection."""
+        job = BootloaderJob()
+        context = JobContext(
+            selections={
+                "partition_mode": "manual",
+                "partition_assignments": [
+                    {
+                        "path": "/dev/mapper/cryptroot",
+                        "mountpoint": "/",
+                        "raw_path": "/dev/sda2",
+                    },
+                ],
+            }
+        )
+
+        assert job._resolve_root_encryption(context) == (True, "/dev/sda2")
+
+    def test_manual_mode_root_not_encrypted(self) -> None:
+        job = BootloaderJob()
+        context = JobContext(
+            selections={
+                "partition_mode": "manual",
+                "partition_assignments": [
+                    {"path": "/dev/sda2", "mountpoint": "/"},
+                ],
+            }
+        )
+
+        assert job._resolve_root_encryption(context) == (False, "")
+
+    def test_manual_mode_no_root_assignment(self) -> None:
+        job = BootloaderJob()
+        context = JobContext(
+            selections={"partition_mode": "manual", "partition_assignments": []}
+        )
+
+        assert job._resolve_root_encryption(context) == (False, "")
+
+    def test_manual_mode_ignores_auto_encryption_flag(self) -> None:
+        """A stale/unrelated AUTO-mode 'encryption' flag must not leak into
+        manual mode's result - only the resolved mount assignment counts."""
+        job = BootloaderJob()
+        context = JobContext(
+            selections={
+                "partition_mode": "manual",
+                "encryption": True,
+                "root_partition": "/dev/sda2",
+                "partition_assignments": [
+                    {"path": "/dev/sda3", "mountpoint": "/"},
+                ],
+            }
+        )
+
+        assert job._resolve_root_encryption(context) == (False, "")
 
 
 class TestValidate:

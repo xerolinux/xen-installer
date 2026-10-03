@@ -73,7 +73,9 @@ class SystemConfigJob(BaseJob):
         if not result.success:
             return result
 
-        if context.selections.get("encryption"):
+        if context.selections.get("encryption") or context.selections.get(
+            "partition_assignments"
+        ):
             context.report_progress(15, "Generating /etc/crypttab...")
             result = self._generate_crypttab(target_root, context.selections)
             if not result.success:
@@ -145,12 +147,16 @@ class SystemConfigJob(BaseJob):
             return None
 
     def _generate_crypttab(self, target_root: str, selections: dict[str, Any]) -> JobResult:
-        """Write /etc/crypttab for the encrypted root. bootloader.py's
-        cryptdevice= kernel param is what actually unlocks root at boot;
-        this documents the same mapping in the conventional place tools
-        expect to find it."""
+        """Write /etc/crypttab: the encrypted root (unlocked at boot via
+        GRUB/mkinitcpio - bootloader.py's cryptdevice= kernel param), any
+        other manually-encrypted partition (unlocked automatically via a
+        per-partition keyfile added as a second LUKS keyslot, written
+        here), and any encrypted swap (plain dm-crypt, a fresh random key
+        every boot - never LUKS, never a remembered secret)."""
         raw_partition = selections.get("root_partition")
-        if not raw_partition:
+        partition_assignments = selections.get("partition_assignments", [])
+
+        if not raw_partition and not partition_assignments:
             return JobResult.fail(
                 "encryption selected but no root_partition recorded", error_code=107
             )
@@ -160,24 +166,99 @@ class SystemConfigJob(BaseJob):
             existing = crypttab_path.read_text(encoding="utf-8") if crypttab_path.exists() else ""
         except OSError as e:
             return JobResult.fail(f"Failed to read {crypttab_path}: {e}", error_code=109)
-        if "cryptroot" in existing:
-            return JobResult.ok("crypttab already has a cryptroot entry")
 
-        luks_uuid = self._blkid_uuid(raw_partition)
-        if not luks_uuid:
-            return JobResult.fail(
-                f"Could not determine LUKS UUID for {raw_partition}", error_code=108
+        lines: list[str] = []
+
+        if raw_partition and "cryptroot" not in existing:
+            luks_uuid = self._blkid_uuid(raw_partition)
+            if not luks_uuid:
+                return JobResult.fail(
+                    f"Could not determine LUKS UUID for {raw_partition}", error_code=108
+                )
+            lines.append(f"cryptroot UUID={luks_uuid} none luks\n")
+
+        passphrases = selections.get("manual_luks_passphrases", {})
+        for assignment in partition_assignments:
+            path = str(assignment.get("path", ""))
+            mountpoint = str(assignment.get("mountpoint", ""))
+            if not path.startswith("/dev/mapper/"):
+                continue
+            mapper_name = path.rsplit("/", 1)[-1]
+            if mapper_name == "cryptroot" or mapper_name in existing:
+                continue
+
+            if mountpoint == "swap":
+                raw_swap_path = str(assignment.get("raw_path", ""))
+                swap_uuid = self._blkid_uuid(raw_swap_path) if raw_swap_path else None
+                if not swap_uuid:
+                    continue
+                lines.append(
+                    f"{mapper_name} UUID={swap_uuid} /dev/urandom "
+                    "swap,cipher=aes-xts-plain64,size=256\n"
+                )
+                continue
+
+            raw_path = str(assignment.get("raw_path", ""))
+            partition_name = raw_path.rsplit("/", 1)[-1] if raw_path else ""
+            passphrase = passphrases.get(partition_name, "")
+            keyfile_path = f"/etc/cryptsetup-keys.d/{mapper_name}.key"
+            keyfile_result = self._write_manual_keyfile(
+                target_root, keyfile_path, raw_path, passphrase
             )
+            if not keyfile_result.success:
+                return keyfile_result
+            luks_uuid = self._blkid_uuid(raw_path)
+            if not luks_uuid:
+                return JobResult.fail(
+                    f"Could not determine LUKS UUID for {raw_path}", error_code=113
+                )
+            lines.append(f"{mapper_name} UUID={luks_uuid} {keyfile_path} luks\n")
 
-        line = f"cryptroot UUID={luks_uuid} none luks\n"
+        if not lines:
+            return JobResult.ok("No crypttab entries needed")
+
         try:
             crypttab_path.parent.mkdir(parents=True, exist_ok=True)
-            crypttab_path.write_text(existing + line, encoding="utf-8")
+            crypttab_path.write_text(existing + "".join(lines), encoding="utf-8")
         except OSError as e:
             return JobResult.fail(f"Failed to write {crypttab_path}: {e}", error_code=109)
 
         logger.info(f"Wrote {crypttab_path}")
         return JobResult.ok("crypttab generated")
+
+    def _write_manual_keyfile(
+        self, target_root: str, keyfile_path: str, raw_path: str, passphrase: str
+    ) -> JobResult:
+        """Generate a random keyfile, write it (mode 000) under
+        target_root, and add it as a second LUKS keyslot on raw_path -
+        authenticated with the passphrase generated during live-Apply."""
+        if not passphrase:
+            return JobResult.fail(
+                f"No carried-over passphrase for {raw_path} - cannot add keyfile",
+                error_code=114,
+            )
+        full_path = Path(target_root) / keyfile_path.lstrip("/")
+        try:
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_bytes(os.urandom(4096))
+            os.chmod(full_path, 0o000)
+        except OSError as e:
+            return JobResult.fail(f"Failed to write keyfile {keyfile_path}: {e}", error_code=115)
+
+        try:
+            subprocess.run(
+                ["cryptsetup", "luksAddKey", raw_path, str(full_path), "--key-file=-"],
+                input=passphrase,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            return JobResult.fail(f"luksAddKey failed for {raw_path}: {e.stderr}", error_code=116)
+        finally:
+            passphrase = ""  # noqa: F841 - SECURITY: clear from this frame
+
+        return JobResult.ok(f"Keyfile added for {raw_path}")
 
     def _generate_machine_id(self, target_root: str) -> JobResult:
         machine_id_path = Path(target_root) / "etc" / "machine-id"

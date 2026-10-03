@@ -387,6 +387,87 @@ class TestCleanupMounts:
             assert len(swapoff_calls) >= 1
 
     @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("subprocess.run")
+    def test_cleanup_closes_cryptroot_for_auto_mode(
+        self, mock_run: Mock, mock_unmount: Mock
+    ) -> None:
+        """AUTO mode's encrypted root must still get its mapper closed."""
+        mock_unmount.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = FinishedJob()
+            context = JobContext(target_root=tmpdir, selections={"encryption": True})
+
+            result = job._cleanup_mounts(context)
+
+            assert result.success is True
+            luks_calls = [call for call in mock_run.call_args_list if "luksClose" in call[0][0]]
+            assert len(luks_calls) == 1
+            assert luks_calls[0][0][0] == ["cryptsetup", "luksClose", "cryptroot"]
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("subprocess.run")
+    def test_cleanup_closes_manual_mode_mapper(
+        self, mock_run: Mock, mock_unmount: Mock
+    ) -> None:
+        """A manual-mode encrypted partition (e.g. /home) must also get its
+        mapper closed on successful install, same as AUTO mode's root."""
+        mock_unmount.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = FinishedJob()
+            context = JobContext(
+                target_root=tmpdir,
+                selections={
+                    "partition_assignments": [
+                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
+                        {"path": "/dev/sda1", "mountpoint": "/boot"},
+                    ]
+                },
+            )
+
+            result = job._cleanup_mounts(context)
+
+            assert result.success is True
+            luks_calls = [call for call in mock_run.call_args_list if "luksClose" in call[0][0]]
+            assert len(luks_calls) == 1
+            assert luks_calls[0][0][0] == ["cryptsetup", "luksClose", "crypthome"]
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("subprocess.run")
+    def test_cleanup_closes_both_auto_root_and_manual_mapper(
+        self, mock_run: Mock, mock_unmount: Mock
+    ) -> None:
+        """A mixed install (AUTO-style encrypted root plus a manually
+        encrypted non-root partition) must close both mappers."""
+        mock_unmount.return_value = True
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = FinishedJob()
+            context = JobContext(
+                target_root=tmpdir,
+                selections={
+                    "encryption": True,
+                    "partition_assignments": [
+                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
+                    ],
+                },
+            )
+
+            result = job._cleanup_mounts(context)
+
+            assert result.success is True
+            closed_names = {
+                call[0][0][2]
+                for call in mock_run.call_args_list
+                if "luksClose" in call[0][0]
+            }
+            assert closed_names == {"cryptroot", "crypthome"}
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
     @patch("xen.jobs.finished.os.path.ismount")
     def test_cleanup_reports_errors(self, mock_ismount: Mock, mock_unmount: Mock) -> None:
         """Should report cleanup errors."""
