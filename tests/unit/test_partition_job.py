@@ -1761,6 +1761,76 @@ class TestEncryption:
     @patch("xen.jobs.partition.PartitionJob._mount_partitions")
     @patch("xen.jobs.partition.PartitionJob._run_secret_command")
     @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_encryption_with_grub_uses_pbkdf2(
+        self,
+        mock_run_cmd: MagicMock,
+        mock_secret: MagicMock,
+        mock_mount: MagicMock,
+    ) -> None:
+        """bootloader=grub (AUTO mode: never a separate /boot) must force
+        --pbkdf pbkdf2, or GRUB can't unlock the volume it just created."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+        mock_mount.return_value = JobResult.ok()
+
+        result = job._partition_auto(
+            context=JobContext(target_root="/mnt"),
+            disk="/dev/sda",
+            filesystem="ext4",
+            selections={"swap_strategy": "none", "encryption": True, "bootloader": "grub"},
+            passphrase="S3cretPass!",
+            dry_run=False,
+        )
+        assert result.success is True
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        luks_format_cmd = next(cmd for cmd in secret_cmds if "luksFormat" in cmd)
+        assert "--pbkdf" in luks_format_cmd
+        assert luks_format_cmd[luks_format_cmd.index("--pbkdf") + 1] == "pbkdf2"
+
+    @patch("xen.jobs.partition.PartitionJob._mount_partitions")
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
+    def test_encryption_with_systemd_boot_uses_default_kdf(
+        self,
+        mock_run_cmd: MagicMock,
+        mock_secret: MagicMock,
+        mock_mount: MagicMock,
+    ) -> None:
+        """Default bootloader (systemd-boot): no --pbkdf override, Argon2id
+        (cryptsetup's own default) is fully compatible."""
+        job = PartitionJob()
+        mock_run_cmd.return_value = JobResult.ok()
+        mock_secret.return_value = JobResult.ok()
+        mock_mount.return_value = JobResult.ok()
+
+        result = job._partition_auto(
+            context=JobContext(target_root="/mnt"),
+            disk="/dev/sda",
+            filesystem="ext4",
+            selections={"swap_strategy": "none", "encryption": True},
+            passphrase="S3cretPass!",
+            dry_run=False,
+        )
+        assert result.success is True
+
+        secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
+        luks_format_cmd = next(cmd for cmd in secret_cmds if "luksFormat" in cmd)
+        assert "--pbkdf" not in luks_format_cmd
+
+    def test_setup_luks_dry_run_with_grub_does_not_raise(self) -> None:
+        """Dry-run returns before any command runs - computing kdf_args it
+        never uses must not raise."""
+        job = PartitionJob()
+        job._layout = PartitionLayout(root_partition="/dev/sda2")
+        result = job._setup_luks("pw", dry_run=True, bootloader="grub", has_separate_boot=False)
+        assert result.success is True
+        assert job._layout.encrypted is True
+
+    @patch("xen.jobs.partition.PartitionJob._mount_partitions")
+    @patch("xen.jobs.partition.PartitionJob._run_secret_command")
+    @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
     def test_encryption_with_btrfs_full_chain(
         self,
         mock_run_cmd: MagicMock,

@@ -1405,7 +1405,10 @@ class PartitionJob(BaseJob):
         # Step 6: Optionally wrap root in LUKS2 before formatting.
         if encryption:
             context.report_progress(55, "Encrypting root partition...")
-            result = self._setup_luks(passphrase, dry_run)
+            bootloader = str(selections.get("bootloader", "systemd-boot"))
+            result = self._setup_luks(
+                passphrase, dry_run, bootloader=bootloader, has_separate_boot=False
+            )
             if not result.success:
                 return result
 
@@ -2152,7 +2155,9 @@ class PartitionJob(BaseJob):
 
         return JobResult.ok("Manual partitions mounted")
 
-    def _setup_luks(self, passphrase: str, dry_run: bool) -> JobResult:
+    def _setup_luks(
+        self, passphrase: str, dry_run: bool, bootloader: str, has_separate_boot: bool
+    ) -> JobResult:
         """
         Wrap the root partition in a LUKS2 container.
 
@@ -2162,6 +2167,12 @@ class PartitionJob(BaseJob):
         Args:
             passphrase: LUKS passphrase (must be non-empty in real runs)
             dry_run: If True, simulate only
+            bootloader: exact bootloader selection value ("grub" or
+                "systemd-boot") - decides the LUKS2 key derivation function
+                (see ``_luks_kdf_args``).
+            has_separate_boot: True if a separate, unencrypted partition is
+                mounted at /boot ahead of this one (always False in AUTO
+                mode's fixed EFI+Root layout).
 
         Returns:
             JobResult indicating success or failure
@@ -2171,6 +2182,7 @@ class PartitionJob(BaseJob):
 
         root_part = self._layout.root_partition
         mapper_name = self._layout.luks_mapper_name
+        kdf_args = _luks_kdf_args(bootloader, has_separate_boot)
 
         if dry_run:
             logger.info(f"[DRY-RUN] Would LUKS-format and open {root_part} as {mapper_name}")
@@ -2181,7 +2193,7 @@ class PartitionJob(BaseJob):
             return JobResult.fail("LUKS passphrase missing", error_code=46)
 
         fmt = self._run_secret_command(
-            ["cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", root_part],
+            ["cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", *kdf_args, root_part],
             passphrase=passphrase,
             description="LUKS formatting root partition",
         )
