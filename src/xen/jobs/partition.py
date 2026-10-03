@@ -785,7 +785,8 @@ def _luks_kdf_args(bootloader: str, has_separate_boot: bool) -> list[str]:
     kernel from that plain partition and never touches this LUKS header.
 
     Args:
-        bootloader: exact selection value, e.g. "grub" or "systemd-boot".
+        bootloader: resolved bootloader type, e.g. "grub" or "systemd-boot"
+            (seeded into selections by ``Engine.run_all``).
         has_separate_boot: True if there's a separate, unencrypted
             partition mounted at /boot ahead of the partition being
             formatted (always False in AUTO mode, which has no such

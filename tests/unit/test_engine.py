@@ -357,3 +357,61 @@ class TestOnErrorCallback:
         assert engine.run_all() is True
         assert errors == []
         assert engine.state.last_error is None
+
+
+class TestBootloaderSelectionSeeding:
+    """Regression: partition.py's AUTO-mode LUKS KDF choice reads
+    context.selections["bootloader"], a key nothing in the app ever set, so
+    on a `type: grub` profile it fell back to "systemd-boot", kept Argon2id,
+    and produced a volume GRUB cannot unlock."""
+
+    XEROLINUX_CONFIG = Path(__file__).parents[2] / "config" / "examples" / "xerolinux.yaml"
+
+    def test_xerolinux_profile_seeds_grub_for_earlier_jobs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from xen.jobs.base import BaseJob, JobContext, JobResult
+        from xen.jobs.partition import _luks_kdf_args
+
+        seen: dict[str, Any] = {}
+
+        class _ProbeJob(BaseJob):
+            name = "probe"
+            description = "probe"
+
+            def run(self, context: JobContext) -> JobResult:
+                seen.update(context.selections)
+                return JobResult.ok("ok")
+
+            def estimate_duration(self) -> int:
+                return 1
+
+        engine = Engine.from_config_file(self.XEROLINUX_CONFIG)
+        bootloader_job = next(j for j in engine.jobs if j.name == "bootloader")
+        monkeypatch.setattr(bootloader_job, "run", lambda _context: JobResult.ok("ok"))
+        engine.jobs = [_ProbeJob(), bootloader_job]
+        engine.set_selections({"dry_run": True})
+
+        assert engine.run_all() is True
+        assert seen.get("bootloader") == "grub"
+        assert _luks_kdf_args(seen["bootloader"], has_separate_boot=False) == [
+            "--pbkdf",
+            "pbkdf2",
+        ]
+
+    def test_job_config_wins_over_selections(self) -> None:
+        engine = Engine.from_config_file(self.XEROLINUX_CONFIG)
+        bootloader_job = next(j for j in engine.jobs if j.name == "bootloader")
+        engine.set_selections({"bootloader": "systemd-boot"})
+
+        assert engine.bootloader_type() == "grub"
+        assert bootloader_job.config["type"] == "grub"
+
+    def test_falls_back_to_selections_then_systemd_boot(self) -> None:
+        engine = Engine.from_config_file(self.XEROLINUX_CONFIG)
+        bootloader_job = next(j for j in engine.jobs if j.name == "bootloader")
+        bootloader_job.config.pop("type")
+
+        assert engine.bootloader_type() == "systemd-boot"
+        engine.set_selections({"bootloader": "grub"})
+        assert engine.bootloader_type() == "grub"

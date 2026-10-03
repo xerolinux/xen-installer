@@ -855,7 +855,9 @@ class PartitionApplyWorker(QObject):
 In `applyPartitionOperations`, compute and pass the two new values (insert right before `self._apply_thread = QThread(self)`):
 
 ```python
-        bootloader = str(self._selections.get("bootloader", "systemd-boot"))
+        # Not self._selections: nothing in the UI sets "bootloader"; the
+        # bootloader job's yaml type: is authoritative.
+        bootloader = self._engine.bootloader_type()
         has_separate_boot = any(
             op.get("params", {}).get("mountpoint") == "/boot"
             for op in self._partition_operations

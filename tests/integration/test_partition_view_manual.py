@@ -455,6 +455,11 @@ def test_grub_encryption_note_visibility(bridge: EngineBridge, qapp: QApplicatio
         assert note is not None, "grubKdfNote Text not found in the QML tree"
         assert bool(note.property("visible")) is True
 
+        # Bootloader is grub, but encryption off: hidden again.
+        bridge.setEncryption(False)
+        qapp.processEvents()
+        assert bool(note.property("visible")) is False
+
         assert not collector.errors, f"QML errors: {collector.errors}"
     finally:
         qInstallMessageHandler(None)

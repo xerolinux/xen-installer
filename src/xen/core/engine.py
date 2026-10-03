@@ -15,6 +15,7 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from xen.jobs.base import BaseJob, JobContext, JobResult, JobStatus
+from xen.jobs.bootloader import BootloaderJob
 
 logger = logging.getLogger(__name__)
 
@@ -439,6 +440,16 @@ class Engine:
         """Get ordered list of human-readable job descriptions (UI display labels)."""
         return [job.description for job in self.jobs]
 
+    def bootloader_type(self) -> str:
+        """The bootloader this run installs: the bootloader job's own yaml
+        `type:` wins, then selections["bootloader"], then systemd-boot."""
+        for job in self.jobs:
+            if job.name == BootloaderJob.name:
+                configured = job.config.get("type")
+                if configured:
+                    return str(configured)
+        return str(self._selections.get("bootloader", BootloaderJob.SYSTEMD_BOOT))
+
     def run_all(self, context: JobContext | None = None) -> bool:
         """
         Execute all jobs sequentially.
@@ -454,6 +465,9 @@ class Engine:
 
         # Populate context with user selections from UI
         context.selections = self._selections.copy()
+        # Seeded here because jobs that run before the bootloader (partition's
+        # LUKS KDF choice) only see selections, not the bootloader job config.
+        context.selections["bootloader"] = self.bootloader_type()
 
         self.state.is_running = True
         self.state.is_finished = False

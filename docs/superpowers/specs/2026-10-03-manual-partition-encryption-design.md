@@ -60,8 +60,14 @@ family (`cryptsetup luksFormat`), fixed once for both modes.
   itself, once again for mkinitcpio). This design generalizes all of it to
   work per-partition instead of off one global `selections["encryption"]`
   flag.
-- `bootloader.py` supports both `systemd-boot` (default) and `grub`
-  (`context.selections["bootloader"]`, resolved by `_get_bootloader_type`).
+- `bootloader.py` supports both `systemd-boot` (default) and `grub`. The
+  bootloader job's own yaml `type:` is authoritative (XeroLinux profiles
+  set `type: grub`); nothing in the UI sets `selections["bootloader"]`.
+  `Engine.bootloader_type()` resolves it (job `type:`, then
+  `selections["bootloader"]`, then `systemd-boot`, matching
+  `BootloaderJob._get_bootloader_type`), and `Engine.run_all` seeds the
+  result into `context.selections["bootloader"]` once per run so jobs that
+  run before the bootloader (partition) can read it from selections.
   AUTO mode's fixed 2-partition layout (EFI + Root, no separate `/boot`)
   means `/boot` always lives inside the encrypted root when encryption is
   on. Manual mode additionally allows a separate, unencrypted `/boot`
@@ -108,7 +114,8 @@ directly:
 
 ```
 needs_pbkdf2 = (
-    selections.get("bootloader", "systemd-boot") == "grub"
+    selections["bootloader"] == "grub"  # seeded by Engine.run_all from the
+                                        # bootloader job's yaml `type:`
     and not <a separate partition is mounted at /boot ahead of this one>
 )
 ```
