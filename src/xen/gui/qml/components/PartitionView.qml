@@ -1027,6 +1027,17 @@ Item {
                                         leftPadding: showEncPassCheck.indicator.width + showEncPassCheck.spacing
                                     }
                                 }
+
+                                Text {
+                                    id: grubKdfNote
+                                    objectName: "grubKdfNote"
+                                    Layout.fillWidth: true
+                                    visible: encryptionEnabled && engine.bootloaderType === "grub"
+                                    text: qsTr("GRUB can't unlock Argon2id-protected volumes directly - using PBKDF2 for compatibility.")
+                                    font.pixelSize: 10
+                                    color: textMutedColor
+                                    wrapMode: Text.WordWrap
+                                }
                             }
                         }
 

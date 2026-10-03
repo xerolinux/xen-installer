@@ -41,6 +41,7 @@ from xen.core.engine import Engine  # noqa: E402
 from xen.gui.bridge import EngineBridge  # noqa: E402
 from xen.gui.theme_bridge import SystemThemeBridge  # noqa: E402
 from xen.gui.translator_proxy import TranslatorProxy  # noqa: E402
+from xen.jobs.bootloader import BootloaderJob  # noqa: E402
 from xen.jobs.partition import _ALIGN, _SECTOR_SIZE  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -109,15 +110,34 @@ def _find_by_object_name(root: Any, name: str) -> Any | None:
     Qt Quick keeps their QObject ownership separate from their visual
     parent, so a Repeater's items live under childItems() instead.
 
-    No id()-based cycle guard: PySide mints a fresh Python wrapper per
+    Dedup IS required: a plain item's children() and childItems() largely
+    overlap (QObject parent == visual parent for ordinary items), so every
+    shared node gets pushed from both paths. Without a visited guard this
+    double-push compounds per level of depth, and controls that hold a
+    reference to a single shared, page-wide object (e.g. a TextField's
+    context menu living under the window's Overlay) turn that into a
+    combinatorial blow-up - observed hanging for minutes/never finishing
+    on a "not found" search that must exhaust the whole tree.
+
+    This previously had no dedup: a bare id()-keyed set was tried and
+    reverted, because PySide mints a fresh Python wrapper per attribute
     access, so id() (a memory address in CPython) can be reused for an
-    unrelated object once an earlier short-lived wrapper is GC'd mid-walk -
-    a dedup set here caused real, unrelated items to be falsely skipped.
-    A plain QML item tree has no actual cycles, so none is needed.
+    unrelated object once an earlier short-lived wrapper is GC'd mid-walk,
+    causing real, unrelated items to be falsely skipped. Keeping a strong
+    reference to every visited wrapper in `visited_refs` keeps each one
+    alive for the rest of the walk, so its id() cannot be recycled - the
+    id()-reuse hazard is gone and the dedup is safe.
     """
     stack: list[Any] = [root]
+    visited_ids: set[int] = set()
+    visited_refs: list[Any] = []
     while stack:
         obj = stack.pop()
+        oid = id(obj)
+        if oid in visited_ids:
+            continue
+        visited_ids.add(oid)
+        visited_refs.append(obj)
         if obj.objectName() == name:
             return obj
         for child in obj.children():
@@ -368,3 +388,74 @@ class TestEditDialogCommitsMountPoint:
             assert bridge.partitionMount("sda2") == "/"
         finally:
             del qml_engine
+
+
+def test_grub_encryption_note_visibility(bridge: EngineBridge, qapp: QApplication) -> None:
+    """The GRUB/Argon2id note shows only when both encryption is on AND
+    bootloader is grub - hidden in every other combination.
+
+    Two things the obvious version of this test gets wrong:
+
+    - The encryption/swap/EFI details block (grubKdfNote's ancestor) is only
+      shown once a disk is selected, so `setSelectedDisk("sda")` is required
+      - without it, note.property("visible") reads False regardless of the
+      encryption/bootloader state, since QQuickItem.visible reports
+      *effective* (ancestor-combined) visibility, not just the item's own
+      binding.
+    - engine.bootloaderType is declared `constant=True` (Task 3): QML reads
+      it once per binding and never re-polls it on its own, since it's fixed
+      by the distro config and never changes at runtime. So the grub case
+      below needs its own fresh engine/bridge load with the job config set
+      to "grub" BEFORE the QML tree is built - mutating it after the first
+      engine has already loaded has no effect on that engine's
+      already-evaluated (and never-re-read) binding. (XEROLINUX_CONFIG's own
+      bootloader default is already "grub", so the first load explicitly
+      overrides it to "systemd-boot" to exercise the "encryption on, but not
+      grub" case meaningfully.)
+    """
+    bridge._disks_model = [_mock_disk()]
+    for job in bridge._engine.jobs:
+        if isinstance(job, BootloaderJob):
+            job._config["type"] = "systemd-boot"
+
+    qml_engine, root, collector = _load_main(bridge)
+    try:
+        root.setProperty("currentStep", 4)
+        bridge.setSelectedDisk("sda")
+        qapp.processEvents()
+
+        note = _find_by_object_name(root, "grubKdfNote")
+        assert note is not None, "grubKdfNote Text not found in the QML tree"
+
+        # Neither encryption nor grub: hidden.
+        assert bool(note.property("visible")) is False
+
+        # Encryption on, but bootloader is systemd-boot: still hidden.
+        bridge.setEncryption(True)
+        qapp.processEvents()
+        assert bool(note.property("visible")) is False
+
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
+
+    # Encryption on AND grub: visible. Fresh engine load, set up before
+    # _load_main() builds the tree (see docstring above).
+    for job in bridge._engine.jobs:
+        if isinstance(job, BootloaderJob):
+            job._config["type"] = "grub"
+
+    qml_engine, root, collector = _load_main(bridge)
+    try:
+        root.setProperty("currentStep", 4)
+        qapp.processEvents()
+
+        note = _find_by_object_name(root, "grubKdfNote")
+        assert note is not None, "grubKdfNote Text not found in the QML tree"
+        assert bool(note.property("visible")) is True
+
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
