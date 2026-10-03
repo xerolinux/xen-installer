@@ -37,6 +37,18 @@ class LuksBootKeyfileJob(BaseJob):
             context.report_progress(100, "Skipped (dry run)")
             return JobResult.ok("Skipped: LUKS keyfile (dry run)")
 
+        # Deliberately AUTO-mode-only (unlike bootloader.py/systemconfig.py's
+        # manual-mode-aware root-encryption resolution): this job needs
+        # root's ORIGINAL passphrase (context.selections["encryption_passphrase"],
+        # read below) to add the convenience keyslot. AUTO mode keeps that in
+        # selections for the whole run; manual mode's root passphrase is
+        # consumed live during Apply (fed straight into luksFormat) and is
+        # never persisted for later reuse - only non-root partitions'
+        # generated passphrases survive, via manual_luks_passphrases. So a
+        # manual-mode encrypted root correctly no-ops here rather than
+        # failing on a missing passphrase - at the cost of a second
+        # boot-time prompt (GRUB decrypts once, mkinitcpio's "encrypt" hook
+        # prompts again to mount root). Known, acceptable limitation.
         if not context.selections.get("encryption"):
             context.report_progress(100, "Encryption not enabled")
             return JobResult.ok("Encryption not enabled, skipping LUKS keyfile")

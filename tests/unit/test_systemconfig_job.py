@@ -256,6 +256,70 @@ class TestConfigureMkinitcpioHooks:
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
         assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
 
+    def test_inserts_encrypt_for_manual_mode_encrypted_root(self, tmp_path: Path) -> None:
+        """Regression: manual mode never sets the top-level "encryption"
+        selection (it threads intent through partition_assignments/per-op
+        encrypt flags instead), so the old `selections.get("encryption")`
+        read always evaluated False for a manual-mode encrypted root - the
+        "encrypt" hook never got added, and the initramfs had no way to
+        unlock root at boot at all. Must resolve the same way
+        bootloader.py's _resolve_root_encryption does."""
+        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        job = SystemConfigJob()
+
+        result = job._configure_mkinitcpio_hooks(
+            target,
+            {
+                "partition_mode": "manual",
+                "partition_assignments": [
+                    {
+                        "path": "/dev/mapper/cryptroot",
+                        "mountpoint": "/",
+                        "raw_path": "/dev/sda2",
+                    },
+                ],
+            },
+        )
+
+        assert result.success is True
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+
+    def test_auto_mode_encryption_selection_still_inserts_encrypt(self, tmp_path: Path) -> None:
+        """AUTO mode's existing selections={"encryption": True} behavior
+        must be unchanged by routing through _resolve_root_encryption."""
+        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        job = SystemConfigJob()
+
+        result = job._configure_mkinitcpio_hooks(
+            target, {"encryption": True, "root_partition": "/dev/vda2"}
+        )
+
+        assert result.success is True
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+
+    def test_manual_mode_unencrypted_root_does_not_insert_encrypt(self, tmp_path: Path) -> None:
+        """A manual-mode root that isn't itself encrypted (e.g. only /home
+        is) must not spuriously get the "encrypt" hook."""
+        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        job = SystemConfigJob()
+
+        result = job._configure_mkinitcpio_hooks(
+            target,
+            {
+                "partition_mode": "manual",
+                "partition_assignments": [
+                    {"path": "/dev/sda2", "mountpoint": "/"},
+                    {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
+                ],
+            },
+        )
+
+        assert result.success is True
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "encrypt" not in content.split("HOOKS=(")[1].split(")")[0].split()
+
     def test_inserts_resume_after_filesystems_when_hibernate_selected(
         self, tmp_path: Path
     ) -> None:
