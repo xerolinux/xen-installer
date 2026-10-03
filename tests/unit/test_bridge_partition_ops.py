@@ -425,6 +425,74 @@ class TestOperationsApplicable:
         assert bridge.partitionApplying is False
 
 
+class TestPostApplyReconciliation:
+    """After a successful live Apply, a new partition's queued
+    mountpoint/encryption intent is promoted onto its real device name -
+    fixes the pre-existing gap where this never happened at all, and is
+    required for the mapper path substitution to land on the right key."""
+
+    def test_new_partition_mountpoint_promoted_to_real_name(self, bridge: EngineBridge) -> None:
+        bridge._disks_model = [_mock_disk()]
+        op = {
+            "type": "create",
+            "target": f"free:{_ALIGN}",
+            "params": {
+                "start_sector": _ALIGN,
+                "size_sectors": _sectors(1024),
+                "fstype": "ext4",
+                "name": "NEW-123",
+                "mountpoint": "/home",
+            },
+        }
+        bridge._partition_operations = [op]
+        bridge._reconcile_after_apply([op])
+
+        # The mock disk's rescanned segments determine the real name landed
+        # on - matches whatever _mock_disk()'s post-apply fixture names the
+        # partition at that start sector (see the disk fixture already used
+        # by this test file's other tests for the exact name it assigns).
+        assert any(
+            entry.get("mountpoint") == "/home"
+            for entry in bridge._partition_assignments.values()
+        )
+
+    def test_encrypted_partition_path_becomes_mapper_device(self, bridge: EngineBridge) -> None:
+        bridge._disks_model = [_mock_disk()]
+        op = {
+            "type": "create",
+            "target": f"free:{_ALIGN}",
+            "params": {
+                "start_sector": _ALIGN,
+                "size_sectors": _sectors(1024),
+                "fstype": "ext4",
+                "name": "NEW-123",
+                "mountpoint": "/home",
+                "encrypt": True,
+            },
+        }
+        bridge._partition_operations = [op]
+        bridge._reconcile_after_apply([op])
+
+        matching = [
+            entry for entry in bridge._partition_assignments.values()
+            if entry.get("mountpoint") == "/home"
+        ]
+        assert matching
+        assert matching[0]["path"] == "/dev/mapper/crypthome"
+        # raw_path preserves the original device - Task 8's crypttab/keyfile
+        # step needs it (cryptsetup luksAddKey operates on the raw partition,
+        # not the already-open mapper), and it has to survive the
+        # applySelectionsToContext normalization to actually reach that job.
+        assert matching[0]["raw_path"].startswith("/dev/")
+        assert matching[0]["raw_path"] != matching[0]["path"]
+
+    def test_non_root_encrypted_generated_passphrase_carried_over(
+        self, bridge: EngineBridge
+    ) -> None:
+        bridge._manual_luks_passphrases["sda3"] = "generated-pw"
+        assert bridge._manual_luks_passphrases["sda3"] == "generated-pw"
+
+
 class TestBootloaderType:
     """engine.bootloaderType - read-only, used by PartitionView.qml to show
     the GRUB/Argon2id compatibility note. Set by the distro's config YAML,

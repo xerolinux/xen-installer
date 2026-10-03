@@ -22,6 +22,7 @@ from xen.jobs.base import JobStatus
 from xen.jobs.locale import LocaleJob
 from xen.jobs.partition import (
     PartitionOperation,
+    _manual_mapper_name,
     simulate_operations,
     validate_manual_assignments,
     validate_operations,
@@ -303,12 +304,16 @@ class PartitionApplyWorker(QObject):
         disk: str,
         operations: list[dict[str, Any]],
         dry_run: bool,
+        bootloader: str,
+        has_separate_boot: bool,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._disk = disk
         self._operations = operations
         self._dry_run = dry_run
+        self._bootloader = bootloader
+        self._has_separate_boot = has_separate_boot
 
     def run(self) -> None:
         """Execute the queued operations (real sgdisk/mkfs) against the disk."""
@@ -318,13 +323,20 @@ class PartitionApplyWorker(QObject):
 
             job = PartitionJob()
             context = JobContext(
-                selections={"disk": self._disk, "partition_operations": self._operations}
+                selections={
+                    "disk": self._disk,
+                    "partition_operations": self._operations,
+                    "bootloader": self._bootloader,
+                    "has_separate_boot": self._has_separate_boot,
+                }
             )
             result = job._apply_operations(
                 context, self._disk, context.selections, dry_run=self._dry_run
             )
+            self._generated_passphrases = dict(job._manual_generated_passphrases)
             self.finished.emit(result.success, result.message)
         except Exception as e:  # noqa: BLE001 - never let the thread crash the UI
+            self._generated_passphrases = {}
             self.finished.emit(False, str(e))
 
 
@@ -1410,6 +1422,10 @@ class EngineBridge(QObject):
         # Manual partitioning: per-partition assignment keyed by partition name.
         # Each value: {"path": str, "mountpoint": str, "format": bool, "fstype": str}
         self._partition_assignments: dict[str, dict[str, Any]] = {}
+
+        # Real partition name -> generated LUKS passphrase, populated after a
+        # live Apply encrypts a partition without an explicit user passphrase.
+        self._manual_luks_passphrases: dict[str, str] = {}
 
         # M2 manual editor: ordered list of pending operation dicts (the strict
         # QML<->Python contract) plus the last computed validity/error message.
@@ -2776,12 +2792,24 @@ class EngineBridge(QObject):
 
         disk_path = selected if selected.startswith("/dev/") else f"/dev/{selected}"
 
+        # Not self._selections: nothing in the UI sets "bootloader"; the
+        # bootloader job's yaml type: is authoritative.
+        bootloader = self._engine.bootloader_type()
+        has_separate_boot = any(
+            op.get("params", {}).get("mountpoint") == "/boot"
+            for op in self._partition_operations
+        ) or any(
+            entry.get("mountpoint") == "/boot"
+            for entry in self._partition_assignments.values()
+        )
+
         self._partition_applying = True
         self.partitionApplyingChanged.emit()
 
         self._apply_thread = QThread(self)
         self._apply_worker = PartitionApplyWorker(
-            disk_path, list(self._partition_operations), self._dry_run
+            disk_path, list(self._partition_operations), self._dry_run,
+            bootloader, has_separate_boot,
         )
         self._apply_worker.moveToThread(self._apply_thread)
         self._apply_thread.started.connect(self._apply_worker.run)
@@ -2792,13 +2820,79 @@ class EngineBridge(QObject):
         self._apply_thread.finished.connect(self._cleanup_apply_thread)
         self._apply_thread.start()
 
+    def _reconcile_after_apply(self, applied_ops: list[dict[str, Any]]) -> None:
+        """
+        Promote each applied create/format op's queued mountpoint/encryption
+        intent onto the real partition it now corresponds to.
+
+        Fixes a pre-existing gap: a newly-created partition's Mount Point
+        field was captured in its `create` op's params but nothing ever
+        carried it into `_partition_assignments` (keyed by the partition's
+        real, post-Apply kernel name) - only the Edit dialog's
+        `setPartitionMount`, on an already-existing partition, worked. This
+        also has to exist for `encrypt` to correctly resolve to a mapper
+        device path for a newly-created partition, so both are fixed here
+        together.
+        """
+        disk = self._selected_disk_geometry()
+        segments = disk.get("segments", [])
+
+        for op in applied_ops:
+            params = op.get("params", {})
+            mountpoint = params.get("mountpoint")
+            encrypt = bool(params.get("encrypt"))
+            if not mountpoint and not encrypt:
+                continue
+
+            real_name = self._resolve_real_partition_name(op, segments)
+            if not real_name:
+                continue
+
+            entry = self._assignment(real_name)
+            if mountpoint:
+                entry["mountpoint"] = mountpoint
+            if params.get("fstype"):
+                entry["fstype"] = params["fstype"]
+            if params.get("subvolumes"):
+                entry["subvolumes"] = params["subvolumes"]
+            if encrypt:
+                entry["raw_path"] = f"/dev/{real_name}"
+                entry["path"] = f"/dev/mapper/{_manual_mapper_name(str(mountpoint or ''))}"
+
+        self.partitionPlanChanged.emit()
+
+    @staticmethod
+    def _resolve_real_partition_name(
+        op: dict[str, Any], segments: list[dict[str, Any]]
+    ) -> str | None:
+        """Match a `create`/`format` op to the real partition it now
+        corresponds to, by start sector - same sector-matching
+        `_resolve_partition_number` already does job-side, mirrored here
+        client-side against freshly-rescanned disk geometry."""
+        params = op.get("params", {})
+        if op.get("type") == "format":
+            path = str(params.get("path", ""))
+            return path.rsplit("/", 1)[-1] if path else None
+        start = params.get("start_sector")
+        if start is None:
+            return None
+        for seg in segments:
+            if seg.get("kind") == "partition" and seg.get("startSector") == start:
+                return str(seg.get("name", ""))
+        return None
+
     def _on_partition_apply_finished(self, success: bool, message: str) -> None:
-        """Main-thread handler: on success clear the queue and rescan the disks."""
+        """Main-thread handler: on success, reconcile queued intent onto
+        real partition names, clear the queue, and rescan the disks."""
         self._partition_applying = False
         self.partitionApplyingChanged.emit()
         if success:
-            self.resetPartitionOperations()
             self.refreshDisks()
+            self._reconcile_after_apply(list(self._partition_operations))
+            for raw_path, pw in getattr(self._apply_worker, "_generated_passphrases", {}).items():
+                name = raw_path.rsplit("/", 1)[-1]
+                self._manual_luks_passphrases[name] = pw
+            self.resetPartitionOperations()
         if self._debug:
             print(f"[Engine] Partition apply finished: success={success} ({message})")
         self.partitionApplyFinished.emit(success, message)
@@ -3085,6 +3179,7 @@ class EngineBridge(QObject):
                     "format": entry["format"],
                     "fstype": entry["fstype"],
                     "subvolumes": entry.get("subvolumes") or [],
+                    "raw_path": entry.get("raw_path", ""),
                 }
                 for name, entry in self._partition_assignments.items()
                 if entry["mountpoint"] or entry["format"] or entry.get("subvolumes")
