@@ -617,6 +617,37 @@ class TestApplyOperationsExecution:
         assert "vfat" not in mkpart
         assert ["mkfs.fat", "-F32", "/dev/sda9"] in calls
 
+    def test_create_with_label_passes_through_to_mkfs(self) -> None:
+        calls = self._apply(
+            [
+                {
+                    "type": "create",
+                    "target": "free:2048",
+                    "params": {
+                        "start_sector": 2048,
+                        "size_sectors": _sectors(512),
+                        "fstype": "ext4",
+                        "path": "/dev/sda9",
+                        "number": 9,
+                        "label": "DATA",
+                    },
+                }
+            ]
+        )
+        assert ["mkfs.ext4", "-F", "-L", "DATA", "/dev/sda9"] in calls
+
+    def test_format_with_label_passes_through_to_mkfs(self) -> None:
+        calls = self._apply(
+            [
+                {
+                    "type": "format",
+                    "target": "/dev/sda2",
+                    "params": {"path": "/dev/sda2", "fstype": "xfs", "label": "ROOT"},
+                }
+            ]
+        )
+        assert ["mkfs.xfs", "-f", "-L", "ROOT", "/dev/sda2"] in calls
+
     def test_create_swap_uses_parted_linux_swap(self) -> None:
         calls = self._apply(
             [
@@ -966,6 +997,46 @@ class TestApplyOperationsExecution:
         )
         assert result.success is False
         assert result.error_code == 53
+
+    def test_create_wipes_signatures_before_mkfs(self) -> None:
+        # A disk reused across installs can carry a stale signature (e.g.
+        # crypto_LUKS) on the sectors a new partition lands on; mkfs never
+        # clears that on its own, so a wipefs -af must run right before it -
+        # same reasoning as the auto-mode _format_partitions path.
+        calls = self._apply(
+            [
+                {
+                    "type": "create",
+                    "target": "free:2048",
+                    "params": {
+                        "start_sector": 2048,
+                        "size_sectors": _sectors(512),
+                        "fstype": "ext4",
+                        "path": "/dev/sda9",
+                        "number": 9,
+                    },
+                }
+            ]
+        )
+        assert ["wipefs", "-af", "/dev/sda9"] in calls
+        i_wipe = calls.index(["wipefs", "-af", "/dev/sda9"])
+        i_mkfs = calls.index(["mkfs.ext4", "-F", "/dev/sda9"])
+        assert i_wipe < i_mkfs
+
+    def test_format_wipes_signatures_before_mkfs(self) -> None:
+        calls = self._apply(
+            [
+                {
+                    "type": "format",
+                    "target": "/dev/sda3",
+                    "params": {"path": "/dev/sda3", "fstype": "xfs"},
+                }
+            ]
+        )
+        assert ["wipefs", "-af", "/dev/sda3"] in calls
+        i_wipe = calls.index(["wipefs", "-af", "/dev/sda3"])
+        i_mkfs = calls.index(["mkfs.xfs", "-f", "/dev/sda3"])
+        assert i_wipe < i_mkfs
 
 
 class TestApplyOperationsSecurity:

@@ -679,6 +679,27 @@ class TestInstallGrub:
             assert result.success is True
             assert grubenv.exists()
 
+    @patch("xen.jobs.bootloader.subprocess.run")
+    def test_install_grub_disables_efi_bootnext_before_mkconfig(
+        self, mock_subprocess: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job = BootloaderJob()
+            job._efi_mount = Path(tmpdir) / "boot" / "efi"
+            job._efi_mount.mkdir(parents=True, exist_ok=True)
+            bootnext = Path(tmpdir) / "etc" / "grub.d" / "31_efi_bootnext"
+            bootnext.parent.mkdir(parents=True)
+            bootnext.write_text("#! /bin/sh\n", encoding="utf-8")
+            bootnext.chmod(0o755)
+
+            mock_subprocess.return_value = MagicMock(returncode=0, stdout="Success")
+
+            context = JobContext(target_root=tmpdir, selections={"filesystem": "ext4"})
+            result = job._install_grub(context)
+
+            assert result.success is True
+            assert not (bootnext.stat().st_mode & 0o111)
+
 
 # Trimmed but byte-exact excerpt of the real, unmodified /etc/grub.d/00_header
 # shipped by Arch's grub package (confirmed via a real local install) - the
@@ -746,6 +767,28 @@ class TestDisableGrubenvLoading:
         job._disable_grubenv_loading(str(tmp_path))
 
         assert header_path.read_text() == "#! /bin/sh\necho hello\n"
+
+
+class TestDisableEfiBootnextScript:
+    """/etc/grub.d/31_efi_bootnext must not run during grub-mkconfig -
+    chmod -x it in the target chroot before GRUB config generation."""
+
+    def test_strips_execute_bit(self, tmp_path: Path) -> None:
+        script_path = tmp_path / "etc" / "grub.d" / "31_efi_bootnext"
+        script_path.parent.mkdir(parents=True)
+        script_path.write_text("#! /bin/sh\necho bootnext\n", encoding="utf-8")
+        script_path.chmod(0o755)
+        job = BootloaderJob()
+
+        job._disable_efi_bootnext_script(str(tmp_path))
+
+        mode = script_path.stat().st_mode
+        assert not (mode & 0o111), "execute bit must be cleared"
+        assert mode & 0o600, "read/write bits must survive"
+
+    def test_noop_when_file_missing(self, tmp_path: Path) -> None:
+        job = BootloaderJob()
+        job._disable_efi_bootnext_script(str(tmp_path))  # must not raise
 
 
 class TestWriteGrubDefaults:

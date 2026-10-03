@@ -148,10 +148,11 @@ class TestPendingOperations:
         bridge.resetPartitionOperations()
         assert bridge.pendingOperations == []
         # With no operations left, validity/error fall back to the M1 rule; a
-        # '/' assignment makes it valid again.
+        # '/' assignment (plus the ESP mounted at /boot/efi) makes it valid.
         assert bridge.manualPlanValid is False
         bridge.setPartitionMount("sda2", "/")
-        assert bridge.manualPlanValid is True
+        bridge.setPartitionMount("sda1", "/boot/efi")
+        assert bridge.manualPlanValid is True, bridge.manualPlanError
 
 
 class TestOperationSignals:
@@ -211,11 +212,13 @@ class TestManualPlanValidity:
         assert "mounted at /" in bridge.manualPlanError
 
     def test_falls_back_to_m1_when_no_operations(self, bridge: EngineBridge) -> None:
-        # No operations: validity follows the M1 assignment rule (needs a '/').
+        # No operations: validity follows the M1 assignment rule (root + ESP).
         assert bridge.pendingOperations == []
         assert bridge.manualPlanValid is False  # no assignment yet
         bridge.setPartitionMount("sda2", "/")
-        assert bridge.manualPlanValid is True
+        assert bridge.manualPlanValid is False  # still missing the ESP mount
+        bridge.setPartitionMount("sda1", "/boot/efi")
+        assert bridge.manualPlanValid is True, bridge.manualPlanError
 
 
 class TestSimulatedSegments:

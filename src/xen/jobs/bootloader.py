@@ -535,6 +535,8 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         if context.selections.get("filesystem") == "btrfs":
             self._disable_grubenv_loading(context.target_root)
 
+        self._disable_efi_bootnext_script(context.target_root)
+
         # Generate GRUB configuration
         context.report_progress(60, "Generating GRUB configuration...")
 
@@ -609,6 +611,25 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             return
 
         logger.info(f"Removed unconditional grubenv load from {header_path}")
+
+    def _disable_efi_bootnext_script(self, target_root: str) -> None:
+        """Strip the execute bit from /etc/grub.d/31_efi_bootnext so
+        grub-mkconfig skips it (grub-mkconfig only sources executable
+        scripts in /etc/grub.d/). Run before grub-mkconfig, every GRUB
+        install - not gated on any filesystem. Non-fatal: the script isn't
+        shipped by every grub version, so a missing file is a normal no-op.
+        """
+        script_path = Path(target_root) / "etc" / "grub.d" / "31_efi_bootnext"
+        try:
+            if not script_path.exists():
+                return
+            mode = script_path.stat().st_mode
+            script_path.chmod(mode & ~0o111)
+        except OSError as e:
+            logger.warning(f"Failed to clear execute bit on {script_path}: {e}")
+            return
+
+        logger.info(f"Disabled {script_path} (chmod -x) ahead of grub-mkconfig")
 
     def _blkid_uuid(self, device: str) -> str | None:
         """Get the filesystem/LUKS UUID of a raw device, or None if unavailable."""

@@ -692,6 +692,8 @@ ApplicationWindow {
             case 3:  // Users
                 return usersView.isValid
             case 4:  // Partition
+                if (engine.partitionMode === "manual")
+                    return engine.selectedDisk !== "" && engine.manualPlanValid
                 return engine.selectedDisk !== ""
             case 5:  // Summary
                 // ITEM 2: n'arme l'installation que si l'utilisateur a coché la

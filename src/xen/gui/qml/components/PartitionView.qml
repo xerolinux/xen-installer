@@ -5,10 +5,12 @@
  * - List of available disks with details
  * - Data loss warning
  * - Automatic partitioning options (filesystem, swap, EFI, encryption)
+ * - Manual partitioning (ManualPartitionEditor): create/delete/resize/format
+ *   with mount-point assignment, filesystem choice hardcoded to ext4/xfs/btrfs
  *
- * Manual partitioning is not offered - the installer always erases the
- * selected disk and lays it out automatically. Advanced users are pointed
- * at the standalone XeroLinux install script instead.
+ * Auto-only controls (swap strategy, encryption, fixed EFI size) are not
+ * wired for manual mode's backend path and stay hidden there - manual users
+ * build their own EFI/swap partitions in the editor instead.
  */
 
 import QtQuick
@@ -35,6 +37,7 @@ Item {
     // relayés par Main.qml vers engine.setX), donc ces bindings restent vivants
     // et reflètent toujours l'état courant après un retour arrière / le résumé.
     readonly property string selectedDisk: engine.selectedDisk
+    readonly property string partitionMode: engine.partitionMode  // "auto" | "manual"
     readonly property string filesystem: engine.filesystem        // "ext4" | "xfs" | "btrfs"
     readonly property string swapStrategy: engine.swapStrategy     // "file" | "none" | "hibernate"
     readonly property bool encryptionEnabled: engine.encryption
@@ -94,6 +97,7 @@ Item {
     }
 
     readonly property bool canProceed: selectedDisk !== "" && encryptionPassValid
+        && (partitionMode !== "manual" || engine.manualPlanValid)
 
     // Fixed, non-scrolling two-card flow (no ScrollView): a disk card,
     // then - once a disk is picked - a mode+options card directly below
@@ -673,9 +677,6 @@ Item {
                     anchors.margins: 14
                     spacing: 8
 
-                // Options - manual partitioning removed entirely, so the
-                // only decision left is how to configure the automatic
-                // (erase-and-layout) install.
                 Text {
                     text: qsTr("Options")
                     font.pixelSize: 17
@@ -683,10 +684,51 @@ Item {
                     color: textColor
                 }
 
-                // --- Filesystem / Swap / EFI, side by side ---
+                // --- Mode toggle: Auto (erase + layout) vs Manual (editor) ---
+                Row {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 10
+
+                    RadioButton {
+                        objectName: "partitionModeAutoRadio"
+                        text: qsTr("Automatic")
+                        checked: partitionMode !== "manual"
+                        onClicked: engine.setPartitionMode("auto")
+                        contentItem: Text {
+                            text: parent.text
+                            color: textColor
+                            font.pixelSize: 14
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: parent.indicator.width + parent.spacing
+                        }
+                    }
+
+                    RadioButton {
+                        objectName: "partitionModeManualRadio"
+                        text: qsTr("Manual")
+                        checked: partitionMode === "manual"
+                        onClicked: {
+                            engine.setPartitionMode("manual")
+                            manualEditorPopup.open()
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: textColor
+                            font.pixelSize: 14
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: parent.indicator.width + parent.spacing
+                        }
+                    }
+                }
+
+                // --- Filesystem / Swap / EFI, side by side (auto mode only) ---
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.topMargin: 4
                     spacing: 24
+                    visible: partitionMode !== "manual"
 
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -839,10 +881,13 @@ Item {
                             }
                 }
 
-                        // --- LUKS encryption ---
+                        // --- LUKS encryption (auto mode only - the manual
+                        // backend path never calls _setup_luks) ---
                         Column {
                             Layout.fillWidth: true
                             spacing: 6
+                            visible: partitionMode !== "manual"
+                            height: visible ? implicitHeight : 0
 
                             CheckBox {
                                 id: encryptionCheck
@@ -985,29 +1030,44 @@ Item {
                             }
                         }
 
-                // Manual partitioning isn't offered at all (see file header) -
-                // this pill tells advanced users where to go instead, without
-                // adding a whole second mode back into the page. Placed
-                // inside this card so the frosted panel visibly ends right
-                // under it, instead of leaving it floating on bare background.
-                Rectangle {
+                // --- Manual mode: compact status row, full editor lives in a
+                // scrollable popup (see manualEditorPopup below) - the old
+                // inline fixed-height box was too cramped for the histobar +
+                // table + dialogs to breathe. ---
+                RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 4
-                    Layout.preferredHeight: manualPillText.implicitHeight + 14
-                    radius: height / 2
-                    color: Qt.rgba(warningColor.r, warningColor.g, warningColor.b, 0.12)
-                    border.color: Qt.rgba(warningColor.r, warningColor.g, warningColor.b, 0.4)
-                    border.width: 1
+                    visible: partitionMode === "manual"
+                    spacing: 10
 
                     Text {
-                        id: manualPillText
-                        anchors.centerIn: parent
-                        width: parent.width - 28
-                        text: "⚠️ " + qsTr("Manual Partitioning Not Supported. Installing to a separate drive is highly recommended for dual boot. For advanced installs, please use the XeroLinux Script instead.")
-                        font.pixelSize: 13
-                        color: warningColor
+                        Layout.fillWidth: true
+                        text: engine.manualPlanError !== ""
+                            ? "⚠️ " + engine.manualPlanError
+                            : qsTr("Manual partition plan looks valid.")
+                        color: engine.manualPlanError !== "" ? errorColor : successColor
+                        font.pixelSize: 12
                         wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Button {
+                        text: qsTr("Open Manual Editor")
+                        onClicked: manualEditorPopup.open()
+                        contentItem: Text {
+                            text: parent.text
+                            color: textColor
+                            font.pixelSize: 13
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            implicitHeight: 36
+                            radius: 8
+                            color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
+                            border.color: primaryColor
+                            border.width: 1
+                        }
                     }
                 }
 
@@ -1017,4 +1077,132 @@ Item {
                 Item { height: 8 }
             } // end pageColumn
         } // end outer Item
+
+    // ===== Manual partition editor (full-size, scrollable popup) =====
+    Popup {
+        id: manualEditorPopup
+        objectName: "manualEditorPopup"
+        anchors.centerIn: parent
+        width: parent.width * 0.9
+        height: parent.height * 0.88
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        // Explicit dim scrim: the default Fusion-style modal overlay reads as
+        // barely-there against this app's own dark theme, letting the page
+        // behind (disk list, legend) show through distractingly at the edges.
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.65)
+        }
+
+        background: Rectangle {
+            radius: 16
+            color: backgroundColor
+            border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
+            border.width: 2
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 20
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Manual Partitioning")
+                    font.pixelSize: 20
+                    font.bold: true
+                    color: textColor
+                }
+                Button {
+                    text: qsTr("Close")
+                    onClicked: manualEditorPopup.close()
+                    contentItem: Text {
+                        text: parent.text
+                        color: textColor
+                        font.pixelSize: 13
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        implicitWidth: 80
+                        implicitHeight: 32
+                        radius: 8
+                        color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
+                        border.color: textMutedColor
+                        border.width: 1
+                    }
+                }
+            }
+
+            // Manual partitioning is new and destructive - flagged as
+            // experimental regardless of plan validity, not just an error state.
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: experimentalPillText.implicitHeight + 14
+                radius: height / 2
+                color: Qt.rgba(warningColor.r, warningColor.g, warningColor.b, 0.12)
+                border.color: Qt.rgba(warningColor.r, warningColor.g, warningColor.b, 0.4)
+                border.width: 1
+
+                Text {
+                    id: experimentalPillText
+                    anchors.centerIn: parent
+                    width: parent.width - 28
+                    text: "⚠️ " + qsTr("Manual Partitioning is still in the experimental stage, USE AT OWN RISK !")
+                    font.pixelSize: 13
+                    color: warningColor
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: engine.manualPlanError !== ""
+                text: "⚠️ " + engine.manualPlanError
+                color: errorColor
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                // The vertical scrollbar isn't a floating overlay here - it
+                // reserves real width inside the viewport once content is
+                // tall enough to scroll (editor height can exceed 760, see
+                // below). A width calculated purely from the popup, with no
+                // allowance for that reservation, renders slightly too wide
+                // and clips its own rightmost strip - only visible once
+                // content actually gets tall enough to need the scrollbar,
+                // which is why it didn't show up until a second pending
+                // change pushed things past that threshold.
+                ManualPartitionEditor {
+                    width: manualEditorPopup.width - 60
+                    height: Math.max(implicitHeight, 760)
+                    primaryColor: root.primaryColor
+                    surfaceColor: root.surfaceColor
+                    backgroundColor: root.backgroundColor
+                    textColor: root.textColor
+                    textMutedColor: root.textMutedColor
+                    successColor: root.successColor
+                    warningColor: root.warningColor
+                    errorColor: root.errorColor
+                    colorEfi: root.colorEfi
+                    colorLinux: root.colorLinux
+                    colorBtrfs: root.colorBtrfs
+                    colorSwap: root.colorSwap
+                    colorFree: root.colorFree
+                    hasInternet: root.btrfsAvailable
+                }
+            }
+        }
+    }
 }

@@ -114,202 +114,50 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 10
 
-                // Distro logo - shown on success as the celebratory branding
-                // moment; omitted on failure to keep focus on the error icon.
-                Image {
-                    id: finishedLogo
-                    visible: success && status === Image.Ready
+                // Distro logo, always shown (success or failure) - a small
+                // status badge in its lower-right corner carries the actual
+                // result instead of the old big animated check/X circle.
+                Item {
+                    id: logoWithBadge
                     anchors.horizontalCenter: parent.horizontalCenter
-                    source: distroLogo
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.height: 44
-                    height: 44
-                }
+                    width: finishedLogo.status === Image.Ready ? finishedLogo.width : statusBadge.width
+                    height: finishedLogo.status === Image.Ready ? finishedLogo.height : statusBadge.height
 
-                // Animated icon
-                Rectangle {
-                    width: 84
-                    height: 84
-                    radius: 42
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    color: success ?
-                           Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2) :
-                           Qt.rgba(errorColor.r, errorColor.g, errorColor.b, 0.2)
+                    Image {
+                        id: finishedLogo
+                        source: distroLogo
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize.height: 96
+                        height: 96
+                    }
 
-                    // Ambient glow ring instead of a MultiEffect shadow -
-                    // this installer always runs with QT_QUICK_BACKEND=
-                    // software (see WelcomeView.qml), under which
-                    // layer.effect silently fails to render at all, taking
-                    // this whole circle (and its children) down with it.
                     Rectangle {
-                        anchors.centerIn: parent
-                        width: parent.width + 12
-                        height: parent.height + 12
-                        radius: width / 2
-                        color: "transparent"
-                        border.width: 5
-                        border.color: Qt.rgba(
-                            (success ? successColor : errorColor).r,
-                            (success ? successColor : errorColor).g,
-                            (success ? successColor : errorColor).b, 0.15)
-                    }
+                        id: statusBadge
+                        width: 30
+                        height: 30
+                        radius: 15
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: -4
+                        anchors.bottomMargin: -4
+                        color: success ? successColor : errorColor
+                        border.color: backgroundColor
+                        border.width: 2
 
-                    // Confetti burst - a handful of particles fly outward
-                    // from the circle and fade, once, on arrival. Plain
-                    // NumberAnimation on x/y/opacity (no shader), so it
-                    // renders under the software Quick backend too.
-                    Repeater {
-                        model: success ? 10 : 0
-
-                        delegate: Text {
-                            id: particle
-                            readonly property real angle: (index / 10) * 2 * Math.PI
-                            readonly property real dist: 42 + (index % 3) * 13
-                            text: ["\u{1F389}", "✨", "\u{1F38A}", "⭐"][index % 4]
-                            font.pixelSize: 12
-                            // Centered on the circle, then animated outward
-                            // by x/y (not anchors - PropertyAnimation can't
-                            // target a grouped anchors sub-property).
-                            x: parent.width / 2 - width / 2
-                            y: parent.height / 2 - height / 2
-                            opacity: 0
-
-                            SequentialAnimation {
-                                running: success
-                                PauseAnimation { duration: 250 + index * 25 }
-                                ParallelAnimation {
-                                    NumberAnimation {
-                                        target: particle
-                                        property: "x"
-                                        to: particle.parent.width / 2 - particle.width / 2 + Math.cos(particle.angle) * particle.dist
-                                        duration: 700
-                                        easing.type: Easing.OutCubic
-                                    }
-                                    NumberAnimation {
-                                        target: particle
-                                        property: "y"
-                                        to: particle.parent.height / 2 - particle.height / 2 + Math.sin(particle.angle) * particle.dist
-                                        duration: 700
-                                        easing.type: Easing.OutCubic
-                                    }
-                                    SequentialAnimation {
-                                        NumberAnimation { target: particle; property: "opacity"; to: 1; duration: 150 }
-                                        PauseAnimation { duration: 300 }
-                                        NumberAnimation { target: particle; property: "opacity"; to: 0; duration: 350 }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Success checkmark animation
-                    Canvas {
-                        id: successCanvas
-                        anchors.fill: parent
-                        visible: success
-
-                        property real progress: 0
-
-                        SequentialAnimation {
-                            running: success
-                            PauseAnimation { duration: 300 }
-                            NumberAnimation {
-                                target: successCanvas
-                                property: "progress"
-                                from: 0
-                                to: 1
-                                duration: 600
-                                easing.type: Easing.OutCubic
-                            }
+                        scale: 0
+                        SequentialAnimation on scale {
+                            running: true
+                            PauseAnimation { duration: 200 }
+                            NumberAnimation { from: 0; to: 1; duration: 350; easing.type: Easing.OutBack }
                         }
 
-                        onProgressChanged: requestPaint()
-
-                        onPaint: {
-                            var ctx = getContext("2d");
-                            ctx.clearRect(0, 0, width, height);
-
-                            ctx.strokeStyle = successColor;
-                            ctx.lineWidth = 5;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-
-                            // Draw checkmark
-                            var startX = width * 0.25;
-                            var startY = height * 0.5;
-                            var midX = width * 0.45;
-                            var midY = height * 0.65;
-                            var endX = width * 0.75;
-                            var endY = height * 0.35;
-
-                            ctx.beginPath();
-                            if (progress < 0.5) {
-                                var p = progress * 2;
-                                ctx.moveTo(startX, startY);
-                                ctx.lineTo(startX + (midX - startX) * p, startY + (midY - startY) * p);
-                            } else {
-                                var p = (progress - 0.5) * 2;
-                                ctx.moveTo(startX, startY);
-                                ctx.lineTo(midX, midY);
-                                ctx.lineTo(midX + (endX - midX) * p, midY + (endY - midY) * p);
-                            }
-                            ctx.stroke();
-                        }
-                    }
-
-                    // Error X animation
-                    Item {
-                        anchors.fill: parent
-                        visible: !success
-
-                        Rectangle {
-                            width: parent.width * 0.6
-                            height: 5
-                            radius: 3
-                            color: errorColor
+                        Text {
                             anchors.centerIn: parent
-                            rotation: 45
-
-                            scale: 0
-                            SequentialAnimation on scale {
-                                running: !success
-                                PauseAnimation { duration: 300 }
-                                NumberAnimation {
-                                    from: 0
-                                    to: 1
-                                    duration: 400
-                                    easing.type: Easing.OutBack
-                                }
-                            }
+                            text: success ? "✓" : "✕"
+                            color: "white"
+                            font.pixelSize: 16
+                            font.bold: true
                         }
-
-                        Rectangle {
-                            width: parent.width * 0.6
-                            height: 5
-                            radius: 3
-                            color: errorColor
-                            anchors.centerIn: parent
-                            rotation: -45
-
-                            scale: 0
-                            SequentialAnimation on scale {
-                                running: !success
-                                PauseAnimation { duration: 300 }
-                                NumberAnimation {
-                                    from: 0
-                                    to: 1
-                                    duration: 400
-                                    easing.type: Easing.OutBack
-                                }
-                            }
-                        }
-                    }
-
-                    // Pulse animation
-                    SequentialAnimation on scale {
-                        running: true
-                        loops: 1
-                        NumberAnimation { from: 0.8; to: 1.0; duration: 500; easing.type: Easing.OutCubic }
                     }
                 }
 

@@ -9,6 +9,7 @@ All operations require explicit confirmation and use dry-run mode by default.
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
@@ -28,6 +29,17 @@ _ALIGN = disk_detector._ALIGN  # 2048 sectors (1 MiB) first usable / alignment u
 _GPT_TAIL = disk_detector._GPT_TAIL  # 34 sectors reserved for the GPT secondary header
 _SECTOR_SIZE = disk_detector._SECTOR_SIZE  # 512 bytes per sector
 _MIN_ESP_BYTES = 512 * 1024 * 1024  # minimum ESP size (512 MiB) for a UEFI plan
+
+# Manual-mode Btrfs subvolumes must follow this installer's own '@'-prefixed
+# top-level convention (see PartitionJob._BTRFS_SUBVOLUMES) - Snapper/
+# grub-btrfs assume it, so a user-defined layout that doesn't match would
+# silently break snapshot/rollback tooling instead of failing loudly here.
+_BTRFS_SUBVOL_NAME_RE = re.compile(r"^@[A-Za-z0-9_-]*$")
+
+# Scratch mountpoint used only to create manual-mode Btrfs subvolumes (mounts
+# the top-level subvolume id=5, never the real install target). Unrelated to
+# JobContext.target_root, which manual-mode operation execution never touches.
+_BTRFS_SCRATCH_MOUNT = "/run/xen-btrfs-scratch"
 
 # Allowed manual-editor operation types (the strict QML<->Python contract).
 _OPERATION_TYPES = frozenset({"create", "delete", "format", "setflag", "resize"})
@@ -523,19 +535,210 @@ def _validate_esp(parts: list[dict[str, Any]], flags: dict[int, set[str]]) -> tu
         digits = "".join(ch for ch in seg["name"] if ch.isdigit())
         return int(digits) if digits else None
 
-    esps: list[dict[str, Any]] = []
-    for seg in parts:
-        fs = str(seg["fstype"]).lower()
+    def _is_efi(seg: dict[str, Any]) -> bool:
         number = _number_of(seg)
         has_esp_flag = number is not None and "esp" in flags.get(number, set())
         is_efi_type = str(seg["partType"]).lower() == "efi"
-        if fs in ("vfat", "fat", "fat32") and (has_esp_flag or is_efi_type):
-            esps.append(seg)
+        return str(seg["fstype"]).lower() in ("vfat", "fat", "fat32") and (has_esp_flag or is_efi_type)
 
+    # Boot-path fstype/flag consistency is checked independently of the ESP
+    # count below, so a wrong partition claiming /boot/efi gets its own clear
+    # error even when no conforming ESP exists anywhere on the plan.
+    ok, reason = _validate_boot_mountpoint_consistency(
+        [{"fstype": s["fstype"], "is_efi": _is_efi(s), "mountpoint": s["mountpoint"]} for s in parts]
+    )
+    if not ok:
+        return ok, reason
+
+    esps = [s for s in parts if _is_efi(s)]
     if len(esps) != 1:
         return False, "A UEFI install requires exactly one ESP (vfat + esp flag)"
     if int(esps[0]["sizeBytes"]) < _MIN_ESP_BYTES:
         return False, "The ESP must be at least 512 MiB"
+
+    return True, ""
+
+
+def _validate_boot_mountpoint_consistency(parts: list[dict[str, Any]]) -> tuple[bool, str]:
+    """
+    Cross-check ``/boot/efi`` against the partition that claims it, and
+    require the ESP itself (when mounted at all) to land exactly there.
+
+    Convention (ArchWiki, matches this project's own Calamares config -
+    ``efiSystemPartition: "/boot/efi"``): the EFI System Partition mounts at
+    ``/boot/efi``; a plain ``/boot`` (e.g. a separate unencrypted boot
+    partition ahead of a LUKS root) is an ordinary partition with no
+    vfat/ESP requirement of its own - conflating the two would wrongly
+    reject that legitimate layout.
+
+    Each entry in ``parts`` is ``{"fstype": str, "is_efi": bool, "mountpoint": str}``.
+    A non-EFI or non-vfat partition mounted at ``/boot/efi``, or an ESP
+    mounted somewhere else, both fail the boot loader install later -
+    catching it here turns that into a clear pre-install error.
+    """
+    for part in parts:
+        mount = part.get("mountpoint") or ""
+        if mount != "/boot/efi":
+            continue
+        fs = str(part.get("fstype", "")).lower()
+        if fs not in ("vfat", "fat", "fat32") or not part.get("is_efi"):
+            return False, (
+                f"{mount} must be a FAT32 partition flagged as the EFI System "
+                f"Partition, not {fs or 'unformatted'}"
+            )
+
+    for part in parts:
+        if part.get("is_efi"):
+            mount = part.get("mountpoint") or ""
+            if mount and mount != "/boot/efi":
+                return False, f"The EFI System Partition must be mounted at /boot/efi, not {mount}"
+
+    return True, ""
+
+
+def validate_btrfs_subvolumes(subvolumes: list[dict[str, Any]]) -> tuple[bool, str]:
+    """
+    Validate a user-defined Btrfs subvolume layout for manual partitioning.
+
+    Schema (matches this installer's own '@'-prefixed convention, required
+    for Snapper/grub-btrfs integration):
+
+    - At least one subvolume.
+    - Every ``name`` matches ``@[A-Za-z0-9_-]*`` and is unique.
+    - Exactly one subvolume is the root (``mountpoint`` == "" or "/").
+    - Every other ``mountpoint`` starts with "/", is not "/", and is unique.
+
+    Args:
+        subvolumes: list of ``{"name": str, "mountpoint": str}``.
+
+    Returns:
+        ``(True, "")`` on success or ``(False, "<clear reason>")``.
+    """
+    if not subvolumes:
+        return False, "At least one Btrfs subvolume is required"
+
+    names: list[str] = []
+    mountpoints: list[str] = []
+    root_count = 0
+    for sv in subvolumes:
+        name = str(sv.get("name", ""))
+        mount = str(sv.get("mountpoint", ""))
+        if not _BTRFS_SUBVOL_NAME_RE.match(name):
+            return False, (
+                f"Invalid subvolume name {name!r}: must start with '@' and contain only "
+                "letters, digits, '-' or '_'"
+            )
+        names.append(name)
+        if mount in ("", "/"):
+            root_count += 1
+            mountpoints.append("/")
+        else:
+            if not mount.startswith("/"):
+                return False, f"Subvolume mountpoint {mount!r} must start with '/'"
+            mountpoints.append(mount)
+
+    if root_count == 0:
+        return False, "One subvolume must be the root (mountpoint '/')"
+    if root_count > 1:
+        return False, "Only one subvolume may be the root (mountpoint '/')"
+    if len(names) != len(set(names)):
+        return False, "Duplicate subvolume name"
+    if len(mountpoints) != len(set(mountpoints)):
+        return False, "Duplicate subvolume mountpoint"
+
+    return True, ""
+
+
+def validate_manual_assignments(
+    disk_geoms: list[dict[str, Any]],
+    assignments: list[dict[str, Any]],
+    uefi: bool = True,
+) -> tuple[bool, str]:
+    """
+    Validate the M1 mount-assignment plan: the path actually exercised once
+    the user has committed a physical layout (via M2 Apply, or reused
+    pre-existing partitions) and is only mapping mountpoints, with no pending
+    M2 operations left in the queue.
+
+    Unlike :func:`validate_operations` (which reads fstype/flags from the
+    operations themselves), this cross-references each assignment against the
+    real geometry of every disk in the system (mount assignment is global -
+    root can live on one disk and /home on another, exactly like Calamares'
+    mount module mounts across whichever disks the user assigned), overlaid
+    with the assignment's own ``format``/``fstype`` when reformatting.
+
+    Args:
+        disk_geoms: disk_detector contract dicts for every disk on the
+            system (not just the one currently selected in the editor).
+        assignments: list of ``{"name", "mountpoint", "format", "fstype",
+            "subvolumes"?}``. ``subvolumes`` (optional) is a Btrfs layout per
+            :func:`validate_btrfs_subvolumes`; when present it replaces the
+            assignment's own bare ``mountpoint`` for the checks below.
+        uefi: when True, require the ESP to exist and be mounted correctly.
+
+    Returns:
+        ``(True, "")`` on success or ``(False, "<clear reason>")``.
+    """
+    by_name = {
+        str(seg.get("name")): seg
+        for disk_geom in disk_geoms
+        for seg in disk_geom.get("segments", [])
+        if seg.get("kind") != "free"
+    }
+
+    effective: list[dict[str, Any]] = []
+    used_mounts: list[str] = []
+    for assign in assignments:
+        name = str(assign.get("name", ""))
+        seg = by_name.get(name, {})
+        is_reformat = bool(assign.get("format")) and assign.get("fstype")
+        fstype = str(assign["fstype"] if is_reformat else seg.get("fstype", "")).lower()
+        # M1 can only mkfs (reformat); it never touches GPT partition type/
+        # flags, so whether this partition IS the ESP is always read from the
+        # real on-disk partType, independent of any reformat in progress.
+        is_efi = str(seg.get("partType", "")).lower() == "efi"
+
+        subvolumes = assign.get("subvolumes")
+        if subvolumes:
+            if fstype != "btrfs":
+                return False, f"{name}: subvolumes require a Btrfs filesystem, not {fstype or 'none'}"
+            ok, reason = validate_btrfs_subvolumes(subvolumes)
+            if not ok:
+                return False, f"{name}: {reason}"
+            for sv in subvolumes:
+                mount = str(sv.get("mountpoint", "")) or "/"
+                effective.append({"fstype": "btrfs", "is_efi": False, "mountpoint": mount})
+                used_mounts.append(mount)
+            continue
+
+        mount = str(assign.get("mountpoint", ""))
+        if mount and mount != "swap" and not mount.startswith("/"):
+            return False, f"{name}: mountpoint {mount!r} must start with '/'"
+        effective.append({"fstype": fstype, "is_efi": is_efi, "mountpoint": mount})
+        if mount:
+            used_mounts.append(mount)
+
+    roots = used_mounts.count("/")
+    if roots == 0:
+        return False, "No partition is mounted at /"
+    if roots > 1:
+        return False, "More than one partition is mounted at /"
+    if len(used_mounts) != len(set(used_mounts)):
+        return False, "A mount point is assigned to more than one partition"
+
+    if uefi:
+        ok, reason = _validate_boot_mountpoint_consistency(effective)
+        if not ok:
+            return False, reason
+        # Unlike the M2 (pre-Apply) plan, this is the completeness gate for
+        # final install - an ESP that exists but was never assigned a mount
+        # point would leave the bootloader install with nowhere to write.
+        esp_entries = [p for p in effective if p["is_efi"]]
+        if not esp_entries:
+            return False, "A UEFI install requires the EFI System Partition to be assigned"
+        if esp_entries[0]["mountpoint"] != "/boot/efi":
+            return False, "The EFI System Partition must be mounted at /boot/efi"
+
     return True, ""
 
 
@@ -1228,26 +1431,45 @@ class PartitionJob(BaseJob):
             return self._apply_operations(context, disk, selections, dry_run)
 
         assignments = selections.get("partition_assignments", [])
-        used = [a for a in assignments if a.get("mountpoint") or a.get("format")]
+        used = [
+            a
+            for a in assignments
+            if a.get("mountpoint") or a.get("format") or a.get("subvolumes")
+        ]
         if not used:
             return JobResult.fail("No partition assignment provided", error_code=48)
 
+        # Mount assignment is global, not scoped to the one disk this run was
+        # invoked with - root and /home can each sit on a different physical
+        # disk, so every disk's geometry is available to validate against.
+        disk_geoms = disk_detector.list_disks()
+        # "uefi" may be forced explicitly (tests, or a future BIOS/legacy
+        # mode); otherwise fall back to the live environment's own boot mode,
+        # same signal bridge.py's _revalidate_operations already uses.
+        uefi = bool(selections.get("uefi", Path("/sys/firmware/efi").exists()))
+        ok, reason = validate_manual_assignments(disk_geoms, used, uefi=uefi)
+        if not ok:
+            return JobResult.fail(reason, error_code=49)
+
+        # Record layout for the summary; the EFI slot is whatever lands on
+        # /boot*, and the root may live inside a Btrfs subvolume rather than
+        # the assignment's own bare mountpoint.
         roots = [a for a in used if a.get("mountpoint") == "/"]
-        if len(roots) != 1:
-            return JobResult.fail(
-                "Manual mode requires exactly one partition mounted at /",
-                error_code=49,
+        root_path = str(roots[0]["path"]) if roots else ""
+        if not root_path:
+            root_path = next(
+                (
+                    str(a["path"])
+                    for a in used
+                    for sv in (a.get("subvolumes") or [])
+                    if str(sv.get("mountpoint", "")) in ("", "/")
+                ),
+                "",
             )
-
-        mounts = [a["mountpoint"] for a in used if a.get("mountpoint")]
-        if len(mounts) != len(set(mounts)):
-            return JobResult.fail("Duplicate mount point in manual plan", error_code=50)
-
-        # Record layout for the summary; the EFI slot is whatever lands on /boot*.
         efi = next((a for a in used if a.get("mountpoint") in ("/boot", "/boot/efi")), None)
         self._layout = PartitionLayout(
             efi_partition=str(efi["path"]) if efi else "",
-            root_partition=str(roots[0]["path"]),
+            root_partition=root_path,
         )
 
         context.report_progress(30, "Formatting assigned partitions...")
@@ -1257,11 +1479,12 @@ class PartitionJob(BaseJob):
                 continue
             path = str(assignment["path"])
             fstype = str(assignment.get("fstype") or "ext4")
-            cmd = self._mkfs_command(fstype, path)
-            if cmd is None:
-                return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
-            result = self._run_partitioning_command(
-                cmd, description=f"Formatting {path} ({fstype})", dry_run=dry_run
+            result = self._format_with_optional_subvolumes(
+                path,
+                fstype,
+                assignment.get("subvolumes"),
+                dry_run,
+                label=str(assignment.get("label", "")),
             )
             if not result.success:
                 return result
@@ -1457,11 +1680,8 @@ class PartitionJob(BaseJob):
             return settle
 
         path = _dev_path(str(params.get("path") or part_path(disk, number)))
-        mkfs = self._mkfs_command(fstype, path)
-        if mkfs is None:
-            return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
-        return self._run_partitioning_command(
-            mkfs, description=f"Formatting {path} ({fstype})", dry_run=dry_run
+        return self._format_with_optional_subvolumes(
+            path, fstype, params.get("subvolumes"), dry_run, label=str(params.get("label", ""))
         )
 
     def _disk_has_label(self, disk: str) -> bool:
@@ -1545,11 +1765,102 @@ class PartitionJob(BaseJob):
         """Format an existing partition (mkfs) without touching the table."""
         path = _dev_path(str(op.params["path"]))
         fstype = str(op.params["fstype"])
-        mkfs = self._mkfs_command(fstype, path)
+        return self._format_with_optional_subvolumes(
+            path,
+            fstype,
+            op.params.get("subvolumes"),
+            dry_run,
+            label=str(op.params.get("label", "")),
+        )
+
+    def _wipe_signatures(self, path: str, dry_run: bool) -> JobResult:
+        """Strip stale filesystem/LUKS signatures from ``path`` before mkfs.
+
+        A partition reused across installs (manual mode included) can carry a
+        leftover signature - crypto_LUKS is the sharpest case: mkfs never
+        clears it, so a prior encrypted install can leave the new filesystem
+        misdetected at boot. Same fix already applied to the auto-mode root/EFI
+        format path in :meth:`_format_partitions`.
+        """
+        return self._run_partitioning_command(
+            ["wipefs", "-af", path],
+            description=f"Wiping old signatures on {path}",
+            dry_run=dry_run,
+        )
+
+    def _format_with_optional_subvolumes(
+        self,
+        path: str,
+        fstype: str,
+        subvolumes: list[dict[str, Any]] | None,
+        dry_run: bool,
+        label: str = "",
+    ) -> JobResult:
+        """
+        Wipe stale signatures, mkfs ``path``, then create Btrfs subvolumes if
+        ``subvolumes`` is given. Shared by the M2 create/format operations and
+        the M1 per-partition reformat path, so a user-defined subvolume layout
+        works identically regardless of which path created the filesystem.
+        """
+        mkfs = self._mkfs_command(fstype, path, label=label)
         if mkfs is None:
             return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
-        return self._run_partitioning_command(
+        wipe = self._wipe_signatures(path, dry_run)
+        if not wipe.success:
+            return wipe
+        result = self._run_partitioning_command(
             mkfs, description=f"Formatting {path} ({fstype})", dry_run=dry_run
+        )
+        if not result.success:
+            return result
+
+        if fstype.lower() == "btrfs" and subvolumes:
+            ok, reason = validate_btrfs_subvolumes(subvolumes)
+            if not ok:
+                return JobResult.fail(f"Invalid Btrfs subvolume layout: {reason}", error_code=61)
+            return self._create_manual_btrfs_subvolumes(path, subvolumes, dry_run)
+
+        return result
+
+    def _create_manual_btrfs_subvolumes(
+        self, path: str, subvolumes: list[dict[str, Any]], dry_run: bool
+    ) -> JobResult:
+        """
+        Create each user-defined subvolume under the top-level subvolume
+        (id=5), matching :meth:`_create_btrfs_subvolumes`'s auto-mode pattern:
+        temporarily mount subvolid=5 at a scratch path, create every
+        subvolume, unmount. The real per-mountpoint mounts happen later, at
+        install time, in :meth:`_mount_manual`.
+        """
+        scratch = _BTRFS_SCRATCH_MOUNT
+        if not dry_run:
+            try:
+                Path(scratch).mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                return JobResult.fail(f"Failed to create {scratch}: {e}", error_code=62)
+
+        result = self._run_partitioning_command(
+            ["mount", "-t", "btrfs", "-o", "subvolid=5", path, scratch],
+            description=f"Mounting Btrfs top-level subvolume on {path}",
+            dry_run=dry_run,
+        )
+        if not result.success:
+            return result
+
+        for subvol in subvolumes:
+            name = str(subvol["name"])
+            result = self._run_partitioning_command(
+                ["btrfs", "subvolume", "create", f"{scratch}/{name}"],
+                description=f"Creating Btrfs subvolume {name}",
+                dry_run=dry_run,
+            )
+            if not result.success:
+                return result
+
+        return self._run_partitioning_command(
+            ["umount", scratch],
+            description="Unmounting Btrfs top-level subvolume",
+            dry_run=dry_run,
         )
 
     def _op_setflag(self, disk: str, op: PartitionOperation, dry_run: bool) -> JobResult:
@@ -1690,19 +2001,46 @@ class PartitionJob(BaseJob):
         return self._settle_table(disk, dry_run)
 
     @staticmethod
-    def _mkfs_command(fstype: str, path: str) -> list[str] | None:
-        """Return the mkfs command for a filesystem, or None if unsupported."""
+    def _mkfs_command(fstype: str, path: str, label: str = "") -> list[str] | None:
+        """Return the mkfs command for a filesystem, or None if unsupported.
+
+        ``label`` is optional (matches Calamares' "FS Label" field); blank
+        or whitespace-only omits the label flag entirely. FAT labels are
+        truncated to dosfstools' 11-character limit - other filesystems are
+        left as the caller passed them.
+        """
         fs = fstype.lower()
+        label = label.strip()
         if fs == "ext4":
-            return ["mkfs.ext4", "-F", path]
+            cmd = ["mkfs.ext4", "-F"]
+            if label:
+                cmd += ["-L", label]
+            cmd.append(path)
+            return cmd
         if fs == "xfs":
-            return ["mkfs.xfs", "-f", path]
+            cmd = ["mkfs.xfs", "-f"]
+            if label:
+                cmd += ["-L", label]
+            cmd.append(path)
+            return cmd
         if fs == "btrfs":
-            return ["mkfs.btrfs", "-f", path]
+            cmd = ["mkfs.btrfs", "-f"]
+            if label:
+                cmd += ["-L", label]
+            cmd.append(path)
+            return cmd
         if fs in ("vfat", "fat", "fat32"):
-            return ["mkfs.fat", "-F32", path]
+            cmd = ["mkfs.fat", "-F32"]
+            if label:
+                cmd += ["-n", label[:11]]
+            cmd.append(path)
+            return cmd
         if fs == "swap":
-            return ["mkswap", path]
+            cmd = ["mkswap"]
+            if label:
+                cmd += ["-L", label]
+            cmd.append(path)
+            return cmd
         return None
 
     def _mount_manual(
@@ -1711,15 +2049,34 @@ class PartitionJob(BaseJob):
         assignments: list[dict[str, Any]],
         dry_run: bool,
     ) -> JobResult:
-        """Mount manually-assigned filesystems under target_root (parents first)."""
+        """Mount manually-assigned filesystems under target_root (parents first).
+
+        A Btrfs assignment carrying ``subvolumes`` expands into one mount task
+        per subvolume (each with its own ``subvol=<name>`` mount option)
+        instead of the assignment's own bare ``mountpoint``.
+        """
         target_root = context.target_root
+        opts = self._BTRFS_MOUNT_OPTIONS
 
-        fs_mounts = [a for a in assignments if a.get("mountpoint") and a["mountpoint"] != "swap"]
+        tasks: list[dict[str, Any]] = []
+        for assignment in assignments:
+            subvolumes = assignment.get("subvolumes")
+            if subvolumes:
+                for subvol in subvolumes:
+                    mount = str(subvol.get("mountpoint", "")) or "/"
+                    tasks.append(
+                        {"path": assignment["path"], "mountpoint": mount, "subvol": str(subvol["name"])}
+                    )
+            elif assignment.get("mountpoint") and assignment["mountpoint"] != "swap":
+                tasks.append(
+                    {"path": assignment["path"], "mountpoint": assignment["mountpoint"], "subvol": None}
+                )
+
         # Shallowest path first so a parent mount exists before its children.
-        fs_mounts.sort(key=lambda a: 0 if a["mountpoint"] == "/" else a["mountpoint"].count("/"))
+        tasks.sort(key=lambda t: 0 if t["mountpoint"] == "/" else t["mountpoint"].count("/"))
 
-        for assignment in fs_mounts:
-            mountpoint = assignment["mountpoint"]
+        for task in tasks:
+            mountpoint = task["mountpoint"]
             dest = Path(target_root)
             if mountpoint != "/":
                 dest = dest / mountpoint.lstrip("/")
@@ -1730,11 +2087,23 @@ class PartitionJob(BaseJob):
                     return JobResult.fail(f"Failed to create {dest}: {e}", error_code=52)
             else:
                 logger.info(f"[DRY-RUN] Would create directory: {dest}")
-            result = self._run_partitioning_command(
-                ["mount", str(assignment["path"]), str(dest)],
-                description=f"Mounting {assignment['path']} at {dest}",
-                dry_run=dry_run,
-            )
+
+            if task["subvol"]:
+                cmd = [
+                    "mount",
+                    "-t",
+                    "btrfs",
+                    "-o",
+                    f"{opts},subvol={task['subvol']}",
+                    str(task["path"]),
+                    str(dest),
+                ]
+                description = f"Mounting Btrfs subvolume {task['subvol']} at {dest}"
+            else:
+                cmd = ["mount", str(task["path"]), str(dest)]
+                description = f"Mounting {task['path']} at {dest}"
+
+            result = self._run_partitioning_command(cmd, description=description, dry_run=dry_run)
             if not result.success:
                 return result
 

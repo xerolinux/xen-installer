@@ -23,6 +23,7 @@ from xen.jobs.locale import LocaleJob
 from xen.jobs.partition import (
     PartitionOperation,
     simulate_operations,
+    validate_manual_assignments,
     validate_operations,
     validate_operations_applicable,
 )
@@ -2506,6 +2507,35 @@ class EngineBridge(QObject):
             self.partitionPlanChanged.emit()
             self.partitionOperationsChanged.emit()
 
+    @Slot(str, str)
+    def setPartitionSubvolumes(self, name: str, subvolumes_json: str) -> None:
+        """
+        Set (or clear, with ``"[]"``) the Btrfs subvolume layout for a
+        partition, mounted per-subvolume at install time instead of the
+        assignment's own bare mount point (see ``_mount_manual``).
+
+        Takes JSON (``JSON.stringify`` from QML) for the same PySide6
+        QVariant-marshalling reason as ``addPartitionOperation``.
+        """
+        try:
+            subvolumes = json.loads(subvolumes_json) if subvolumes_json else []
+        except (ValueError, TypeError) as exc:
+            if self._debug:
+                print(f"[Engine] REJECTED subvolumes payload ({exc}): {subvolumes_json!r}")
+            return
+        entry = self._assignment(name)
+        if entry.get("subvolumes") != subvolumes:
+            entry["subvolumes"] = subvolumes
+            if self._debug:
+                print(f"[Engine] Partition {name} subvolumes -> {subvolumes}")
+            self.partitionPlanChanged.emit()
+            self.partitionOperationsChanged.emit()
+
+    @Slot(str, result=str)
+    def partitionSubvolumes(self, name: str) -> str:
+        """Current Btrfs subvolume layout for a partition, as a JSON string ('[]' if none)."""
+        return json.dumps(self._partition_assignments.get(name, {}).get("subvolumes", []))
+
     @Slot(str, result=str)
     def partitionMount(self, name: str) -> str:
         """Current mount point assigned to a partition (empty if unused)."""
@@ -2521,30 +2551,27 @@ class EngineBridge(QObject):
         """Target filesystem for a partition (empty means keep current)."""
         return str(self._partition_assignments.get(name, {}).get("fstype", ""))
 
-    def _manual_mounts(self) -> list[str]:
-        """Non-empty mount points currently assigned across all partitions."""
-        return [e["mountpoint"] for e in self._partition_assignments.values() if e["mountpoint"]]
+    def _used_assignments(self) -> list[dict[str, Any]]:
+        """M1 assignments the user actually touched, across every disk.
 
-    def _manual_plan_state(self) -> str:
-        """Compute the coarse M1 assignment state (see ``manualPlanState``)."""
-        mounts = self._manual_mounts()
-        roots = mounts.count("/")
-        if roots == 0:
-            return "no_root"
-        if roots > 1:
-            return "multi_root"
-        if len(mounts) != len(set(mounts)):
-            return "dupe"
-        return "ok"
-
-    @Property(str, notify=partitionPlanChanged)
-    def manualPlanState(self) -> str:
+        Mount assignment is global (root and /home can each sit on a
+        different physical disk), so this is never scoped to the currently
+        selected disk - matches :func:`validate_manual_assignments` and
+        ``PartitionJob._partition_manual``'s own ``used`` filter.
         """
-        Coarse state of the manual plan for the UI to map to a message.
+        return [
+            {"name": name, **entry}
+            for name, entry in self._partition_assignments.items()
+            if entry.get("mountpoint") or entry.get("format") or entry.get("subvolumes")
+        ]
 
-        One of ``"ok"``, ``"no_root"``, ``"multi_root"`` or ``"dupe"``.
-        """
-        return self._manual_plan_state()
+    def _manual_assignment_validity(self) -> tuple[bool, str]:
+        """The M1 fallback validity check (no pending M2 operations)."""
+        used = self._used_assignments()
+        if not used:
+            return False, "No partition is mounted at /"
+        uefi = Path("/sys/firmware/efi").exists()
+        return validate_manual_assignments(self._disks_model, used, uefi=uefi)
 
     @Property(bool, notify=partitionOperationsChanged)
     def manualPlanValid(self) -> bool:
@@ -2553,11 +2580,13 @@ class EngineBridge(QObject):
 
         When the M2 operation editor holds pending operations, validity is
         driven by :func:`validate_operations` over the selected disk geometry.
-        Otherwise it falls back to the M1 assignment rule (exactly one '/').
+        Otherwise it falls back to :func:`validate_manual_assignments` across
+        every disk (root/ESP/boot-mountpoint/Btrfs-subvolume correctness).
         """
         if self._partition_operations:
             return self._manual_ops_valid
-        return self._manual_plan_state() == "ok"
+        valid, _reason = self._manual_assignment_validity()
+        return valid
 
     @Property(str, notify=partitionOperationsChanged)
     def manualPlanError(self) -> str:
@@ -2565,18 +2594,12 @@ class EngineBridge(QObject):
         Human-readable error for the manual plan (plain English; UI wraps qsTr).
 
         Empty when the plan is valid. Reflects the M2 operation validation when
-        operations exist, else maps the M1 assignment state to a message.
+        operations exist, else the M1 assignment validation.
         """
         if self._partition_operations:
             return self._manual_ops_error
-        state = self._manual_plan_state()
-        messages = {
-            "ok": "",
-            "no_root": "No partition is mounted at /",
-            "multi_root": "More than one partition is mounted at /",
-            "dupe": "A mount point is assigned to more than one partition",
-        }
-        return messages.get(state, "")
+        _valid, reason = self._manual_assignment_validity()
+        return reason
 
     @Property(bool, notify=partitionOperationsChanged)
     def operationsApplicable(self) -> bool:
@@ -3053,9 +3076,10 @@ class EngineBridge(QObject):
                     "mountpoint": entry["mountpoint"],
                     "format": entry["format"],
                     "fstype": entry["fstype"],
+                    "subvolumes": entry.get("subvolumes") or [],
                 }
                 for name, entry in self._partition_assignments.items()
-                if entry["mountpoint"] or entry["format"]
+                if entry["mountpoint"] or entry["format"] or entry.get("subvolumes")
             ]
             # M2 editor: forward the ordered operation list (snake contract).
             # When present, the partition job drives the operation path instead

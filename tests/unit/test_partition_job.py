@@ -1858,7 +1858,7 @@ class TestManualPartitioning:
 
     @staticmethod
     def _assign(
-        name: str, mountpoint: str, fmt: bool = False, fstype: str = ""
+        name: str, mountpoint: str, fmt: bool = False, fstype: str = "", label: str = ""
     ) -> dict[str, object]:
         return {
             "name": name,
@@ -1866,6 +1866,7 @@ class TestManualPartitioning:
             "mountpoint": mountpoint,
             "format": fmt,
             "fstype": fstype,
+            "label": label,
         }
 
     def test_requires_at_least_one_assignment(self) -> None:
@@ -1898,28 +1899,41 @@ class TestManualPartitioning:
         result = job._partition_manual(
             context=self._ctx(assignments),
             disk="/dev/sdb",
-            selections={"partition_assignments": assignments},
+            selections={"partition_assignments": assignments, "uefi": False},
             dry_run=True,
         )
         assert result.success is False
-        assert result.error_code == 50
+        # validate_manual_assignments now owns every M1 completeness check
+        # (root, duplicate mounts, boot/ESP consistency) under one code.
+        assert result.error_code == 49
+        assert "more than one partition" in result.message.lower()
 
     def test_formats_and_mounts_dry_run(self) -> None:
         job = PartitionJob()
         assignments = [
-            self._assign("sdb1", "/boot", fmt=True, fstype="vfat"),
+            self._assign("sdb1", "/boot/efi", fmt=True, fstype="vfat"),
             self._assign("sdb2", "/", fmt=True, fstype="ext4"),
         ]
-        with patch.object(job, "_run_partitioning_command") as mock_cmd:
+        mock_geom = {
+            "name": "sdb",
+            "segments": [
+                {"kind": "partition", "name": "sdb1", "fstype": "vfat", "partType": "efi"},
+                {"kind": "partition", "name": "sdb2", "fstype": "ext4", "partType": "linux"},
+            ],
+        }
+        with (
+            patch.object(job, "_run_partitioning_command") as mock_cmd,
+            patch("xen.jobs.partition.disk_detector.list_disks", return_value=[mock_geom]),
+        ):
             mock_cmd.return_value = JobResult.ok()
             result = job._partition_manual(
                 context=self._ctx(assignments),
                 disk="/dev/sdb",
-                selections={"partition_assignments": assignments},
+                selections={"partition_assignments": assignments, "uefi": True},
                 dry_run=True,
             )
 
-        assert result.success is True
+        assert result.success is True, result.message
         assert job._layout is not None
         assert job._layout.root_partition == "/dev/sdb2"
         assert job._layout.efi_partition == "/dev/sdb1"
@@ -1927,10 +1941,32 @@ class TestManualPartitioning:
         commands = [call.args[0] for call in mock_cmd.call_args_list]
         assert ["mkfs.fat", "-F32", "/dev/sdb1"] in commands
         assert ["mkfs.ext4", "-F", "/dev/sdb2"] in commands
-        # Root must mount before /boot (shallowest path first).
+        # Root must mount before /boot/efi (shallowest path first).
         mount_cmds = [c for c in commands if c[0] == "mount"]
         assert mount_cmds[0] == ["mount", "/dev/sdb2", "/mnt/target"]
-        assert mount_cmds[1] == ["mount", "/dev/sdb1", "/mnt/target/boot"]
+        assert mount_cmds[1] == ["mount", "/dev/sdb1", "/mnt/target/boot/efi"]
+
+    def test_format_label_passes_through_to_mkfs(self) -> None:
+        job = PartitionJob()
+        assignments = [self._assign("sdb2", "/", fmt=True, fstype="ext4", label="ROOT")]
+        mock_geom = {
+            "name": "sdb",
+            "segments": [{"kind": "partition", "name": "sdb2", "fstype": "ext4", "partType": "linux"}],
+        }
+        with (
+            patch.object(job, "_run_partitioning_command") as mock_cmd,
+            patch("xen.jobs.partition.disk_detector.list_disks", return_value=[mock_geom]),
+        ):
+            mock_cmd.return_value = JobResult.ok()
+            result = job._partition_manual(
+                context=self._ctx(assignments),
+                disk="/dev/sdb",
+                selections={"partition_assignments": assignments, "uefi": False},
+                dry_run=True,
+            )
+        assert result.success is True, result.message
+        commands = [call.args[0] for call in mock_cmd.call_args_list]
+        assert ["mkfs.ext4", "-F", "-L", "ROOT", "/dev/sdb2"] in commands
 
     def test_does_not_format_when_flag_absent(self) -> None:
         job = PartitionJob()
@@ -1940,10 +1976,12 @@ class TestManualPartitioning:
             result = job._partition_manual(
                 context=self._ctx(assignments),
                 disk="/dev/sdb",
-                selections={"partition_assignments": assignments},
+                # ESP correctness is covered by TestValidateManualAssignments;
+                # this test is only about the format-flag toggle.
+                selections={"partition_assignments": assignments, "uefi": False},
                 dry_run=True,
             )
-        assert result.success is True
+        assert result.success is True, result.message
         commands = [call.args[0] for call in mock_cmd.call_args_list]
         assert not any(c[0].startswith("mkfs") or c[0] == "mkswap" for c in commands)
 
@@ -1954,6 +1992,33 @@ class TestManualPartitioning:
         assert PartitionJob._mkfs_command("vfat", "/dev/x") == ["mkfs.fat", "-F32", "/dev/x"]
         assert PartitionJob._mkfs_command("swap", "/dev/x") == ["mkswap", "/dev/x"]
         assert PartitionJob._mkfs_command("reiserfs", "/dev/x") is None
+
+    def test_mkfs_command_with_label(self) -> None:
+        assert PartitionJob._mkfs_command("ext4", "/dev/x", label="root") == [
+            "mkfs.ext4", "-F", "-L", "root", "/dev/x",
+        ]
+        assert PartitionJob._mkfs_command("xfs", "/dev/x", label="data") == [
+            "mkfs.xfs", "-f", "-L", "data", "/dev/x",
+        ]
+        assert PartitionJob._mkfs_command("btrfs", "/dev/x", label="home") == [
+            "mkfs.btrfs", "-f", "-L", "home", "/dev/x",
+        ]
+        assert PartitionJob._mkfs_command("swap", "/dev/x", label="swap") == [
+            "mkswap", "-L", "swap", "/dev/x",
+        ]
+
+    def test_mkfs_command_fat_label_truncated_to_11_chars(self) -> None:
+        assert PartitionJob._mkfs_command("vfat", "/dev/x", label="A_VERY_LONG_LABEL") == [
+            "mkfs.fat", "-F32", "-n", "A_VERY_LONG", "/dev/x",
+        ]
+
+    def test_mkfs_command_blank_label_omits_label_flag(self) -> None:
+        assert PartitionJob._mkfs_command("ext4", "/dev/x", label="") == [
+            "mkfs.ext4", "-F", "/dev/x",
+        ]
+        assert PartitionJob._mkfs_command("ext4", "/dev/x", label="   ") == [
+            "mkfs.ext4", "-F", "/dev/x",
+        ]
 
     def test_run_routes_manual_mode(self) -> None:
         job = PartitionJob()
@@ -2003,7 +2068,7 @@ class TestManualOperationsIntegration:
                     "fstype": "ext4",
                 }
             ]
-            selections = {"partition_assignments": assignments}
+            selections = {"partition_assignments": assignments, "uefi": False}
             context = JobContext(
                 target_root="/mnt/target",
                 selections=selections,

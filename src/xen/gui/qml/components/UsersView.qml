@@ -35,6 +35,20 @@ Item {
     property string passwordConfirm: ""
     property string rootPasswordConfirm: ""
 
+    // Full name / hostname auto-fill from username: stays live until the
+    // user edits that field themselves, at which point their edit wins and
+    // further username changes stop overwriting it. _syncingX guards tell
+    // the field's own onTextChanged that a change came from this sync, not
+    // a real user edit, so it doesn't mistake its own write for one.
+    property bool autoFullNameSynced: true
+    property bool autoHostnameSynced: true
+    property bool _syncingFullName: false
+    property bool _syncingHostname: false
+
+    function capitalizeFirst(s) {
+        return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s
+    }
+
     // Theme colors
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
@@ -258,7 +272,19 @@ Item {
                             // directes vers engine (pas de miroir local
                             // réassigné qui casserait le binding descendant).
                             text: engine.username
-                            onTextChanged: engine.setUsername(text)
+                            onTextChanged: {
+                                engine.setUsername(text)
+                                if (root.autoFullNameSynced) {
+                                    root._syncingFullName = true
+                                    fullNameField.text = root.capitalizeFirst(text)
+                                    root._syncingFullName = false
+                                }
+                                if (root.autoHostnameSynced) {
+                                    root._syncingHostname = true
+                                    hostnameField.text = text.length > 0 ? text.toLowerCase() + "-pc" : ""
+                                    root._syncingHostname = false
+                                }
+                            }
 
                             background: Rectangle {
                                 radius: 8
@@ -330,7 +356,12 @@ Item {
                             font.pixelSize: 16
 
                             text: engine.fullName
-                            onTextChanged: engine.setFullName(text)
+                            onTextChanged: {
+                                engine.setFullName(text)
+                                if (!root._syncingFullName) {
+                                    root.autoFullNameSynced = false
+                                }
+                            }
 
                             background: Rectangle {
                                 radius: 8
@@ -404,7 +435,12 @@ Item {
                             font.pixelSize: 16
 
                             text: engine.hostname
-                            onTextChanged: engine.setHostname(text)
+                            onTextChanged: {
+                                engine.setHostname(text)
+                                if (!root._syncingHostname) {
+                                    root.autoHostnameSynced = false
+                                }
+                            }
 
                             background: Rectangle {
                                 radius: 8
