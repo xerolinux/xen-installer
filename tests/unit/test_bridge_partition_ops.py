@@ -291,6 +291,39 @@ class TestApplySelectionsToContext:
         assert bridge._engine._selections["disk"] == "/dev/nvme0n1"
 
 
+class TestManualEncryptionRedaction:
+    def test_operation_passphrase_registered_with_redactor(self, bridge: EngineBridge) -> None:
+        bridge._partition_operations = [{
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "S3cretManualPass!"},
+        }]
+        bridge.applySelectionsToContext()
+        assert "S3cretManualPass!" in bridge._redactor._secrets
+
+    def test_generated_non_root_passphrase_registered_with_redactor(
+        self, bridge: EngineBridge
+    ) -> None:
+        bridge._manual_luks_passphrases["sda3"] = "GeneratedHomePass!"
+        bridge.applySelectionsToContext()
+        assert "GeneratedHomePass!" in bridge._redactor._secrets
+
+    def test_manual_luks_passphrases_forwarded_to_context(self, bridge: EngineBridge) -> None:
+        """Without this, systemconfig.py's per-partition keyfile step (a
+        separate job, reading only context.selections) can never see a
+        passphrase that only ever existed in the bridge's own memory.
+        applySelectionsToContext hands its normalized dict to
+        engine.set_selections(), which is what run_all() later copies into
+        every job's context.selections - check it landed there."""
+        bridge._selections["partitionMode"] = "manual"
+        bridge._manual_luks_passphrases["sda3"] = "GeneratedHomePass!"
+        bridge.applySelectionsToContext()
+        assert (
+            bridge._engine._selections.get("manual_luks_passphrases", {}).get("sda3")
+            == "GeneratedHomePass!"
+        )
+
+
 class TestApplyPartitionOperations:
     def test_apply_with_empty_queue_reports_failure(self, bridge: EngineBridge) -> None:
         results: list[tuple[bool, str]] = []

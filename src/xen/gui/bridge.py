@@ -3123,6 +3123,14 @@ class EngineBridge(QObject):
             if isinstance(value, str):
                 self._redactor.add_secret(value)
 
+        for op in self._partition_operations:
+            passphrase = op.get("params", {}).get("encryption_passphrase")
+            if isinstance(passphrase, str) and passphrase:
+                self._redactor.add_secret(passphrase)
+        for passphrase in self._manual_luks_passphrases.values():
+            if passphrase:
+                self._redactor.add_secret(passphrase)
+
         if self._debug:
             print("[Engine] Applying selections to context...")
             for key, value in self._selections.items():
@@ -3189,6 +3197,8 @@ class EngineBridge(QObject):
             # of the legacy assignment path.
             if self._partition_operations:
                 normalized["partition_operations"] = list(self._partition_operations)
+            if self._manual_luks_passphrases:
+                normalized["manual_luks_passphrases"] = dict(self._manual_luks_passphrases)
 
         # SECURITY: installer-wide guard-rails read by the destructive jobs
         # (e.g. partition). ``dry_run`` comes from the bridge launch flag;
