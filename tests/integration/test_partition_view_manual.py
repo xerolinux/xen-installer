@@ -464,3 +464,71 @@ def test_grub_encryption_note_visibility(bridge: EngineBridge, qapp: QApplicatio
     finally:
         qInstallMessageHandler(None)
         del qml_engine
+
+
+def test_encrypt_checkbox_passphrase_visibility(bridge: EngineBridge, qapp: QApplication) -> None:
+    """Passphrase fields show only when Mount Point is exactly '/' and
+    Encrypt is checked; the checkbox itself is hidden for the ESP."""
+    bridge._disks_model = [_mock_disk()]
+    qml_engine, root, collector = _load_main(bridge)
+    try:
+        root.setProperty("currentStep", 4)
+        bridge.setSelectedDisk("sda")
+        bridge.setPartitionMode("manual")
+        qapp.processEvents()
+
+        # ManualPartitionEditor itself only lives inside PartitionView's
+        # own "manualEditorPopup" Popup - a Popup's content is detached
+        # from the window (no window, no Overlay) until it is actually
+        # open, so newDialog (nested inside it) can't open either until
+        # this outer popup opens first.
+        manual_popup = _find_by_object_name(root, "manualEditorPopup")
+        assert manual_popup is not None
+        QMetaObject.invokeMethod(manual_popup, "open")
+        qapp.processEvents()
+
+        new_dialog = _find_by_object_name(root, "newPartitionDialog")
+        assert new_dialog is not None
+
+        # A closed Popup's children report effective (ancestor-combined)
+        # visibility, which is always False regardless of their own
+        # bindings until the popup is actually open (same caveat as
+        # test_grub_encryption_note_visibility above) - openFor() is the
+        # real "New" button's own open path (see the toolbar's New
+        # PartitionActionButton), invoked directly here the same way
+        # test_edit_dialog_ok_commits_mount_point drives editDialog.
+        free_seg = {
+            "kind": "free",
+            "startSector": _ALIGN,
+            "sizeSectors": DISK_SECTORS - _ALIGN - 34,
+            "sizeBytes": (DISK_SECTORS - _ALIGN - 34) * _SECTOR_SIZE,
+        }
+        QMetaObject.invokeMethod(new_dialog, "openFor", Q_ARG("QVariant", free_seg))
+        qapp.processEvents()
+
+        encrypt_check = _find_by_object_name(new_dialog, "newEncryptCheck")
+        passphrase_field = _find_by_object_name(new_dialog, "newEncryptPassField")
+        assert encrypt_check is not None
+        assert passphrase_field is not None
+
+        # Unchecked: passphrase hidden regardless of mount point.
+        assert bool(passphrase_field.property("visible")) is False
+
+        encrypt_check.setProperty("checked", True)
+        qapp.processEvents()
+        # Mount Point field defaults empty (not "/") - still hidden.
+        assert bool(passphrase_field.property("visible")) is False
+
+        mount_field = _find_by_object_name(new_dialog, "newMountField")
+        mount_field.setProperty("text", "/")
+        qapp.processEvents()
+        assert bool(passphrase_field.property("visible")) is True
+
+        mount_field.setProperty("text", "/home")
+        qapp.processEvents()
+        assert bool(passphrase_field.property("visible")) is False
+
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine

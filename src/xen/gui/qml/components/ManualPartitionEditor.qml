@@ -974,6 +974,49 @@ Item {
             }
 
             RowLayout {
+                spacing: 8
+                CheckBox {
+                    id: newEncryptCheck
+                    objectName: "newEncryptCheck"
+                    text: qsTr("Encrypt this partition (LUKS2)")
+                    contentItem: Text {
+                        text: parent.text
+                        color: textColor
+                        font.pixelSize: 12
+                        leftPadding: parent.indicator.width + parent.spacing
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: newEncryptCheck.checked && newMountField.text.trim() === "/"
+                spacing: 6
+                StyledField {
+                    id: newEncryptPassField
+                    objectName: "newEncryptPassField"
+                    echoMode: TextInput.Password
+                    placeholderText: qsTr("Encryption passphrase (min 8 characters)")
+                }
+                StyledField {
+                    id: newEncryptPassConfirmField
+                    objectName: "newEncryptPassConfirmField"
+                    echoMode: TextInput.Password
+                    placeholderText: qsTr("Confirm passphrase")
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: newEncryptCheck.checked && newMountField.text.trim() !== "/"
+                text: newMountField.text.trim() === "swap"
+                    ? qsTr("Encrypted with a fresh random key every boot - nothing to remember.")
+                    : qsTr("A random key is generated automatically and unlocked at boot - nothing to remember.")
+                font.pixelSize: 10
+                color: textMutedColor
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
                 spacing: 10
                 Text { Layout.preferredWidth: 100; text: qsTr("Mount Point"); color: textColor; font.pixelSize: 12 }
                 StyledField {
@@ -1019,6 +1062,12 @@ Item {
                         if (newMountField.text.trim() !== "") params.mountpoint = newMountField.text.trim()
                         if (fstype === "btrfs" && newSubvolEditor.subvolumes.length > 0)
                             params.subvolumes = newSubvolEditor.subvolumes
+                        if (newEncryptCheck.checked) {
+                            params.encrypt = true
+                            if (newMountField.text.trim() === "/") {
+                                params.encryption_passphrase = newEncryptPassField.text
+                            }
+                        }
                         queueOp("create", "free:" + seg.startSector, params)
                         newDialog.close()
                     }
@@ -1102,6 +1151,12 @@ Item {
                 if (editDialog.labelText.trim() !== "") params.label = editDialog.labelText.trim()
                 if (fstype === "btrfs" && editSubvolEditor.subvolumes.length > 0)
                     params.subvolumes = editSubvolEditor.subvolumes
+                if (editEncryptCheck.checked) {
+                    params.encrypt = true
+                    if (editMountField.text.trim() === "/") {
+                        params.encryption_passphrase = editEncryptPassField.text
+                    }
+                }
                 queueOp("format", path, params)
             }
 
@@ -1200,6 +1255,48 @@ Item {
                         text: editDialog.labelText
                         onTextChanged: editDialog.labelText = text
                     }
+                }
+                RowLayout {
+                    spacing: 8
+                    CheckBox {
+                        id: editEncryptCheck
+                        objectName: "editEncryptCheck"
+                        text: qsTr("Encrypt this partition (LUKS2)")
+                        contentItem: Text {
+                            text: parent.text
+                            color: textColor
+                            font.pixelSize: 12
+                            leftPadding: parent.indicator.width + parent.spacing
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: editEncryptCheck.checked && editMountField.text.trim() === "/"
+                    spacing: 6
+                    StyledField {
+                        id: editEncryptPassField
+                        objectName: "editEncryptPassField"
+                        echoMode: TextInput.Password
+                        placeholderText: qsTr("Encryption passphrase (min 8 characters)")
+                    }
+                    StyledField {
+                        id: editEncryptPassConfirmField
+                        objectName: "editEncryptPassConfirmField"
+                        echoMode: TextInput.Password
+                        placeholderText: qsTr("Confirm passphrase")
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: editEncryptCheck.checked && editMountField.text.trim() !== "/"
+                    text: editMountField.text.trim() === "swap"
+                        ? qsTr("Encrypted with a fresh random key every boot - nothing to remember.")
+                        : qsTr("A random key is generated automatically and unlocked at boot - nothing to remember.")
+                    font.pixelSize: 10
+                    color: textMutedColor
+                    wrapMode: Text.WordWrap
                 }
                 BtrfsSubvolumeEditor {
                     id: editSubvolEditor
