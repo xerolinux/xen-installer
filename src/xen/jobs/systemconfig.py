@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from xen.jobs.base import BaseJob, JobContext, JobResult
+from xen.jobs.partition import is_swap_entry, resolve_root_encryption
 
 logger = logging.getLogger(__name__)
 
@@ -220,14 +221,14 @@ class SystemConfigJob(BaseJob):
         here), and any encrypted swap (plain dm-crypt, a fresh random key
         every boot - never LUKS, never a remembered secret).
 
-        Root encryption is resolved via _resolve_root_encryption (AUTO
-        mode's selections["encryption"]/["root_partition"], or manual
+        Root encryption is resolved via partition.resolve_root_encryption
+        (AUTO mode's selections["encryption"]/["root_partition"], or manual
         mode's partition_assignments) rather than trusting
         selections["root_partition"] directly: in manual mode that key is
         always set to whatever the real root partition is, encrypted or
         not, and - when it IS encrypted - set to the mapper path, not the
-        raw LUKS partition _resolve_root_encryption actually needs."""
-        is_root_encrypted, raw_partition = self._resolve_root_encryption(selections)
+        raw LUKS partition needed here."""
+        is_root_encrypted, raw_partition = resolve_root_encryption(selections)
         if is_root_encrypted and not raw_partition:
             return JobResult.fail(
                 "encryption selected but no root_partition recorded", error_code=107
@@ -256,7 +257,6 @@ class SystemConfigJob(BaseJob):
         passphrases = selections.get("manual_luks_passphrases", {})
         for assignment in partition_assignments:
             path = str(assignment.get("path", ""))
-            mountpoint = str(assignment.get("mountpoint", ""))
             if not path.startswith("/dev/mapper/"):
                 continue
             mapper_name = path.rsplit("/", 1)[-1]
@@ -264,7 +264,7 @@ class SystemConfigJob(BaseJob):
                 continue
             already_in_crypttab = mapper_name in existing_mappers
 
-            if mountpoint == "swap":
+            if is_swap_entry(assignment):
                 if not already_in_crypttab:
                     raw_swap_path = str(assignment.get("raw_path", ""))
                     partuuid = self._blkid_partuuid(raw_swap_path) if raw_swap_path else None
@@ -405,26 +405,6 @@ class SystemConfigJob(BaseJob):
 
         return JobResult.ok("machine-id generated")
 
-    def _resolve_root_encryption(self, selections: dict[str, Any]) -> tuple[bool, str]:
-        """(is_root_encrypted, raw_root_partition_path) - from the single
-        AUTO-mode selection, or from the manual plan's resolved mount
-        assignments when partition_mode is "manual". Mirrors
-        bootloader.py's BootloaderJob._resolve_root_encryption (same
-        resolution logic, adapted here to take the plain selections dict
-        this job's helpers already receive instead of a JobContext)."""
-        if selections.get("partition_mode") == "manual":
-            for assignment in selections.get("partition_assignments", []):
-                if assignment.get("mountpoint") != "/":
-                    continue
-                path = str(assignment.get("path", ""))
-                if path.startswith("/dev/mapper/"):
-                    raw_path = str(assignment.get("raw_path", ""))
-                    return bool(raw_path), raw_path
-                return False, ""
-            return False, ""
-        encrypted = bool(selections.get("encryption"))
-        return encrypted, str(selections.get("root_partition", "")) if encrypted else ""
-
     def _configure_mkinitcpio_hooks(
         self, target_root: str, selections: dict[str, Any]
     ) -> JobResult:
@@ -439,7 +419,7 @@ class SystemConfigJob(BaseJob):
             return JobResult.fail(f"No HOOKS=(...) line found in {conf_path}", error_code=99)
 
         hooks = match.group("hooks").split()
-        encryption, _ = self._resolve_root_encryption(selections)
+        encryption, _ = resolve_root_encryption(selections)
         hibernate = selections.get("swap_strategy") == "hibernate"
         changed = False
 

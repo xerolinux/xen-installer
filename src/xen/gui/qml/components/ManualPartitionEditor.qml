@@ -103,6 +103,18 @@ Item {
         return choice
     }
 
+    // Mirrors partition.py's _is_root_entry: a Btrfs subvolume layout
+    // replaces the bare mount point, and its root is the subvolume at ""/"/".
+    function isRootLayout(mount, fsChoice, subvolumes) {
+        if (fsChoice === "btrfs" && subvolumes.length > 0)
+            return subvolumes.some(function(sv) { return (sv.mountpoint || "") === "" || sv.mountpoint === "/" })
+        return mount.trim() === "/"
+    }
+
+    function isSwapLayout(mount, fsChoice) {
+        return mount.trim() === "swap" || fsChoice === "linux-swap"
+    }
+
     function queueOp(type, target, params) {
         engine.addPartitionOperation(JSON.stringify({ type: type, target: target, params: params }))
         selectedKey = ""
@@ -171,6 +183,68 @@ Item {
         topPadding: 9
         bottomPadding: 9
         verticalAlignment: Text.AlignVCenter
+    }
+
+    // Root passphrase + confirm, with the Users page's password validity
+    // pattern (min 8 characters, confirm must match, red/green border).
+    component RootPassphraseFields: ColumnLayout {
+        id: passphraseFields
+        property string passObjectName: ""
+        property string confirmObjectName: ""
+        readonly property string text: passInput.text
+        readonly property bool lengthOk: passInput.text.length >= 8
+        readonly property bool matches: passInput.text === confirmInput.text
+        readonly property bool valid: lengthOk && matches
+
+        function clear() {
+            passInput.text = ""
+            confirmInput.text = ""
+        }
+
+        Layout.fillWidth: true
+        spacing: 6
+        StyledField {
+            id: passInput
+            objectName: passphraseFields.passObjectName
+            echoMode: TextInput.Password
+            placeholderText: qsTr("Encryption passphrase (min 8 characters)")
+            background: Rectangle {
+                radius: 6
+                color: backgroundColor
+                border.width: passInput.activeFocus ? 2 : 1
+                border.color: {
+                    if (!passInput.activeFocus) return textMutedColor
+                    if (passInput.text.length === 0) return primaryColor
+                    return passphraseFields.lengthOk ? successColor : errorColor
+                }
+            }
+        }
+        StyledField {
+            id: confirmInput
+            objectName: passphraseFields.confirmObjectName
+            echoMode: TextInput.Password
+            placeholderText: qsTr("Confirm passphrase")
+            background: Rectangle {
+                radius: 6
+                color: backgroundColor
+                border.width: confirmInput.activeFocus ? 2 : 1
+                border.color: {
+                    if (!confirmInput.activeFocus) return textMutedColor
+                    if (confirmInput.text.length === 0) return primaryColor
+                    return passphraseFields.valid ? successColor : errorColor
+                }
+            }
+        }
+        Text {
+            Layout.fillWidth: true
+            visible: passInput.text.length > 0 && !passphraseFields.valid
+            text: !passphraseFields.lengthOk
+                ? qsTr("The passphrase must be at least 8 characters.")
+                : qsTr("Passphrases do not match.")
+            font.pixelSize: 10
+            color: errorColor
+            wrapMode: Text.WordWrap
+        }
     }
 
     component StyledCombo: ComboBox {
@@ -906,6 +980,11 @@ Item {
         property int sizeMib: 0
         property string fsChoice: fsOptions.length > 0 ? fsOptions[0] : "ext4"
         property string labelText: ""
+        readonly property bool isRoot: isRootLayout(newMountField.text, fsChoice, newSubvolEditor.subvolumes)
+        readonly property bool canCreate: !newEncryptCheck.checked || !isRoot || newPassphrase.valid
+
+        // Never keep the root passphrase around in a hidden field.
+        onClosed: newPassphrase.clear()
 
         function openFor(seg) {
             freeSeg = seg
@@ -915,7 +994,32 @@ Item {
             newMountField.text = ""
             newFlagsChecklist.checked = {}
             newSubvolEditor.reset()
+            newEncryptCheck.checked = false
+            newPassphrase.clear()
             open()
+        }
+
+        function confirm() {
+            if (!canCreate) return
+            var seg = newDialog.freeSeg
+            var fstype = backendFstype(newDialog.fsChoice)
+            var params = {
+                start_sector: seg.startSector,
+                size_sectors: newDialog.sizeMib * 2048,
+                fstype: fstype,
+                name: "NEW-" + Date.now(),
+                flags: newFlagsChecklist.checkedFlagNames()
+            }
+            if (newDialog.labelText.trim() !== "") params.label = newDialog.labelText.trim()
+            if (newMountField.text.trim() !== "") params.mountpoint = newMountField.text.trim()
+            if (fstype === "btrfs" && newSubvolEditor.subvolumes.length > 0)
+                params.subvolumes = newSubvolEditor.subvolumes
+            if (newEncryptCheck.checked) {
+                params.encrypt = true
+                if (newDialog.isRoot) params.encryption_passphrase = newPassphrase.text
+            }
+            queueOp("create", "free:" + seg.startSector, params)
+            newDialog.close()
         }
 
         background: Rectangle { radius: 16; color: surfaceColor; border.color: Qt.darker(surfaceColor, 1.3); border.width: 1 }
@@ -990,27 +1094,16 @@ Item {
                     }
                 }
             }
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: newEncryptCheck.checked && newMountField.text.trim() === "/"
-                spacing: 6
-                StyledField {
-                    id: newEncryptPassField
-                    objectName: "newEncryptPassField"
-                    echoMode: TextInput.Password
-                    placeholderText: qsTr("Encryption passphrase (min 8 characters)")
-                }
-                StyledField {
-                    id: newEncryptPassConfirmField
-                    objectName: "newEncryptPassConfirmField"
-                    echoMode: TextInput.Password
-                    placeholderText: qsTr("Confirm passphrase")
-                }
+            RootPassphraseFields {
+                id: newPassphrase
+                visible: newEncryptCheck.checked && newDialog.isRoot
+                passObjectName: "newEncryptPassField"
+                confirmObjectName: "newEncryptPassConfirmField"
             }
             Text {
                 Layout.fillWidth: true
-                visible: newEncryptCheck.checked && newMountField.text.trim() !== "/"
-                text: newMountField.text.trim() === "swap"
+                visible: newEncryptCheck.checked && !newDialog.isRoot
+                text: isSwapLayout(newMountField.text, newDialog.fsChoice)
                     ? qsTr("Encrypted with a fresh random key every boot - nothing to remember.")
                     : qsTr("A random key is generated automatically and unlocked at boot - nothing to remember.")
                 font.pixelSize: 10
@@ -1028,7 +1121,7 @@ Item {
                 }
             }
             Text {
-                text: qsTr("Preview only - this partition doesn't exist yet. Re-confirm its mount point from the table once Apply Changes has created it.")
+                text: qsTr("Created when you click Apply Changes - its mount point and encryption carry over automatically.")
                 font.pixelSize: 10
                 font.italic: true
                 color: textMutedColor
@@ -1049,30 +1142,10 @@ Item {
                 spacing: 8
                 PartitionActionButton { text: qsTr("Cancel"); onClicked: newDialog.close() }
                 PartitionActionButton {
+                    objectName: "newCreateButton"
                     text: qsTr("Create")
-                    onClicked: {
-                        var seg = newDialog.freeSeg
-                        var fstype = backendFstype(newDialog.fsChoice)
-                        var params = {
-                            start_sector: seg.startSector,
-                            size_sectors: newDialog.sizeMib * 2048,
-                            fstype: fstype,
-                            name: "NEW-" + Date.now(),
-                            flags: newFlagsChecklist.checkedFlagNames()
-                        }
-                        if (newDialog.labelText.trim() !== "") params.label = newDialog.labelText.trim()
-                        if (newMountField.text.trim() !== "") params.mountpoint = newMountField.text.trim()
-                        if (fstype === "btrfs" && newSubvolEditor.subvolumes.length > 0)
-                            params.subvolumes = newSubvolEditor.subvolumes
-                        if (newEncryptCheck.checked) {
-                            params.encrypt = true
-                            if (newMountField.text.trim() === "/") {
-                                params.encryption_passphrase = newEncryptPassField.text
-                            }
-                        }
-                        queueOp("create", "free:" + seg.startSector, params)
-                        newDialog.close()
-                    }
+                    enabled: newDialog.canCreate
+                    onClicked: newDialog.confirm()
                 }
             }
         }
@@ -1105,6 +1178,10 @@ Item {
         property bool doFormat: false
         property string fsChoice: fsOptions.length > 0 ? fsOptions[0] : "ext4"
         property string labelText: ""
+        readonly property bool isRoot: isRootLayout(editMountField.text, fsChoice, editSubvolEditor.subvolumes)
+        readonly property bool canConfirm: !doFormat || !editEncryptCheck.checked || !isRoot || editPassphrase.valid
+
+        onClosed: editPassphrase.clear()
 
         function openFor(s) {
             seg = s
@@ -1117,6 +1194,8 @@ Item {
             editMountField.text = engine.partitionMount(s.name)
             editFlagsChecklist.checked = {}
             editSubvolEditor.reset()
+            editEncryptCheck.checked = false
+            editPassphrase.clear()
             open()
         }
 
@@ -1124,6 +1203,7 @@ Item {
         // invokable - from a test via QMetaObject.invokeMethod, same as any
         // other QML function - without having to simulate a real click.
         function confirm() {
+            if (!canConfirm) return
             var seg = editDialog.seg
             var path = devicePath(seg.name)
 
@@ -1155,10 +1235,12 @@ Item {
                     params.subvolumes = editSubvolEditor.subvolumes
                 if (editEncryptCheck.checked) {
                     params.encrypt = true
-                    if (editMountField.text.trim() === "/") {
-                        params.encryption_passphrase = editEncryptPassField.text
-                    }
+                    if (editDialog.isRoot) params.encryption_passphrase = editPassphrase.text
                 }
+                // Re-editing a partition replaces its queued format, never
+                // stacks a second one behind it.
+                var previous = pending.findIndex(function(op) { return op.type === "format" && op.target === path })
+                if (previous !== -1) engine.removePartitionOperation(previous)
                 queueOp("format", path, params)
             }
 
@@ -1275,27 +1357,16 @@ Item {
                         }
                     }
                 }
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    visible: editEncryptCheck.checked && editMountField.text.trim() === "/"
-                    spacing: 6
-                    StyledField {
-                        id: editEncryptPassField
-                        objectName: "editEncryptPassField"
-                        echoMode: TextInput.Password
-                        placeholderText: qsTr("Encryption passphrase (min 8 characters)")
-                    }
-                    StyledField {
-                        id: editEncryptPassConfirmField
-                        objectName: "editEncryptPassConfirmField"
-                        echoMode: TextInput.Password
-                        placeholderText: qsTr("Confirm passphrase")
-                    }
+                RootPassphraseFields {
+                    id: editPassphrase
+                    visible: editEncryptCheck.checked && editDialog.isRoot
+                    passObjectName: "editEncryptPassField"
+                    confirmObjectName: "editEncryptPassConfirmField"
                 }
                 Text {
                     Layout.fillWidth: true
-                    visible: editEncryptCheck.checked && editMountField.text.trim() !== "/"
-                    text: editMountField.text.trim() === "swap"
+                    visible: editEncryptCheck.checked && !editDialog.isRoot
+                    text: isSwapLayout(editMountField.text, editDialog.fsChoice)
                         ? qsTr("Encrypted with a fresh random key every boot - nothing to remember.")
                         : qsTr("A random key is generated automatically and unlocked at boot - nothing to remember.")
                     font.pixelSize: 10
@@ -1340,6 +1411,7 @@ Item {
                 PartitionActionButton {
                     objectName: "editOkButton"
                     text: qsTr("OK")
+                    enabled: editDialog.canConfirm
                     onClicked: editDialog.confirm()
                 }
             }

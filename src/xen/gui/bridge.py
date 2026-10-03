@@ -22,8 +22,10 @@ from xen.jobs.base import JobStatus
 from xen.jobs.locale import LocaleJob
 from xen.jobs.partition import (
     PartitionOperation,
-    _manual_mapper_name,
+    manual_has_separate_boot,
+    manual_mapper_name_for,
     simulate_operations,
+    validate_encryption_rules,
     validate_manual_assignments,
     validate_operations,
     validate_operations_applicable,
@@ -297,7 +299,7 @@ class LogUploadWorker(QObject):
 class PartitionApplyWorker(QObject):
     """Worker that applies the manual (M2) partition operations off the UI thread."""
 
-    finished = Signal(bool, str)  # success, message
+    finished = Signal(bool, str, object)  # success, message, {raw_path: LUKS passphrase}
 
     def __init__(
         self,
@@ -330,14 +332,22 @@ class PartitionApplyWorker(QObject):
                     "has_separate_boot": self._has_separate_boot,
                 }
             )
-            result = job._apply_operations(
-                context, self._disk, context.selections, dry_run=self._dry_run
-            )
-            self._generated_passphrases = dict(job._manual_generated_passphrases)
-            self.finished.emit(result.success, result.message)
+            try:
+                result = job._apply_operations(
+                    context, self._disk, context.selections, dry_run=self._dry_run
+                )
+            except Exception:
+                job.cleanup(context)
+                raise
+            if not result.success:
+                # Close any LUKS mapper this batch opened before failing, so
+                # a retry doesn't hit "device busy"/"already exists".
+                job.cleanup(context)
+                self.finished.emit(False, result.message, {})
+                return
+            self.finished.emit(True, result.message, dict(job._manual_luks_passphrases))
         except Exception as e:  # noqa: BLE001 - never let the thread crash the UI
-            self._generated_passphrases = {}
-            self.finished.emit(False, str(e))
+            self.finished.emit(False, str(e), {})
 
 
 class BrandingProxy(QObject):
@@ -2506,7 +2516,9 @@ class EngineBridge(QObject):
             # notify=partitionOperationsChanged (shared with the M2 operation
             # editor); without this, QML's binding to them never re-reads
             # after an M1 mount-point assignment and the validation banner
-            # stays stuck on stale state.
+            # stays stuck on stale state. Queued-op validity also depends on
+            # assignments (encryption rules see root's applied state).
+            self._revalidate_operations()
             self.partitionOperationsChanged.emit()
 
     @Slot(str, bool)
@@ -2518,6 +2530,7 @@ class EngineBridge(QObject):
             if self._debug:
                 print(f"[Engine] Partition {name} format -> {do_format}")
             self.partitionPlanChanged.emit()
+            self._revalidate_operations()
             self.partitionOperationsChanged.emit()
 
     @Slot(str, str)
@@ -2529,6 +2542,7 @@ class EngineBridge(QObject):
             if self._debug:
                 print(f"[Engine] Partition {name} fstype -> {fstype}")
             self.partitionPlanChanged.emit()
+            self._revalidate_operations()
             self.partitionOperationsChanged.emit()
 
     @Slot(str, str)
@@ -2553,6 +2567,7 @@ class EngineBridge(QObject):
             if self._debug:
                 print(f"[Engine] Partition {name} subvolumes -> {subvolumes}")
             self.partitionPlanChanged.emit()
+            self._revalidate_operations()
             self.partitionOperationsChanged.emit()
 
     @Slot(str, result=str)
@@ -2586,7 +2601,10 @@ class EngineBridge(QObject):
         return [
             {"name": name, **entry}
             for name, entry in self._partition_assignments.items()
-            if entry.get("mountpoint") or entry.get("format") or entry.get("subvolumes")
+            if entry.get("mountpoint")
+            or entry.get("format")
+            or entry.get("subvolumes")
+            or entry.get("raw_path")
         ]
 
     def _manual_assignment_validity(self) -> tuple[bool, str]:
@@ -2670,8 +2688,8 @@ class EngineBridge(QObject):
     def _revalidate_operations(self) -> None:
         """Recompute validity/error for the current operations + selected disk.
 
-        Two levels: ``applicable`` (structural, GParted-style, gates Apply) and
-        ``valid`` (complete installable layout, gates navigation/install).
+        Two levels: ``applicable`` (structural + encryption rules, gates Apply)
+        and ``valid`` (complete installable layout, gates navigation/install).
         """
         if not self._partition_operations:
             self._manual_ops_valid = False
@@ -2695,10 +2713,13 @@ class EngineBridge(QObject):
             self._manual_ops_applicable = False
             self._manual_ops_applicable_error = str(exc)
             return
+        applied = self._used_assignments()
         applicable, applicable_error = validate_operations_applicable(geom, operations)
+        if applicable:
+            applicable, applicable_error = validate_encryption_rules(geom, operations, applied)
         self._manual_ops_applicable = applicable
         self._manual_ops_applicable_error = applicable_error
-        valid, error = validate_operations(geom, operations, uefi=uefi)
+        valid, error = validate_operations(geom, operations, uefi=uefi, applied_assignments=applied)
         self._manual_ops_valid = valid
         self._manual_ops_error = error
 
@@ -2727,13 +2748,17 @@ class EngineBridge(QObject):
                 self._manual_ops_error = f"Malformed operation payload: {exc}"
                 self.partitionOperationsChanged.emit()
                 return
+        params = op_dict.get("params") if isinstance(op_dict, dict) else None
+        passphrase = params.get("encryption_passphrase") if isinstance(params, dict) else None
+        if isinstance(passphrase, str) and passphrase:
+            self._redactor.add_secret(passphrase)
         try:
             PartitionOperation.from_dict(op_dict)
         except ValueError as exc:
             self._manual_ops_valid = False
             self._manual_ops_error = str(exc)
             if self._debug:
-                print(f"[Engine] REJECTED partition op ({exc}): {op_dict!r}")
+                print(f"[Engine] REJECTED partition op ({exc}): {self._redactor.redact(repr(op_dict))}")
             self.partitionOperationsChanged.emit()
             return
         self._partition_operations.append(op_dict)
@@ -2784,6 +2809,7 @@ class EngineBridge(QObject):
         if not selected or not self._partition_operations:
             self.partitionApplyFinished.emit(False, "No operations to apply")
             return
+        self._revalidate_operations()
         if not self._manual_ops_applicable:
             self.partitionApplyFinished.emit(
                 False, self._manual_ops_applicable_error or "Operations cannot be applied"
@@ -2798,10 +2824,7 @@ class EngineBridge(QObject):
         has_separate_boot = any(
             op.get("params", {}).get("mountpoint") == "/boot"
             for op in self._partition_operations
-        ) or any(
-            entry.get("mountpoint") == "/boot"
-            for entry in self._partition_assignments.values()
-        )
+        ) or manual_has_separate_boot(self._used_assignments())
 
         self._partition_applying = True
         self.partitionApplyingChanged.emit()
@@ -2838,10 +2861,12 @@ class EngineBridge(QObject):
         segments = disk.get("segments", [])
 
         for op in applied_ops:
+            if op.get("type") not in ("create", "format"):
+                continue
             params = op.get("params", {})
             mountpoint = params.get("mountpoint")
             encrypt = bool(params.get("encrypt"))
-            if not mountpoint and not encrypt:
+            if not mountpoint and not encrypt and not params.get("subvolumes"):
                 continue
 
             real_name = self._resolve_real_partition_name(op, segments)
@@ -2857,7 +2882,10 @@ class EngineBridge(QObject):
                 entry["subvolumes"] = params["subvolumes"]
             if encrypt:
                 entry["raw_path"] = f"/dev/{real_name}"
-                entry["path"] = f"/dev/mapper/{_manual_mapper_name(str(mountpoint or ''))}"
+                entry["path"] = f"/dev/mapper/{manual_mapper_name_for(params)}"
+            else:
+                entry.pop("raw_path", None)
+                entry["path"] = f"/dev/{real_name}"
 
         self.partitionPlanChanged.emit()
 
@@ -2881,17 +2909,20 @@ class EngineBridge(QObject):
                 return str(seg.get("name", ""))
         return None
 
-    def _on_partition_apply_finished(self, success: bool, message: str) -> None:
+    def _on_partition_apply_finished(
+        self, success: bool, message: str, passphrases: dict[str, str]
+    ) -> None:
         """Main-thread handler: on success, reconcile queued intent onto
-        real partition names, clear the queue, and rescan the disks."""
+        real partition names, carry the batch's LUKS passphrases forward
+        (keyed by real partition name), clear the queue, and rescan."""
         self._partition_applying = False
         self.partitionApplyingChanged.emit()
         if success:
             self.refreshDisks()
             self._reconcile_after_apply(list(self._partition_operations))
-            for raw_path, pw in getattr(self._apply_worker, "_generated_passphrases", {}).items():
-                name = raw_path.rsplit("/", 1)[-1]
-                self._manual_luks_passphrases[name] = pw
+            for raw_path, pw in passphrases.items():
+                self._redactor.add_secret(pw)
+                self._manual_luks_passphrases[raw_path.rsplit("/", 1)[-1]] = pw
             self.resetPartitionOperations()
         if self._debug:
             print(f"[Engine] Partition apply finished: success={success} ({message})")
@@ -3199,7 +3230,10 @@ class EngineBridge(QObject):
                     "raw_path": entry.get("raw_path", ""),
                 }
                 for name, entry in self._partition_assignments.items()
-                if entry["mountpoint"] or entry["format"] or entry.get("subvolumes")
+                if entry["mountpoint"]
+                or entry["format"]
+                or entry.get("subvolumes")
+                or entry.get("raw_path")
             ]
             # M2 editor: forward the ordered operation list (snake contract).
             # When present, the partition job drives the operation path instead

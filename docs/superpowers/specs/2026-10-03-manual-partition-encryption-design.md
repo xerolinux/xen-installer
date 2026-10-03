@@ -330,6 +330,17 @@ passphrase needs no such carryover - it's typed by the user and already
 flows through `context.selections["encryption_passphrase"]` like AUTO
 mode's does today.
 
+**Amended after the final whole-branch review:** root's typed passphrase
+IS carried forward too (same `manual_luks_passphrases` map, keyed by the
+real partition name), so `luksbootkeyfile.py` can add the single-prompt
+keyfile for a manual encrypted root. It only does so when GRUB decrypts
+root directly (no separate plain `/boot`); with systemd-boot or a plain
+`/boot` the initramfs is unencrypted and must never carry root's key.
+"Which assignment is root" is decided in one place
+(`partition.resolve_manual_root`, Btrfs-subvolume-aware), and the
+encryption rules gate Apply against the already-applied assignments plus
+the queued batch, with a final consistency check at install time.
+
 ## Self-review notes
 
 - No placeholders/TBDs left - every mechanism above has a concrete

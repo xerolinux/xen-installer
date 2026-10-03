@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from xen.jobs.base import BaseJob, JobContext, JobResult
+from xen.jobs.partition import is_swap_entry
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +305,8 @@ class FinishedJob(BaseJob):
             mapper_names.add("cryptroot")
         for assignment in context.selections.get("partition_assignments", []):
             path = str(assignment.get("path", ""))
-            if path.startswith("/dev/mapper/"):
+            # Encrypted swap is plain dm-crypt opened only at boot, never here.
+            if path.startswith("/dev/mapper/") and not is_swap_entry(assignment):
                 mapper_names.add(path.rsplit("/", 1)[-1])
 
         for mapper_name in mapper_names:

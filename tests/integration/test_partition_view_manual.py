@@ -465,6 +465,8 @@ class TestEditDialogCommitsMountPoint:
             pass_field = _find_by_object_name(editor, "editEncryptPassField")
             assert pass_field is not None, "editEncryptPassField not found"
             pass_field.setProperty("text", "S3cretRootPass!")
+            confirm_field = _find_by_object_name(editor, "editEncryptPassConfirmField")
+            confirm_field.setProperty("text", "S3cretRootPass!")
             qapp.processEvents()
 
             QMetaObject.invokeMethod(edit_dialog, "confirm")
@@ -772,6 +774,191 @@ def test_encrypt_checkbox_hidden_for_esp_edit_dialog(bridge: EngineBridge, qapp:
         qapp.processEvents()
         assert bool(encrypt_row.property("visible")) is False
 
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
+
+
+def _free_seg() -> dict[str, Any]:
+    return {
+        "kind": "free",
+        "startSector": _ALIGN,
+        "sizeSectors": DISK_SECTORS - _ALIGN - 34,
+        "sizeBytes": (DISK_SECTORS - _ALIGN - 34) * _SECTOR_SIZE,
+    }
+
+
+def _existing_seg() -> dict[str, Any]:
+    size = DISK_SECTORS - _ALIGN - 34
+    return {
+        "kind": "existing", "name": "sda2", "startSector": _ALIGN, "sizeSectors": size,
+        "sizeBytes": size * _SECTOR_SIZE, "fstype": "ext4", "partType": "linux",
+        "mountpoint": "", "pendingDelete": False, "number": 2,
+        "minSizeSectors": _ALIGN, "freeAfterSectors": 0,
+    }
+
+
+def _existing_disk() -> dict[str, Any]:
+    seg = _existing_seg()
+    return {
+        "name": "sda", "sizeBytes": 500 * 1024**3, "sizeSectors": DISK_SECTORS,
+        "segments": [{
+            "kind": "partition", "name": "sda2", "startSector": seg["startSector"],
+            "sizeSectors": seg["sizeSectors"], "sizeBytes": seg["sizeBytes"],
+            "fstype": "ext4", "partType": "linux",
+        }],
+    }
+
+
+def _open_manual_editor(bridge: EngineBridge, qapp: QApplication) -> tuple[Any, Any, Any]:
+    qml_engine, root, collector = _load_main(bridge)
+    root.setProperty("currentStep", 4)
+    bridge.setSelectedDisk("sda")
+    bridge.setPartitionMode("manual")
+    qapp.processEvents()
+    manual_popup = _find_by_object_name(root, "manualEditorPopup")
+    QMetaObject.invokeMethod(manual_popup, "open")
+    qapp.processEvents()
+    return qml_engine, root, collector
+
+
+def _select_fs(dialog: Any, combo_name: str, fs: str, qapp: QApplication) -> None:
+    combo = _find_by_object_name(dialog, combo_name)
+    index = list(combo.property("model")).index(fs)
+    combo.setProperty("currentIndex", index)
+    QMetaObject.invokeMethod(combo, "activated", Q_ARG("int", index))
+    qapp.processEvents()
+
+
+def test_new_dialog_gates_create_on_root_passphrase(bridge: EngineBridge, qapp: QApplication) -> None:
+    """Critical #2: length >= 8 and confirm must match before Create."""
+    bridge._disks_model = [_mock_disk()]
+    qml_engine, root, collector = _open_manual_editor(bridge, qapp)
+    try:
+        dialog = _find_by_object_name(root, "newPartitionDialog")
+        QMetaObject.invokeMethod(dialog, "openFor", Q_ARG("QVariant", _free_seg()))
+        qapp.processEvents()
+        create = _find_by_object_name(dialog, "newCreateButton")
+        _find_by_object_name(dialog, "newMountField").setProperty("text", "/")
+        _find_by_object_name(dialog, "newEncryptCheck").setProperty("checked", True)
+        pass_field = _find_by_object_name(dialog, "newEncryptPassField")
+        confirm_field = _find_by_object_name(dialog, "newEncryptPassConfirmField")
+        qapp.processEvents()
+        assert bool(create.property("enabled")) is False
+
+        pass_field.setProperty("text", "short")
+        confirm_field.setProperty("text", "short")
+        qapp.processEvents()
+        assert bool(create.property("enabled")) is False
+
+        pass_field.setProperty("text", "S3cretRootPass!")
+        confirm_field.setProperty("text", "S3cretRootPass?")
+        qapp.processEvents()
+        assert bool(create.property("enabled")) is False
+        QMetaObject.invokeMethod(dialog, "confirm")
+        qapp.processEvents()
+        assert bridge._partition_operations == []
+
+        confirm_field.setProperty("text", "S3cretRootPass!")
+        qapp.processEvents()
+        assert bool(create.property("enabled")) is True
+        QMetaObject.invokeMethod(dialog, "confirm")
+        qapp.processEvents()
+        assert bridge._partition_operations[0]["params"]["encryption_passphrase"] == "S3cretRootPass!"
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
+
+
+def test_new_dialog_btrfs_subvolume_root_asks_for_passphrase(
+    bridge: EngineBridge, qapp: QApplication
+) -> None:
+    """Critical #3: default btrfs layout (root at '@'), Mount Point blank."""
+    bridge._disks_model = [_mock_disk()]
+    qml_engine, root, collector = _open_manual_editor(bridge, qapp)
+    try:
+        dialog = _find_by_object_name(root, "newPartitionDialog")
+        QMetaObject.invokeMethod(dialog, "openFor", Q_ARG("QVariant", _free_seg()))
+        qapp.processEvents()
+        _select_fs(dialog, "newFsCombo", "btrfs", qapp)
+        _find_by_object_name(dialog, "newEncryptCheck").setProperty("checked", True)
+        qapp.processEvents()
+
+        pass_field = _find_by_object_name(dialog, "newEncryptPassField")
+        assert bool(dialog.property("isRoot")) is True
+        assert bool(pass_field.property("visible")) is True
+        assert bool(_find_by_object_name(dialog, "newCreateButton").property("enabled")) is False
+
+        pass_field.setProperty("text", "S3cretRootPass!")
+        _find_by_object_name(dialog, "newEncryptPassConfirmField").setProperty("text", "S3cretRootPass!")
+        qapp.processEvents()
+        QMetaObject.invokeMethod(dialog, "confirm")
+        qapp.processEvents()
+        params = bridge._partition_operations[0]["params"]
+        assert "mountpoint" not in params
+        assert params["encryption_passphrase"] == "S3cretRootPass!"
+        assert bridge.operationsApplicable is True, bridge.operationsApplicableError
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
+
+
+def test_dialogs_reset_encryption_state_on_open(bridge: EngineBridge, qapp: QApplication) -> None:
+    """Important #2: a checked Encrypt or typed passphrase never carries over."""
+    bridge._disks_model = [_existing_disk()]
+    qml_engine, root, collector = _open_manual_editor(bridge, qapp)
+    try:
+        new_dialog = _find_by_object_name(root, "newPartitionDialog")
+        QMetaObject.invokeMethod(new_dialog, "openFor", Q_ARG("QVariant", _free_seg()))
+        qapp.processEvents()
+        new_check = _find_by_object_name(new_dialog, "newEncryptCheck")
+        new_pass = _find_by_object_name(new_dialog, "newEncryptPassField")
+        new_check.setProperty("checked", True)
+        new_pass.setProperty("text", "S3cretRootPass!")
+        QMetaObject.invokeMethod(new_dialog, "close")
+        qapp.processEvents()
+        assert new_pass.property("text") == "", "root passphrase must not linger after close"
+        QMetaObject.invokeMethod(new_dialog, "openFor", Q_ARG("QVariant", _free_seg()))
+        qapp.processEvents()
+        assert bool(new_check.property("checked")) is False
+        assert new_pass.property("text") == ""
+
+        edit_dialog = _find_by_object_name(root, "editPartitionDialog")
+        QMetaObject.invokeMethod(edit_dialog, "openFor", Q_ARG("QVariant", _existing_seg()))
+        qapp.processEvents()
+        edit_check = _find_by_object_name(edit_dialog, "editEncryptCheck")
+        edit_confirm = _find_by_object_name(edit_dialog, "editEncryptPassConfirmField")
+        edit_check.setProperty("checked", True)
+        edit_confirm.setProperty("text", "S3cretRootPass!")
+        QMetaObject.invokeMethod(edit_dialog, "close")
+        QMetaObject.invokeMethod(edit_dialog, "openFor", Q_ARG("QVariant", _existing_seg()))
+        qapp.processEvents()
+        assert bool(edit_check.property("checked")) is False
+        assert edit_confirm.property("text") == ""
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
+
+
+def test_edit_dialog_replaces_queued_format_op(bridge: EngineBridge, qapp: QApplication) -> None:
+    bridge._disks_model = [_existing_disk()]
+    qml_engine, root, collector = _open_manual_editor(bridge, qapp)
+    try:
+        edit_dialog = _find_by_object_name(root, "editPartitionDialog")
+        for fs in ("ext4", "xfs"):
+            QMetaObject.invokeMethod(edit_dialog, "openFor", Q_ARG("QVariant", _existing_seg()))
+            qapp.processEvents()
+            edit_dialog.setProperty("doFormat", True)
+            qapp.processEvents()
+            _select_fs(edit_dialog, "editFsCombo", fs, qapp)
+            QMetaObject.invokeMethod(edit_dialog, "confirm")
+            qapp.processEvents()
+        formats = [op for op in bridge._partition_operations if op["type"] == "format"]
+        assert [op["params"]["fstype"] for op in formats] == ["xfs"]
         assert not collector.errors, f"QML errors: {collector.errors}"
     finally:
         qInstallMessageHandler(None)

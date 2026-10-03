@@ -30,9 +30,10 @@ pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from xen.core.engine import Engine  # noqa: E402
-from xen.gui.bridge import EngineBridge  # noqa: E402
+from xen.gui.bridge import EngineBridge, PartitionApplyWorker  # noqa: E402
+from xen.jobs.base import JobResult  # noqa: E402
 from xen.jobs.bootloader import BootloaderJob  # noqa: E402
-from xen.jobs.partition import _ALIGN, _SECTOR_SIZE  # noqa: E402
+from xen.jobs.partition import _ALIGN, _SECTOR_SIZE, PartitionJob  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MINIMAL_CONFIG = PROJECT_ROOT / "config" / "examples" / "minimal.yaml"
@@ -355,7 +356,7 @@ class TestApplyPartitionOperations:
         assert len(bridge.pendingOperations) == 1
 
         with patch("xen.gui.bridge.disk_detector.list_disks", return_value=[]) as mock_scan:
-            bridge._on_partition_apply_finished(True, "done")
+            bridge._on_partition_apply_finished(True, "done", {})
 
         # Success path: queue cleared, disks rescanned, busy flag down.
         assert bridge.pendingOperations == []
@@ -366,7 +367,7 @@ class TestApplyPartitionOperations:
         bridge.addPartitionOperation(_create_free_op())
 
         with patch("xen.gui.bridge.disk_detector.list_disks", return_value=[]) as mock_scan:
-            bridge._on_partition_apply_finished(False, "boom")
+            bridge._on_partition_apply_finished(False, "boom", {})
 
         # Failure keeps the queue so the user can fix it; no rescan.
         assert len(bridge.pendingOperations) == 1
@@ -399,7 +400,7 @@ class TestApplyPartitionOperations:
         bridge.partitionOperationsChanged.connect(lambda: changed.append(1))
 
         with patch("xen.gui.bridge.disk_detector.list_disks", return_value=[new_disk]):
-            bridge._on_partition_apply_finished(True, "done")
+            bridge._on_partition_apply_finished(True, "done", {})
 
         segs = {s["name"]: s for s in bridge.simulatedSegments if s["kind"] != "free"}
         assert "sda2" not in segs  # old root is gone
@@ -559,3 +560,135 @@ class TestBootloaderType:
     def test_defaults_when_no_bootloader_job_present(self, bridge: EngineBridge) -> None:
         bridge._engine.jobs = [j for j in bridge._engine.jobs if j.name != "bootloader"]
         assert bridge.bootloaderType == "systemd-boot"
+
+
+def _encrypt_home_op() -> dict[str, Any]:
+    op = _create_free_op()
+    op["params"]["encrypt"] = True
+    return op
+
+
+class TestEncryptionGatesApply:
+    """Critical #1: the encryption rules gate Apply, judged against the
+    already-applied assignments plus the queued batch."""
+
+    def test_encrypted_home_without_encrypted_root_blocks_apply(
+        self, bridge: EngineBridge
+    ) -> None:
+        bridge.addPartitionOperation(_encrypt_home_op())
+        assert bridge.operationsApplicable is False
+        assert "root" in bridge.operationsApplicableError.lower()
+
+        results: list[tuple[bool, str]] = []
+        bridge.partitionApplyFinished.connect(lambda ok, msg: results.append((ok, msg)))
+        with patch("xen.gui.bridge.QThread"), patch("xen.gui.bridge.PartitionApplyWorker") as worker:
+            bridge.applyPartitionOperations()
+        worker.assert_not_called()
+        assert results and results[0][0] is False
+
+    def test_encrypted_home_allowed_when_root_encrypted_by_earlier_apply(
+        self, bridge: EngineBridge
+    ) -> None:
+        bridge._partition_assignments["sda2"] = {
+            "path": "/dev/mapper/cryptroot", "raw_path": "/dev/sda2",
+            "mountpoint": "/", "format": False, "fstype": "ext4",
+        }
+        bridge.addPartitionOperation(_encrypt_home_op())
+        assert bridge.operationsApplicable is True, bridge.operationsApplicableError
+
+    def test_post_apply_fallback_still_enforces_encryption(self, bridge: EngineBridge) -> None:
+        """After Apply clears the queue, manualPlanValid must not forget the rules."""
+        bridge._partition_assignments["sda1"] = {
+            "path": "/dev/sda1", "mountpoint": "/boot/efi", "format": False, "fstype": "",
+        }
+        bridge._partition_assignments["sda2"] = {
+            "path": "/dev/sda2", "mountpoint": "/", "format": False, "fstype": "ext4",
+        }
+        bridge._partition_assignments["sda3"] = {
+            "path": "/dev/mapper/crypthome", "raw_path": "/dev/sda3",
+            "mountpoint": "/home", "format": False, "fstype": "ext4",
+        }
+        assert bridge.manualPlanValid is False
+        assert "root" in bridge.manualPlanError.lower()
+
+
+class TestApplyHandOff:
+    def test_passphrases_arrive_through_the_signal_not_the_worker(
+        self, bridge: EngineBridge
+    ) -> None:
+        """Important #5: the worker reference may already be gone."""
+        bridge._apply_worker = None
+        with patch("xen.gui.bridge.disk_detector.list_disks", return_value=[_mock_disk()]):
+            bridge._on_partition_apply_finished(True, "done", {"/dev/sda3": "GeneratedPw"})
+        assert bridge._manual_luks_passphrases == {"sda3": "GeneratedPw"}
+        assert "GeneratedPw" in bridge._redactor._secrets
+
+    @pytest.mark.usefixtures("qapp")
+    def test_worker_emits_passphrases_on_success(self) -> None:
+        def fake_apply(self: PartitionJob, *_a: Any, **_k: Any) -> JobResult:
+            self._manual_luks_passphrases["/dev/sda2"] = "S3cretRootPass!"
+            return JobResult.ok("applied")
+
+        emitted: list[tuple[bool, str, dict[str, str]]] = []
+        worker = PartitionApplyWorker("/dev/sda", [], True, "grub", False)
+        worker.finished.connect(lambda ok, msg, pw: emitted.append((ok, msg, pw)))
+        with patch.object(PartitionJob, "_apply_operations", fake_apply):
+            worker.run()
+        assert emitted == [(True, "applied", {"/dev/sda2": "S3cretRootPass!"})]
+
+    @pytest.mark.usefixtures("qapp")
+    def test_worker_cleans_up_on_failure(self) -> None:
+        """Important #3: mappers opened by a failed batch get closed."""
+        emitted: list[tuple[bool, str, dict[str, str]]] = []
+        worker = PartitionApplyWorker("/dev/sda", [], True, "grub", False)
+        worker.finished.connect(lambda ok, msg, pw: emitted.append((ok, msg, pw)))
+        with (
+            patch.object(PartitionJob, "_apply_operations", return_value=JobResult.fail("mkfs died")),
+            patch.object(PartitionJob, "cleanup") as cleanup,
+        ):
+            worker.run()
+        cleanup.assert_called_once()
+        assert emitted == [(False, "mkfs died", {})]
+
+
+class TestReconcileRootResolution:
+    def test_btrfs_subvolume_root_with_blank_mountpoint_becomes_cryptroot(
+        self, bridge: EngineBridge
+    ) -> None:
+        """Critical #3: root lives at the '@' subvolume, Mount Point blank."""
+        op = {
+            "type": "format", "target": "/dev/sda2",
+            "params": {
+                "path": "/dev/sda2", "fstype": "btrfs", "encrypt": True,
+                "encryption_passphrase": "S3cretRootPass!",
+                "subvolumes": [{"name": "@", "mountpoint": "/"}, {"name": "@home", "mountpoint": "/home"}],
+            },
+        }
+        bridge._reconcile_after_apply([op])
+        entry = bridge._partition_assignments["sda2"]
+        assert entry["path"] == "/dev/mapper/cryptroot"
+        assert entry["raw_path"] == "/dev/sda2"
+        assert entry["subvolumes"][0]["name"] == "@"
+
+    def test_blank_mountpoint_encrypted_swap_is_forwarded_as_swap(
+        self, bridge: EngineBridge
+    ) -> None:
+        op = {
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "swap", "encrypt": True},
+        }
+        bridge._reconcile_after_apply([op])
+        bridge.applySelectionsToContext()
+        forwarded = bridge._engine._selections["partition_assignments"]
+        assert [a["path"] for a in forwarded] == ["/dev/mapper/cryptswap"]
+
+
+class TestEarlyPassphraseRedaction:
+    def test_add_partition_operation_registers_passphrase(self, bridge: EngineBridge) -> None:
+        op = {
+            "type": "format", "target": "/dev/sda2",
+            "params": {"path": "/dev/sda2", "fstype": "ext4", "mountpoint": "/",
+                       "encrypt": True, "encryption_passphrase": "EarlySecret99"},
+        }
+        bridge.addPartitionOperation(op)
+        assert "EarlySecret99" in bridge._redactor._secrets

@@ -1964,8 +1964,8 @@ class TestManualEncryption:
 
         # The generated passphrase is recorded for the keyfile step later
         # (Task 8), keyed by the real device path.
-        assert "/dev/sda3" in job._manual_generated_passphrases
-        assert job._manual_generated_passphrases["/dev/sda3"]
+        assert "/dev/sda3" in job._manual_luks_passphrases
+        assert job._manual_luks_passphrases["/dev/sda3"]
 
         format_cmds = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
         assert any(
@@ -2212,38 +2212,18 @@ class TestManualEncryption:
         secret_cmds = [list(c.args[0]) for c in mock_secret.call_args_list]
         assert sum(1 for cmd in secret_cmds if "luksFormat" in cmd) == 1
 
-    @patch("xen.jobs.partition.PartitionJob._release_target_disk")
-    @patch("xen.jobs.partition.PartitionJob.validate")
     @patch("xen.jobs.partition.PartitionJob._run_secret_command")
     @patch("xen.jobs.partition.PartitionJob._run_partitioning_command")
-    def test_manual_opened_mappers_reset_across_retry_on_same_job_instance(
-        self,
-        mock_run_cmd: MagicMock,
-        mock_secret: MagicMock,
-        mock_validate: MagicMock,
-        mock_release: MagicMock,
+    def test_retry_after_cleanup_on_same_job_instance(
+        self, mock_run_cmd: MagicMock, mock_secret: MagicMock
     ) -> None:
-        """A retry reuses the SAME PartitionJob instance (bridge.resetInstallation
-        resets job status, not instance state).
-
-        Attempt 1: the root partition LUKS-opens fine ("cryptroot" recorded in
-        self._manual_opened_mappers), but a LATER op in the same batch fails
-        (unsupported fstype) - the whole run() fails, self._succeeded stays
-        False, and cleanup() (called by the engine in its finally block) closes
-        the "cryptroot" mapper it opened but - before this fix - never removed
-        its name from self._manual_opened_mappers.
-
-        Attempt 2 (the user fixes the bad op and retries, same job instance,
-        same /dev/sda2 root op): _setup_manual_luks must not mistake the
-        leftover "cryptroot" entry for a still-open mapper and reject the
-        retry via the Important #3 collision check - nothing is actually open
-        anymore, cleanup() already closed it.
-        """
+        """Attempt 1: root LUKS-opens ("cryptroot" recorded), then a later op
+        in the same batch fails (unsupported fstype). cleanup() closes the
+        mapper and must forget it, so attempt 2 on the same instance isn't
+        rejected by the mapper-collision check for a mapper that's gone."""
         job = PartitionJob()
         mock_run_cmd.return_value = JobResult.ok()
         mock_secret.return_value = JobResult.ok()
-        mock_validate.return_value = JobResult.ok()
-        mock_release.return_value = None
 
         root_op = {
             "type": "format", "target": "/dev/sda2",
@@ -2254,32 +2234,24 @@ class TestManualEncryption:
             "type": "format", "target": "/dev/sda3",
             "params": {"path": "/dev/sda3", "fstype": "reiserfs", "mountpoint": "/data"},
         }
+        selections: dict[str, Any] = {
+            "partition_operations": [root_op, bad_op],
+            "bootloader": "systemd-boot",
+            "has_separate_boot": False,
+        }
+        context = JobContext(target_root="/mnt", selections=selections)
 
-        context = JobContext(
-            target_root="/mnt",
-            selections={
-                "disk": "/dev/sda",
-                "partition_mode": "manual",
-                "dry_run": False,
-                "confirmed": True,
-                "partition_operations": [root_op, bad_op],
-                "bootloader": "systemd-boot",
-                "has_separate_boot": False,
-            },
-        )
-
-        first = job.run(context)
+        first = job._apply_operations(context, "/dev/sda", selections, dry_run=False)
         assert first.success is False
         assert "cryptroot" in job._manual_opened_mappers
 
-        # Simulate the engine's finally-block cleanup after the failed attempt 1.
         with patch("xen.jobs.partition.subprocess.run") as mock_subprocess:
             mock_subprocess.return_value = MagicMock(returncode=0)
             job.cleanup(context)
+        assert job._manual_opened_mappers == []
 
-        # Retry: same job instance, bad op fixed/removed from the plan.
-        context.selections["partition_operations"] = [root_op]
-        second = job.run(context)
+        selections["partition_operations"] = [root_op]
+        second = job._apply_operations(context, "/dev/sda", selections, dry_run=False)
         assert second.success is True
 
 

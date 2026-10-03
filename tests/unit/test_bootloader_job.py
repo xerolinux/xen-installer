@@ -11,6 +11,7 @@ import pytest
 try:
     from xen.jobs.base import JobContext, JobResult, JobStatus
     from xen.jobs.bootloader import BootloaderJob
+    from xen.jobs.partition import resolve_root_encryption
 
     HAS_BOOTLOADER_JOB = True
 except ImportError:
@@ -1211,22 +1212,19 @@ class TestResolveRootEncryption:
     root."""
 
     def test_auto_mode_encrypted(self) -> None:
-        job = BootloaderJob()
         context = JobContext(selections={"encryption": True, "root_partition": "/dev/sda2"})
 
-        assert job._resolve_root_encryption(context) == (True, "/dev/sda2")
+        assert resolve_root_encryption(context.selections) == (True, "/dev/sda2")
 
     def test_auto_mode_not_encrypted(self) -> None:
-        job = BootloaderJob()
         context = JobContext(selections={"encryption": False})
 
-        assert job._resolve_root_encryption(context) == (False, "")
+        assert resolve_root_encryption(context.selections) == (False, "")
 
     def test_manual_mode_root_encryption_detected_from_assignments(self) -> None:
         """When partition_mode is manual, "is root encrypted" comes from
         partition_assignments (a mapper path at mountpoint "/"), not the
         single auto-mode encryption selection."""
-        job = BootloaderJob()
         context = JobContext(
             selections={
                 "partition_mode": "manual",
@@ -1240,10 +1238,9 @@ class TestResolveRootEncryption:
             }
         )
 
-        assert job._resolve_root_encryption(context) == (True, "/dev/sda2")
+        assert resolve_root_encryption(context.selections) == (True, "/dev/sda2")
 
     def test_manual_mode_root_not_encrypted(self) -> None:
-        job = BootloaderJob()
         context = JobContext(
             selections={
                 "partition_mode": "manual",
@@ -1253,20 +1250,18 @@ class TestResolveRootEncryption:
             }
         )
 
-        assert job._resolve_root_encryption(context) == (False, "")
+        assert resolve_root_encryption(context.selections) == (False, "")
 
     def test_manual_mode_no_root_assignment(self) -> None:
-        job = BootloaderJob()
         context = JobContext(
             selections={"partition_mode": "manual", "partition_assignments": []}
         )
 
-        assert job._resolve_root_encryption(context) == (False, "")
+        assert resolve_root_encryption(context.selections) == (False, "")
 
     def test_manual_mode_ignores_auto_encryption_flag(self) -> None:
         """A stale/unrelated AUTO-mode 'encryption' flag must not leak into
         manual mode's result - only the resolved mount assignment counts."""
-        job = BootloaderJob()
         context = JobContext(
             selections={
                 "partition_mode": "manual",
@@ -1278,7 +1273,7 @@ class TestResolveRootEncryption:
             }
         )
 
-        assert job._resolve_root_encryption(context) == (False, "")
+        assert resolve_root_encryption(context.selections) == (False, "")
 
 
 class TestValidate:

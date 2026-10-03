@@ -463,6 +463,7 @@ def validate_operations(
     disk_geom: dict[str, Any],
     operations: list[PartitionOperation],
     uefi: bool = True,
+    applied_assignments: list[dict[str, Any]] | None = None,
 ) -> tuple[bool, str]:
     """
     Validate a manual operation plan as a complete installable layout.
@@ -478,6 +479,8 @@ def validate_operations(
             the selected disk (the disk_detector disk contract).
         operations: parsed operations to validate.
         uefi: when True, require exactly one conforming ESP.
+        applied_assignments: assignments committed by earlier Apply batches,
+            so encryption rules see root's real state across batches.
 
     Returns:
         ``(True, "")`` on success or ``(False, "<clear reason>")``.
@@ -492,71 +495,24 @@ def validate_operations(
             "UEFI with systemd-boot, not GRUB. Remove it to continue."
         )
 
-    # A partition's mountpoint can come from either a brand-new creation
-    # (New dialog's "create" op) or a reformat of an existing partition
-    # (Edit dialog's "format" op, which now also carries mountpoint) -
-    # mirrors _record_operations_layout's identical "create" + "format"
-    # scoping for the same reason, a few hundred lines below.
-    encrypted_roots = [
-        op
-        for op in operations
-        if op.type in ("create", "format")
-        and op.params.get("encrypt")
-        and op.params.get("mountpoint") == "/"
-    ]
-    if len(encrypted_roots) > 1:
-        return False, "At most one partition may be encrypted and mounted at /"
-
-    for op in operations:
-        if op.type not in ("create", "format") or not op.params.get("encrypt"):
-            continue
-        mountpoint = op.params.get("mountpoint")
-        if mountpoint != "/" and op.params.get("encryption_passphrase"):
-            return False, (
-                "Only the partition mounted at / takes a passphrase - every "
-                "other encrypted partition unlocks automatically"
-            )
+    ok, reason = validate_encryption_rules(disk_geom, operations, applied_assignments)
+    if not ok:
+        return ok, reason
 
     simulated = simulate_operations(disk_geom.get("segments", []), operations)
     parts = [s for s in simulated if s["kind"] != "free" and not s["pendingDelete"]]
-
-    # Apply pending setflag operations to a name->flags view for ESP detection.
     flags = _collect_flags(operations)
 
-    # Defense-in-depth: reject encrypting the real ESP (by the same
-    # partType/esp-flag detection _validate_esp trusts below), not a
-    # mountpoint heuristic that could miss it on a malformed/direct
-    # engine.addPartitionOperation() call.
+    subvolumes_by_name: dict[str, Any] = {}
     for op in operations:
-        if op.type != "format" or not op.params.get("encrypt"):
-            continue
-        target = _target_partition(parts, op)
-        if target is not None and _is_efi_segment(target, flags):
-            return False, "The EFI System Partition cannot be encrypted"
-
-    # A non-root encrypted partition's entire security model depends on its
-    # auto-unlock keyfile (systemconfig.py's _write_manual_keyfile) being
-    # inaccessible to an attacker - which requires it to live on an
-    # ENCRYPTED root. If root is plaintext, anyone who boots a live USB can
-    # just read /etc/cryptsetup-keys.d/<name>.key straight off the
-    # unencrypted root filesystem and decrypt the "encrypted" partition
-    # trivially. Swap is exempt: it uses a fresh /dev/urandom key every
-    # boot (plain dm-crypt, no keyfile, no LUKS header to protect). Checked
-    # last among the encryption rules so a plan that already violates a
-    # more specific rule (ESP, passphrase) reports that rule's message.
-    if not encrypted_roots:
-        for op in operations:
-            if op.type not in ("create", "format") or not op.params.get("encrypt"):
-                continue
-            mountpoint = op.params.get("mountpoint")
-            if mountpoint not in ("/", "swap"):
-                return False, (
-                    "Encrypting a partition other than root or swap requires "
-                    "root to also be encrypted - otherwise its unlock key "
-                    "would sit readable on an unencrypted filesystem"
-                )
-
-    roots = [s for s in parts if s["mountpoint"] == "/"]
+        if op.type == "create":
+            subvolumes_by_name[str(op.params.get("name", ""))] = op.params.get("subvolumes")
+        elif op.type == "format":
+            subvolumes_by_name[_op_partition_name(op)] = op.params.get("subvolumes")
+    roots = [
+        s for s in parts
+        if _is_root_entry({"mountpoint": s["mountpoint"], "subvolumes": subvolumes_by_name.get(s["name"])})
+    ]
     if len(roots) != 1:
         return False, "Exactly one partition must be mounted at /"
 
@@ -805,7 +761,7 @@ def validate_manual_assignments(
         if esp_entries[0]["mountpoint"] != "/boot/efi":
             return False, "The EFI System Partition must be mounted at /boot/efi"
 
-    return True, ""
+    return validate_manual_encryption(assignments)
 
 
 # parted mkpart n'accepte qu'un vocabulaire fixe pour le fs-type (vfat/swap refuses).
@@ -887,6 +843,193 @@ def _manual_mapper_name(mountpoint: str) -> str:
         return "cryptdata"
     safe = "".join(c if c.isalnum() else "-" for c in mp)
     return f"cryptdata-{safe}"
+
+
+_MIN_ROOT_PASSPHRASE_LENGTH = 8
+
+
+def _is_root_entry(entry: dict[str, Any]) -> bool:
+    """Whether a manual assignment (or create/format op params) holds root.
+
+    Same rule as :meth:`PartitionJob._mount_manual` and
+    :func:`validate_manual_assignments`: a Btrfs subvolume layout replaces the
+    entry's own bare mountpoint, and its root is the subvolume at ``""``/``"/"``.
+    """
+    subvolumes = entry.get("subvolumes")
+    if subvolumes:
+        return any(str(sv.get("mountpoint", "")) in ("", "/") for sv in subvolumes)
+    return str(entry.get("mountpoint", "")) == "/"
+
+
+def is_swap_entry(entry: dict[str, Any]) -> bool:
+    return (
+        str(entry.get("mountpoint", "")) == "swap"
+        or str(entry.get("fstype", "")).lower() == "swap"
+    )
+
+
+def _encryption_role(entry: dict[str, Any]) -> str:
+    """``"/"`` for root, ``"swap"`` for swap, else the entry's own mountpoint."""
+    if _is_root_entry(entry):
+        return "/"
+    if is_swap_entry(entry):
+        return "swap"
+    return str(entry.get("mountpoint", ""))
+
+
+def manual_mapper_name_for(entry: dict[str, Any]) -> str:
+    """Mapper name for an encrypted assignment/op, shared by the job (Apply
+    time) and bridge.py (post-Apply reconciliation)."""
+    return _manual_mapper_name(_encryption_role(entry))
+
+
+def _is_mapper_path(path: Any) -> bool:
+    return str(path or "").startswith("/dev/mapper/")
+
+
+def resolve_manual_root(assignments: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The single source of truth for which manual assignment is root."""
+    return next((a for a in assignments if _is_root_entry(a)), None)
+
+
+def manual_has_separate_boot(assignments: list[dict[str, Any]]) -> bool:
+    """True if a plain (unencrypted) partition is mounted at ``/boot``."""
+    return any(
+        str(a.get("mountpoint", "")) == "/boot" and not _is_mapper_path(a.get("path"))
+        for a in assignments
+    )
+
+
+def resolve_root_encryption(selections: dict[str, Any]) -> tuple[bool, str]:
+    """(is_root_encrypted, raw_root_partition_path) for the boot chain.
+
+    AUTO mode reads its single ``encryption``/``root_partition`` pair; manual
+    mode resolves root from ``partition_assignments``. A manual root on a
+    mapper with no ``raw_path`` returns ``(True, "")`` so callers fail loudly
+    instead of silently treating it as unencrypted.
+    """
+    if selections.get("partition_mode") == "manual":
+        root = resolve_manual_root(selections.get("partition_assignments", []))
+        if root is None or not _is_mapper_path(root.get("path")):
+            return False, ""
+        return True, str(root.get("raw_path", ""))
+    encrypted = bool(selections.get("encryption"))
+    return encrypted, str(selections.get("root_partition", "")) if encrypted else ""
+
+
+def validate_manual_encryption(assignments: list[dict[str, Any]]) -> tuple[bool, str]:
+    """Consistency of manual-mode encryption across resolved assignments.
+
+    Root must be the one ``cryptroot`` mapper (the only one opened with the
+    user's own passphrase), ``cryptroot`` must not sit anywhere else, every
+    mapper needs its raw partition recorded, and a non-swap encrypted
+    partition requires an encrypted root (its keyfile lives on root).
+    """
+    root = resolve_manual_root(assignments)
+    root_encrypted = root is not None and _is_mapper_path(root.get("path"))
+    for assign in assignments:
+        path = str(assign.get("path", ""))
+        if not _is_mapper_path(path):
+            continue
+        name = str(assign.get("name", "")) or path
+        mapper = path.rsplit("/", 1)[-1]
+        if not assign.get("raw_path"):
+            return False, f"{name}: encrypted ({mapper}) but its raw partition is unknown"
+        if assign is root and mapper != "cryptroot":
+            return False, (
+                f"{name} is assigned as root but was encrypted as {mapper} with an "
+                "auto-generated key that cannot be typed at boot - reformat it with "
+                "/ as its mount point to set a root passphrase"
+            )
+        if assign is not root and mapper == "cryptroot":
+            return False, f"{name} holds the root LUKS container (cryptroot) but is not mounted at /"
+        if not root_encrypted and not is_swap_entry(assign):
+            return False, (
+                f"{name} is encrypted but root is not - its unlock key would sit "
+                "readable on an unencrypted filesystem"
+            )
+    return True, ""
+
+
+def _op_partition_name(op: PartitionOperation) -> str:
+    return str(op.params.get("path") or op.target).rsplit("/", 1)[-1]
+
+
+def validate_encryption_rules(
+    disk_geom: dict[str, Any],
+    operations: list[PartitionOperation],
+    applied_assignments: list[dict[str, Any]] | None = None,
+) -> tuple[bool, str]:
+    """Encryption rules for a queued batch, judged against what earlier
+    Apply batches already committed (``applied_assignments``) plus the batch.
+
+    Gates both Apply and navigation (see ``validate_operations``).
+    """
+    applied = list(applied_assignments or [])
+    already_encrypted = {
+        str(a.get("name", "")) for a in applied if _is_mapper_path(a.get("path"))
+    }
+    for op in operations:
+        if op.type in ("delete", "format", "resize") and _op_partition_name(op) in already_encrypted:
+            return False, (
+                f"{_op_partition_name(op)} was encrypted by an earlier Apply and its LUKS "
+                "container is still open - it can't be deleted, resized or reformatted "
+                "in this session"
+            )
+
+    writes = [op for op in operations if op.type in ("create", "format")]
+    encrypting = [op for op in writes if op.params.get("encrypt")]
+    batch_roots = [op for op in writes if _is_root_entry(op.params)]
+    encrypted_batch_roots = [op for op in batch_roots if op.params.get("encrypt")]
+    applied_root = resolve_manual_root(applied)
+    applied_root_encrypted = applied_root is not None and _is_mapper_path(applied_root.get("path"))
+
+    if len(encrypted_batch_roots) > 1:
+        return False, "At most one partition may be encrypted and mounted at /"
+    if encrypted_batch_roots and applied_root_encrypted:
+        return False, "Root is already encrypted by an earlier Apply - only one root can be encrypted"
+
+    for op in encrypting:
+        passphrase = str(op.params.get("encryption_passphrase") or "")
+        if _is_root_entry(op.params):
+            if len(passphrase) < _MIN_ROOT_PASSPHRASE_LENGTH:
+                return False, (
+                    f"The root encryption passphrase must be at least "
+                    f"{_MIN_ROOT_PASSPHRASE_LENGTH} characters"
+                )
+        elif passphrase:
+            return False, (
+                "Only the partition mounted at / takes a passphrase - every "
+                "other encrypted partition unlocks automatically"
+            )
+
+    simulated = simulate_operations(disk_geom.get("segments", []), operations)
+    parts = [s for s in simulated if s["kind"] != "free" and not s["pendingDelete"]]
+    flags = _collect_flags(operations)
+    for op in encrypting:
+        if str(op.params.get("fstype", "")).lower() in ("vfat", "fat", "fat32"):
+            return False, "The EFI System Partition cannot be encrypted"
+        if op.type == "create" and "esp" in op.params.get("flags", []):
+            return False, "The EFI System Partition cannot be encrypted"
+        target = _target_partition(parts, op) if op.type == "format" else None
+        if target is not None and _is_efi_segment(target, flags):
+            return False, "The EFI System Partition cannot be encrypted"
+
+    # A non-root encrypted partition's auto-unlock keyfile lives on root, so
+    # it only protects anything when root is encrypted too. Swap is exempt:
+    # a fresh /dev/urandom key every boot, nothing persisted. Whichever root
+    # this batch defines wins; otherwise the root already applied decides.
+    root_encrypted = bool(encrypted_batch_roots) if batch_roots else applied_root_encrypted
+    if not root_encrypted:
+        for op in encrypting:
+            if _encryption_role(op.params) not in ("/", "swap"):
+                return False, (
+                    "Encrypting a partition other than root or swap requires "
+                    "root to also be encrypted - otherwise its unlock key "
+                    "would sit readable on an unencrypted filesystem"
+                )
+
+    return True, ""
 
 
 def _plan_sets_bios_grub(operations: list[PartitionOperation]) -> bool:
@@ -1014,7 +1157,7 @@ class PartitionJob(BaseJob):
         # are then a deliverable for the downstream install job, so cleanup() must
         # NOT tear them down (see cleanup() for the full rationale).
         self._succeeded: bool = False
-        self._manual_generated_passphrases: dict[str, str] = {}
+        self._manual_luks_passphrases: dict[str, str] = {}
         self._manual_bootloader: str = "systemd-boot"
         self._manual_has_separate_boot: bool = False
         self._manual_opened_mappers: list[str] = []
@@ -1149,16 +1292,11 @@ class PartitionJob(BaseJob):
             JobResult indicating success or failure
         """
         context.report_progress(0, "Starting partitioning job...")
-        # Reset the hand-off flag and manual-LUKS bookkeeping so a retry on
-        # the SAME job instance (bridge.resetInstallation reuses it, resetting
-        # only job status) starts from a clean slate - stale opened-mapper
-        # names from a prior failed attempt would otherwise cause a false
-        # collision (Important #3's check) even though cleanup() already
-        # closed them, and stale passphrases would otherwise linger for
-        # partitions dropped from a changed plan.
+        # A retry reuses the SAME job instance (bridge.resetInstallation
+        # resets only job status): start from a clean slate so stale
+        # passphrases don't linger for partitions dropped from the plan.
         self._succeeded = False
-        self._manual_opened_mappers = []
-        self._manual_generated_passphrases = {}
+        self._manual_luks_passphrases = {}
 
         # Validate first
         validation = self.validate(context)
@@ -1561,18 +1699,32 @@ class PartitionJob(BaseJob):
         """
         logger.info(f"Manual partitioning on {disk} (existing partitions preserved)")
 
-        # M2 operation path takes precedence: when the manual editor produced a
-        # list of operations, drive create/delete/format/setflag/resize. The
-        # legacy M1 assignment path (below) stays intact when absent.
-        if selections.get("partition_operations"):
-            return self._apply_operations(context, disk, selections, dry_run)
-
         assignments = selections.get("partition_assignments", [])
         used = [
             a
             for a in assignments
-            if a.get("mountpoint") or a.get("format") or a.get("subvolumes")
+            if a.get("mountpoint") or a.get("format") or a.get("subvolumes") or a.get("raw_path")
         ]
+        # Last line of defense: Apply-gating and navigation-gating already
+        # enforce these rules, but nothing downstream (bootloader, crypttab)
+        # may trust state that drifted after them.
+        ok, reason = validate_manual_encryption(used)
+        if not ok:
+            return JobResult.fail(f"Inconsistent encryption plan: {reason}", error_code=64)
+
+        # M2 operation path takes precedence: when the manual editor produced a
+        # list of operations, drive create/delete/format/setflag/resize. The
+        # legacy M1 assignment path (below) stays intact when absent.
+        if selections.get("partition_operations"):
+            # Encryption needs the live Apply's post-Apply reconciliation
+            # (mapper paths, carried passphrases) that this path never gets.
+            if any(op.get("params", {}).get("encrypt") for op in selections["partition_operations"]):
+                return JobResult.fail(
+                    "Encrypted partitions must be created with Apply Changes before installing",
+                    error_code=64,
+                )
+            return self._apply_operations(context, disk, selections, dry_run)
+
         if not used:
             return JobResult.fail("No partition assignment provided", error_code=48)
 
@@ -1588,25 +1740,12 @@ class PartitionJob(BaseJob):
         if not ok:
             return JobResult.fail(reason, error_code=49)
 
-        # Record layout for the summary; the EFI slot is whatever lands on
-        # /boot*, and the root may live inside a Btrfs subvolume rather than
-        # the assignment's own bare mountpoint.
-        roots = [a for a in used if a.get("mountpoint") == "/"]
-        root_path = str(roots[0]["path"]) if roots else ""
-        if not root_path:
-            root_path = next(
-                (
-                    str(a["path"])
-                    for a in used
-                    for sv in (a.get("subvolumes") or [])
-                    if str(sv.get("mountpoint", "")) in ("", "/")
-                ),
-                "",
-            )
+        # Record layout for the summary; the EFI slot is whatever lands on /boot*.
+        root = resolve_manual_root(used)
         efi = next((a for a in used if a.get("mountpoint") in ("/boot", "/boot/efi")), None)
         self._layout = PartitionLayout(
             efi_partition=str(efi["path"]) if efi else "",
-            root_partition=root_path,
+            root_partition=str(root["path"]) if root else "",
         )
 
         context.report_progress(30, "Formatting assigned partitions...")
@@ -1717,7 +1856,7 @@ class PartitionJob(BaseJob):
         for op in operations:
             mount = op.params.get("mountpoint", "")
             if op.type in ("create", "format"):
-                if mount == "/":
+                if _is_root_entry(op.params):
                     root = str(op.params.get("path", op.target))
                 elif mount in ("/boot", "/boot/efi"):
                     efi = str(op.params.get("path", op.target))
@@ -1977,15 +2116,17 @@ class PartitionJob(BaseJob):
         swap encryption is plain dm-crypt with a random key regenerated
         every boot (crypttab's "swap" option, wired up at install time in
         systemconfig.py) - there's no persistent LUKS container and no
-        mkswap to run here at all.
+        mkswap to run here at all, only the stale-signature wipe.
         """
-        if encrypt and fstype.lower() == "swap":
-            return JobResult.ok(f"Encrypted swap {path}: no persistent format needed")
+        role = _encryption_role(
+            {"mountpoint": mountpoint, "fstype": fstype, "subvolumes": subvolumes}
+        )
+        encrypted_swap = encrypt and role == "swap"
 
         # Validate the filesystem BEFORE any destructive step (wipe or LUKS
         # setup) - an unsupported fstype must fail with zero side effects,
         # not leave a freshly LUKS-formatted, opened mapper behind.
-        if self._mkfs_command(fstype, path, label=label) is None:
+        if not encrypted_swap and self._mkfs_command(fstype, path, label=label) is None:
             return JobResult.fail(f"Unsupported filesystem for {path}: {fstype}", error_code=51)
 
         # Wipe stale signatures on the RAW partition before it is wrapped in
@@ -1996,12 +2137,14 @@ class PartitionJob(BaseJob):
         wipe = self._wipe_signatures(path, dry_run)
         if not wipe.success:
             return wipe
+        if encrypted_swap:
+            return JobResult.ok(f"Encrypted swap {path}: no persistent format needed")
 
         target = path
         if encrypt:
-            mapper_name = _manual_mapper_name(mountpoint)
+            mapper_name = _manual_mapper_name(role)
             luks_result = self._setup_manual_luks(
-                path, mapper_name, mountpoint, passphrase, bootloader, has_separate_boot, dry_run
+                path, mapper_name, role == "/", passphrase, bootloader, has_separate_boot, dry_run
             )
             if not luks_result.success:
                 return luks_result
@@ -2026,7 +2169,7 @@ class PartitionJob(BaseJob):
         self,
         raw_path: str,
         mapper_name: str,
-        mountpoint: str,
+        is_root: bool,
         passphrase: str,
         bootloader: str,
         has_separate_boot: bool,
@@ -2035,10 +2178,10 @@ class PartitionJob(BaseJob):
         """LUKS-format + open one manually-encrypted partition.
 
         Root's passphrase is the user's own; every other partition gets an
-        internally-generated one (never shown in the UI) recorded in
-        ``self._manual_generated_passphrases`` keyed by ``raw_path`` for the
-        later per-partition keyfile step (real install time - see
-        systemconfig.py).
+        internally-generated one (never shown in the UI). Both are recorded
+        in ``self._manual_luks_passphrases`` keyed by ``raw_path``: the
+        generated ones for the per-partition keyfile step (systemconfig.py),
+        root's for the single-prompt GRUB keyfile (luksbootkeyfile.py).
         """
         if mapper_name in self._manual_opened_mappers:
             return JobResult.fail(
@@ -2047,10 +2190,10 @@ class PartitionJob(BaseJob):
                 error_code=63,
             )
 
-        is_root = mountpoint == "/"
         if not is_root:
             passphrase = secrets.token_urlsafe(32)
-            self._manual_generated_passphrases[raw_path] = passphrase
+        if passphrase:
+            self._manual_luks_passphrases[raw_path] = passphrase
 
         if dry_run:
             logger.info(f"[DRY-RUN] Would LUKS-format and open {raw_path} as {mapper_name}")
@@ -2869,6 +3012,7 @@ class PartitionJob(BaseJob):
                 logger.info(f"Closed manual LUKS mapper {mapper_name}")
             except Exception as e:
                 logger.debug(f"Failed to close LUKS mapper {mapper_name}: {e}")
+        self._manual_opened_mappers = []
 
         if not self._layout:
             return

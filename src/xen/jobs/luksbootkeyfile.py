@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 from xen.jobs.base import BaseJob, JobContext, JobResult
+from xen.jobs.partition import manual_has_separate_boot, resolve_root_encryption
 
 logger = logging.getLogger(__name__)
 
@@ -37,35 +38,37 @@ class LuksBootKeyfileJob(BaseJob):
             context.report_progress(100, "Skipped (dry run)")
             return JobResult.ok("Skipped: LUKS keyfile (dry run)")
 
-        # Deliberately AUTO-mode-only (unlike bootloader.py/systemconfig.py's
-        # manual-mode-aware root-encryption resolution): this job needs
-        # root's ORIGINAL passphrase (context.selections["encryption_passphrase"],
-        # read below) to add the convenience keyslot. AUTO mode keeps that in
-        # selections for the whole run; manual mode's root passphrase is
-        # consumed live during Apply (fed straight into luksFormat) and is
-        # never persisted for later reuse - only non-root partitions'
-        # generated passphrases survive, via manual_luks_passphrases. This
-        # job no-ops for manual mode (relying on bridge.py's
-        # applySelectionsToContext forcing selections["encryption"] = False
-        # whenever partition_mode is "manual", so a stale AUTO-mode toggle
-        # can't leak through and make this job try and fail instead) rather
-        # than attempt to run and hit "LUKS passphrase missing" below - at
-        # the cost of a second boot-time prompt for a manual-mode encrypted
-        # root (GRUB decrypts once, mkinitcpio's "encrypt" hook prompts
-        # again to mount root). Known, acceptable limitation.
-        if not context.selections.get("encryption"):
-            context.report_progress(100, "Encryption not enabled")
-            return JobResult.ok("Encryption not enabled, skipping LUKS keyfile")
+        selections = context.selections
+        if selections.get("partition_mode") == "manual":
+            is_encrypted, raw_partition = resolve_root_encryption(selections)
+            # Only GRUB decrypting root directly prompts twice. Anywhere else
+            # (systemd-boot, or GRUB with a plain /boot) the initramfs sits
+            # unencrypted, so embedding root's key there would expose it.
+            grub_decrypts_root = selections.get("bootloader") == "grub" and not (
+                manual_has_separate_boot(selections.get("partition_assignments", []))
+            )
+            if not is_encrypted or not grub_decrypts_root:
+                context.report_progress(100, "No LUKS boot keyfile needed")
+                return JobResult.ok("No LUKS boot keyfile needed")
+            if not raw_partition:
+                return JobResult.fail(
+                    "encrypted root but no raw root partition recorded", error_code=110
+                )
+            # Root's own typed passphrase, carried forward from the live Apply.
+            root_name = raw_partition.rsplit("/", 1)[-1]
+            passphrase = str(selections.get("manual_luks_passphrases", {}).get(root_name, ""))
+        else:
+            if not selections.get("encryption"):
+                context.report_progress(100, "Encryption not enabled")
+                return JobResult.ok("Encryption not enabled, skipping LUKS keyfile")
+            raw_partition = selections.get("root_partition")
+            if not raw_partition:
+                return JobResult.fail(
+                    "encryption selected but no root_partition recorded", error_code=110
+                )
+            passphrase = str(selections.get("encryption_passphrase", ""))
 
         target_root = context.target_root
-        raw_partition = context.selections.get("root_partition")
-        if not raw_partition:
-            return JobResult.fail(
-                "encryption selected but no root_partition recorded", error_code=110
-            )
-
-        # SECURITY: read the passphrase locally so we can wipe it in finally.
-        passphrase = str(context.selections.get("encryption_passphrase", ""))
         if not passphrase:
             return JobResult.fail("LUKS passphrase missing", error_code=111)
 
