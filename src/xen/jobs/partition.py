@@ -492,16 +492,23 @@ def validate_operations(
             "UEFI with systemd-boot, not GRUB. Remove it to continue."
         )
 
+    # A partition's mountpoint can come from either a brand-new creation
+    # (New dialog's "create" op) or a reformat of an existing partition
+    # (Edit dialog's "format" op, which now also carries mountpoint) -
+    # mirrors _record_operations_layout's identical "create" + "format"
+    # scoping for the same reason, a few hundred lines below.
     encrypted_roots = [
         op
         for op in operations
-        if op.type == "format" and op.params.get("encrypt") and op.params.get("mountpoint") == "/"
+        if op.type in ("create", "format")
+        and op.params.get("encrypt")
+        and op.params.get("mountpoint") == "/"
     ]
     if len(encrypted_roots) > 1:
         return False, "At most one partition may be encrypted and mounted at /"
 
     for op in operations:
-        if op.type != "format" or not op.params.get("encrypt"):
+        if op.type not in ("create", "format") or not op.params.get("encrypt"):
             continue
         mountpoint = op.params.get("mountpoint")
         if mountpoint != "/" and op.params.get("encryption_passphrase"):
@@ -539,7 +546,7 @@ def validate_operations(
     # more specific rule (ESP, passphrase) reports that rule's message.
     if not encrypted_roots:
         for op in operations:
-            if op.type != "format" or not op.params.get("encrypt"):
+            if op.type not in ("create", "format") or not op.params.get("encrypt"):
                 continue
             mountpoint = op.params.get("mountpoint")
             if mountpoint not in ("/", "swap"):

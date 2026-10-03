@@ -389,6 +389,96 @@ class TestEditDialogCommitsMountPoint:
         finally:
             del qml_engine
 
+    def test_edit_dialog_format_op_includes_mountpoint(
+        self, bridge: EngineBridge, qapp: QApplication
+    ) -> None:
+        """Regression: editDialog.confirm()'s format op never included
+        mountpoint in its params at all (mount assignment for an existing
+        partition goes through the separate, immediate
+        engine.setPartitionMount() call instead) - leaving backend logic
+        that reads op.params.get("mountpoint") on a format op (Task 2's
+        non-root-passphrase rule, Task 8's root-required-for-non-root-
+        encryption rule) always blind for any op the Edit dialog queues.
+        Confirms encrypting the actual root via Edit (passphrase field
+        shown, since editMountField.text.trim() === "/") now queues a
+        format op whose params carry mountpoint == "/"."""
+        root_size = DISK_SECTORS - _ALIGN - 34
+        seg = {
+            "kind": "existing",
+            "name": "sda2",
+            "startSector": _ALIGN,
+            "sizeSectors": root_size,
+            "sizeBytes": root_size * _SECTOR_SIZE,
+            "fstype": "ext4",
+            "partType": "linux",
+            "mountpoint": "/",
+            "pendingDelete": False,
+            "number": 2,
+            "minSizeSectors": _ALIGN,
+            "freeAfterSectors": 0,
+        }
+        disk = {
+            "name": "sda",
+            "sizeBytes": 500 * 1024**3,
+            "sizeSectors": DISK_SECTORS,
+            "segments": [
+                {
+                    "kind": "partition",
+                    "name": "sda2",
+                    "startSector": _ALIGN,
+                    "sizeSectors": root_size,
+                    "sizeBytes": root_size * _SECTOR_SIZE,
+                    "fstype": "ext4",
+                    "partType": "linux",
+                }
+            ],
+        }
+        bridge._disks_model = [disk]
+        bridge.setSelectedDisk("sda")
+
+        qml_engine = QQmlApplicationEngine()
+        qml_engine.rootContext().setContextProperty("engine", bridge)
+        qml_engine.load(QUrl.fromLocalFile(str(EDITOR_QML)))
+        roots = qml_engine.rootObjects()
+        assert roots, "ManualPartitionEditor.qml failed to load"
+        editor = roots[0]
+        try:
+            qapp.processEvents()
+
+            edit_dialog = _find_by_object_name(editor, "editPartitionDialog")
+            assert edit_dialog is not None, "editPartitionDialog not found"
+            QMetaObject.invokeMethod(edit_dialog, "openFor", Q_ARG("QVariant", seg))
+            qapp.processEvents()
+
+            edit_dialog.setProperty("doFormat", True)
+            qapp.processEvents()
+
+            mount_field = _find_by_object_name(editor, "editMountField")
+            mount_field.setProperty("text", "/")
+            qapp.processEvents()
+
+            encrypt_check = _find_by_object_name(editor, "editEncryptCheck")
+            assert encrypt_check is not None, "editEncryptCheck not found"
+            encrypt_check.setProperty("checked", True)
+            qapp.processEvents()
+
+            pass_field = _find_by_object_name(editor, "editEncryptPassField")
+            assert pass_field is not None, "editEncryptPassField not found"
+            pass_field.setProperty("text", "S3cretRootPass!")
+            qapp.processEvents()
+
+            QMetaObject.invokeMethod(edit_dialog, "confirm")
+            qapp.processEvents()
+
+            ops = [op for op in bridge._partition_operations if op.get("type") == "format"]
+            assert len(ops) == 1, f"expected exactly one queued format op, got {ops}"
+            params = ops[0]["params"]
+            assert params.get("mountpoint") == "/"
+            assert params.get("encrypt") is True
+            assert params.get("encryption_passphrase") == "S3cretRootPass!"
+        finally:
+            del qml_engine
+
 
 def test_grub_encryption_note_visibility(bridge: EngineBridge, qapp: QApplication) -> None:
     """The GRUB/Argon2id note shows only when both encryption is on AND

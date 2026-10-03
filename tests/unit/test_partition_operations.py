@@ -634,6 +634,62 @@ class TestValidateOperations:
         assert valid is True
         assert error == ""
 
+    def test_rejects_non_root_encryption_from_create_op_without_encrypted_root(self) -> None:
+        """Realistic New-dialog shape: a brand-new partition's mountpoint
+        and encrypt flag live directly on its "create" op (never a
+        "format" op) - the root-required rule must see this too, not just
+        a "format" op's params."""
+        disk = _existing_disk()
+        root = disk["segments"][1]
+        start = root["startSector"] + root["sizeSectors"]
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "create",
+                    "target": f"free:{start}",
+                    "params": {
+                        "start_sector": start,
+                        "size_sectors": _sectors(10 * 1024),
+                        "fstype": "ext4",
+                        "mountpoint": "/home",
+                        "encrypt": True,
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "root" in error.lower()
+
+    def test_accepts_root_encryption_via_edit_format_op_with_passphrase(self) -> None:
+        """Realistic Edit-dialog shape: a "format" op on an EXISTING
+        partition now carries mountpoint == "/" (ManualPartitionEditor.qml's
+        editDialog.confirm() forwards editMountField's value into the
+        queued op's params) - encrypting the actual root this way, with a
+        passphrase, must be accepted, not wrongly rejected by the
+        non-root-passphrase rule over a missing mountpoint."""
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda2",
+                    "params": {
+                        "path": "/dev/sda2",
+                        "fstype": "ext4",
+                        "mountpoint": "/",
+                        "encrypt": True,
+                        "encryption_passphrase": "S3cretRootPass!",
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is True
+        assert error == ""
+
     def test_encrypted_swap_without_encrypted_root_is_allowed(self) -> None:
         """Swap is exempt from the root-encryption requirement: it uses a
         fresh /dev/urandom key every boot (plain dm-crypt, no LUKS header,

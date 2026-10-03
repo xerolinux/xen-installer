@@ -335,6 +335,44 @@ class TestGenerateCrypttab:
         mock_run.assert_not_called()
 
     @patch("subprocess.run")
+    def test_swap_fstab_entry_regenerated_when_crypttab_already_has_entry(
+        self, mock_run: Mock, tmp_path: Path
+    ) -> None:
+        """A retry where /etc/crypttab already has the swap mapper's line
+        (e.g. a prior attempt wrote crypttab but not fstab) must still get
+        the fstab line regenerated - the idempotency short-circuit used to
+        skip the whole swap branch before ever reaching the fstab-queueing
+        step, losing the fstab line permanently on any such retry."""
+        target = tmp_path / "target"
+        crypttab = target / "etc" / "crypttab"
+        crypttab.parent.mkdir(parents=True)
+        crypttab.write_text(
+            "cryptswap PARTUUID=existing-partuuid /dev/urandom "
+            "swap,cipher=aes-xts-plain64,size=256\n"
+        )
+        job = SystemConfigJob()
+        selections = {
+            "partition_assignments": [
+                {
+                    "path": "/dev/mapper/cryptswap",
+                    "mountpoint": "swap",
+                    "raw_path": "/dev/sda4",
+                },
+            ],
+        }
+
+        result = job._generate_crypttab(str(target), selections)
+
+        assert result.success is True
+        mock_run.assert_not_called()
+        fstab_content = (target / "etc" / "fstab").read_text()
+        assert fstab_content == "/dev/mapper/cryptswap none swap defaults 0 0\n"
+        assert crypttab.read_text() == (
+            "cryptswap PARTUUID=existing-partuuid /dev/urandom "
+            "swap,cipher=aes-xts-plain64,size=256\n"
+        )
+
+    @patch("subprocess.run")
     def test_swap_fstab_entry_not_written_when_a_later_partition_fails(
         self, mock_run: Mock, tmp_path: Path
     ) -> None:

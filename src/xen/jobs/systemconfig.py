@@ -260,26 +260,35 @@ class SystemConfigJob(BaseJob):
             if not path.startswith("/dev/mapper/"):
                 continue
             mapper_name = path.rsplit("/", 1)[-1]
-            if mapper_name == "cryptroot" or mapper_name in existing_mappers:
+            if mapper_name == "cryptroot":
                 continue
+            already_in_crypttab = mapper_name in existing_mappers
 
             if mountpoint == "swap":
-                raw_swap_path = str(assignment.get("raw_path", ""))
-                partuuid = self._blkid_partuuid(raw_swap_path) if raw_swap_path else None
-                if not partuuid:
-                    return JobResult.fail(
-                        f"Could not determine PARTUUID for swap partition {raw_swap_path}",
-                        error_code=117,
+                if not already_in_crypttab:
+                    raw_swap_path = str(assignment.get("raw_path", ""))
+                    partuuid = self._blkid_partuuid(raw_swap_path) if raw_swap_path else None
+                    if not partuuid:
+                        return JobResult.fail(
+                            f"Could not determine PARTUUID for swap partition {raw_swap_path}",
+                            error_code=117,
+                        )
+                    lines.append(
+                        f"{mapper_name} PARTUUID={partuuid} /dev/urandom "
+                        "swap,cipher=aes-xts-plain64,size=256\n"
                     )
-                lines.append(
-                    f"{mapper_name} PARTUUID={partuuid} /dev/urandom "
-                    "swap,cipher=aes-xts-plain64,size=256\n"
-                )
-                # Deferred until after crypttab is actually written below -
-                # an fstab entry for a mapper crypttab never ends up
-                # creating (e.g. a later partition in this same plan fails)
-                # would try to swapon a mapper that doesn't exist at boot.
+                # Queued whether the crypttab line is new or already
+                # present from an earlier attempt - a retry that got as
+                # far as writing crypttab but not fstab last time must
+                # still get the fstab line regenerated. Actually written
+                # only after crypttab's own write below succeeds, so a
+                # later partition's failure in this same plan can't leave
+                # a dangling fstab entry pointing at a mapper crypttab
+                # never ends up creating.
                 pending_swap_fstab_mappers.append(mapper_name)
+                continue
+
+            if already_in_crypttab:
                 continue
 
             raw_path = str(assignment.get("raw_path", ""))
@@ -298,19 +307,24 @@ class SystemConfigJob(BaseJob):
                 )
             lines.append(f"{mapper_name} UUID={luks_uuid} {keyfile_path} luks\n")
 
-        if not lines:
-            return JobResult.ok("No crypttab entries needed")
+        if lines:
+            try:
+                crypttab_path.parent.mkdir(parents=True, exist_ok=True)
+                crypttab_path.write_text(existing + "".join(lines), encoding="utf-8")
+            except OSError as e:
+                return JobResult.fail(f"Failed to write {crypttab_path}: {e}", error_code=109)
 
-        try:
-            crypttab_path.parent.mkdir(parents=True, exist_ok=True)
-            crypttab_path.write_text(existing + "".join(lines), encoding="utf-8")
-        except OSError as e:
-            return JobResult.fail(f"Failed to write {crypttab_path}: {e}", error_code=109)
-
+        # Runs even when crypttab itself needed no new lines (e.g. every
+        # entry already existed from a prior attempt) - a retry that got
+        # as far as writing crypttab but not fstab last time must still
+        # get the swap fstab line regenerated.
         for mapper_name in pending_swap_fstab_mappers:
             fstab_result = self._ensure_swap_fstab_entry(target_root, mapper_name)
             if not fstab_result.success:
                 return fstab_result
+
+        if not lines:
+            return JobResult.ok("No crypttab entries needed")
 
         logger.info(f"Wrote {crypttab_path}")
         return JobResult.ok("crypttab generated")

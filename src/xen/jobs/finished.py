@@ -266,9 +266,12 @@ class FinishedJob(BaseJob):
         Clean up all mounted filesystems.
 
         Unmounts in correct order (child before parent):
-        1. /mnt/target/boot/efi
-        2. /mnt/target (root)
-        3. swapoff for swap partitions
+        1. /mnt/target/boot/efi (belt-and-suspenders)
+        2. /mnt/target and every submount still under it, recursively
+           (umount -R) - covers root itself plus any manual-mode extra
+           mountpoint (e.g. /home), not just the two hardcoded paths
+        3. Every LUKS mapper this install opened
+        4. swapoff for swap partitions
 
         Args:
             context: Execution context

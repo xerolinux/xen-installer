@@ -1149,7 +1149,7 @@ Item {
 
             if (editDialog.doFormat) {
                 var fstype = backendFstype(editDialog.fsChoice)
-                var params = { path: path, fstype: fstype }
+                var params = { path: path, fstype: fstype, mountpoint: editMountField.text.trim() }
                 if (editDialog.labelText.trim() !== "") params.label = editDialog.labelText.trim()
                 if (fstype === "btrfs" && editSubvolEditor.subvolumes.length > 0)
                     params.subvolumes = editSubvolEditor.subvolumes
