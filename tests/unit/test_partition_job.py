@@ -15,6 +15,7 @@ try:
         PartitionJob,
         PartitionLayout,
         PartitionMode,
+        _luks_kdf_args,
         part_path,
     )
 
@@ -1687,6 +1688,31 @@ class TestSwapStrategy:
         issued = [list(c.args[0]) for c in mock_run_cmd.call_args_list]
         assert any("mkswap" in cmd for cmd in issued)
         assert any("swapon" in cmd for cmd in issued)
+
+
+class TestLuksKdfArgs:
+    """GRUB's cryptodisk module can only unlock LUKS2 via PBKDF2, never
+    Argon2id - these pin exactly when the fix kicks in."""
+
+    def test_grub_with_no_separate_boot_forces_pbkdf2(self) -> None:
+        assert _luks_kdf_args("grub", has_separate_boot=False) == ["--pbkdf", "pbkdf2"]
+
+    def test_grub_with_separate_boot_uses_default(self) -> None:
+        # GRUB reads /boot/grub + the kernel from the separate, unencrypted
+        # partition - it never touches this LUKS header directly.
+        assert _luks_kdf_args("grub", has_separate_boot=True) == []
+
+    def test_systemd_boot_always_uses_default(self) -> None:
+        # systemd-boot never decrypts anything itself; mkinitcpio's
+        # "encrypt" hook does, which has no PBKDF2-only limitation.
+        assert _luks_kdf_args("systemd-boot", has_separate_boot=False) == []
+        assert _luks_kdf_args("systemd-boot", has_separate_boot=True) == []
+
+    def test_unknown_bootloader_value_uses_default(self) -> None:
+        # Anything other than exactly "grub" is treated as non-GRUB - safe
+        # (Argon2id) default rather than guessing.
+        assert _luks_kdf_args("", False) == []
+        assert _luks_kdf_args("unknown", False) == []
 
 
 class TestEncryption:

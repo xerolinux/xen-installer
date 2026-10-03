@@ -767,6 +767,39 @@ def _parted_flag(flag: str) -> str | None:
     return token if token in _PARTED_FLAGS else None
 
 
+def _luks_kdf_args(bootloader: str, has_separate_boot: bool) -> list[str]:
+    """Extra ``cryptsetup luksFormat`` arguments for GRUB/Argon2id compatibility.
+
+    GRUB's ``cryptodisk`` module can only unlock a LUKS2 header using
+    PBKDF2 - it has no Argon2id support at all. When GRUB itself must
+    decrypt a volume directly (no separate, unencrypted ``/boot``
+    partition ahead of it) to read ``/boot/grub`` and the kernel/initramfs,
+    formatting with LUKS2's Argon2id default makes the system unable to
+    boot - GRUB drops to its rescue shell, unable to read the header.
+
+    Does not apply when GRUB never needs to decrypt anything directly:
+    systemd-boot reads the kernel/initramfs from the ESP itself and
+    unlocking happens later, in the initramfs, via mkinitcpio's "encrypt"
+    hook (plain cryptsetup, no PBKDF2-only limitation) - same as GRUB with
+    a separate unencrypted ``/boot`` partition, which reads its config and
+    kernel from that plain partition and never touches this LUKS header.
+
+    Args:
+        bootloader: exact selection value, e.g. "grub" or "systemd-boot".
+        has_separate_boot: True if there's a separate, unencrypted
+            partition mounted at /boot ahead of the partition being
+            formatted (always False in AUTO mode, which has no such
+            partition structurally).
+
+    Returns:
+        ``["--pbkdf", "pbkdf2"]`` when GRUB must decrypt this volume
+        directly; ``[]`` (cryptsetup's own default, Argon2id) otherwise.
+    """
+    if bootloader == "grub" and not has_separate_boot:
+        return ["--pbkdf", "pbkdf2"]
+    return []
+
+
 def _plan_sets_bios_grub(operations: list[PartitionOperation]) -> bool:
     for op in operations:
         if (
