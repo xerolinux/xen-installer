@@ -502,10 +502,7 @@ def validate_operations(
     for op in operations:
         if op.type != "format" or not op.params.get("encrypt"):
             continue
-        fstype = str(op.params.get("fstype", "")).lower()
         mountpoint = op.params.get("mountpoint")
-        if fstype in ("vfat", "fat", "fat32") and mountpoint in ("/boot/efi", "/boot"):
-            return False, "The EFI System Partition cannot be encrypted"
         if mountpoint != "/" and op.params.get("encryption_passphrase"):
             return False, (
                 "Only the partition mounted at / takes a passphrase - every "
@@ -517,6 +514,17 @@ def validate_operations(
 
     # Apply pending setflag operations to a name->flags view for ESP detection.
     flags = _collect_flags(operations)
+
+    # Defense-in-depth: reject encrypting the real ESP (by the same
+    # partType/esp-flag detection _validate_esp trusts below), not a
+    # mountpoint heuristic that could miss it on a malformed/direct
+    # engine.addPartitionOperation() call.
+    for op in operations:
+        if op.type != "format" or not op.params.get("encrypt"):
+            continue
+        target = _target_partition(parts, op)
+        if target is not None and _is_efi_segment(target, flags):
+            return False, "The EFI System Partition cannot be encrypted"
 
     roots = [s for s in parts if s["mountpoint"] == "/"]
     if len(roots) != 1:
@@ -549,29 +557,36 @@ def _collect_flags(operations: list[PartitionOperation]) -> dict[int, set[str]]:
     return flags
 
 
+def _segment_number(seg: dict[str, Any]) -> int | None:
+    """Extract the GPT partition index from a segment's device name (sda2->2)."""
+    digits = "".join(ch for ch in seg["name"] if ch.isdigit())
+    return int(digits) if digits else None
+
+
+def _is_efi_segment(seg: dict[str, Any], flags: dict[int, set[str]]) -> bool:
+    """True if ``seg`` is the EFI System Partition: vfat + (esp flag or on-disk efi partType)."""
+    number = _segment_number(seg)
+    has_esp_flag = number is not None and "esp" in flags.get(number, set())
+    is_efi_type = str(seg["partType"]).lower() == "efi"
+    return str(seg["fstype"]).lower() in ("vfat", "fat", "fat32") and (has_esp_flag or is_efi_type)
+
+
 def _validate_esp(parts: list[dict[str, Any]], flags: dict[int, set[str]]) -> tuple[bool, str]:
     """Require exactly one ESP: vfat + esp flag + >= 512 MiB (UEFI plans)."""
-
-    def _number_of(seg: dict[str, Any]) -> int | None:
-        digits = "".join(ch for ch in seg["name"] if ch.isdigit())
-        return int(digits) if digits else None
-
-    def _is_efi(seg: dict[str, Any]) -> bool:
-        number = _number_of(seg)
-        has_esp_flag = number is not None and "esp" in flags.get(number, set())
-        is_efi_type = str(seg["partType"]).lower() == "efi"
-        return str(seg["fstype"]).lower() in ("vfat", "fat", "fat32") and (has_esp_flag or is_efi_type)
 
     # Boot-path fstype/flag consistency is checked independently of the ESP
     # count below, so a wrong partition claiming /boot/efi gets its own clear
     # error even when no conforming ESP exists anywhere on the plan.
     ok, reason = _validate_boot_mountpoint_consistency(
-        [{"fstype": s["fstype"], "is_efi": _is_efi(s), "mountpoint": s["mountpoint"]} for s in parts]
+        [
+            {"fstype": s["fstype"], "is_efi": _is_efi_segment(s, flags), "mountpoint": s["mountpoint"]}
+            for s in parts
+        ]
     )
     if not ok:
         return ok, reason
 
-    esps = [s for s in parts if _is_efi(s)]
+    esps = [s for s in parts if _is_efi_segment(s, flags)]
     if len(esps) != 1:
         return False, "A UEFI install requires exactly one ESP (vfat + esp flag)"
     if int(esps[0]["sizeBytes"]) < _MIN_ESP_BYTES:

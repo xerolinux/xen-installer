@@ -528,6 +528,30 @@ class TestValidateOperations:
         assert valid is False
         assert "esp" in error.lower() or "efi" in error.lower()
 
+    def test_rejects_encrypted_esp_even_without_boot_efi_mountpoint(self) -> None:
+        # Regression: detection must key off the real ESP (partType "efi" /
+        # esp flag, same as _validate_esp), not a mountpoint heuristic. sda1
+        # is the genuine ESP in _existing_disk() even though this op never
+        # sets a mountpoint at all.
+        disk = _existing_disk()
+        ops = [
+            PartitionOperation.from_dict(
+                {
+                    "type": "format",
+                    "target": "/dev/sda1",
+                    "params": {
+                        "path": "/dev/sda1",
+                        "fstype": "vfat",
+                        "encrypt": True,
+                    },
+                }
+            )
+        ]
+        with self._no_busy():
+            valid, error = validate_operations(disk, ops, uefi=True)
+        assert valid is False
+        assert "esp" in error.lower() or "efi" in error.lower()
+
     def test_rejects_passphrase_on_non_root_encrypted_partition(self) -> None:
         disk = _existing_disk()
         ops = [
