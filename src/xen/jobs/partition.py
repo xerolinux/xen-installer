@@ -801,6 +801,28 @@ def _luks_kdf_args(bootloader: str, has_separate_boot: bool) -> list[str]:
     return []
 
 
+def _manual_mapper_name(mountpoint: str) -> str:
+    """Deterministic ``/dev/mapper/<name>`` suffix for a manually-encrypted
+    partition, derived purely from its resolved mountpoint so the job (at
+    Apply time) and bridge.py (at post-Apply reconciliation) always agree
+    without needing to pass this name between them.
+
+    "/" -> "cryptroot", "/home" -> "crypthome", "swap" -> "cryptswap",
+    anything else -> "cryptdata" plus a sanitized suffix from the path.
+    """
+    mp = mountpoint.strip().strip("/")
+    if mountpoint.strip() == "/":
+        return "cryptroot"
+    if mountpoint.strip() == "swap":
+        return "cryptswap"
+    if mp == "home":
+        return "crypthome"
+    if not mp:
+        return "cryptdata"
+    safe = "".join(c if c.isalnum() else "-" for c in mp)
+    return f"cryptdata-{safe}"
+
+
 def _plan_sets_bios_grub(operations: list[PartitionOperation]) -> bool:
     for op in operations:
         if (

@@ -26,6 +26,7 @@ from xen.jobs.partition import (
     PartitionJob,
     PartitionOperation,
     _dev_path,
+    _manual_mapper_name,
     simulate_operations,
     validate_operations,
     validate_operations_applicable,
@@ -1198,3 +1199,23 @@ class TestPathAndNumberResolution:
         with patch.object(job, "_disk_has_label", return_value=True):
             job._ensure_partition_table("/dev/sdb", dry_run=False)
         assert calls == []
+
+
+class TestManualMapperName:
+    """Mapper name is derived purely from mountpoint - deterministic, so
+    both the job and bridge.py can compute it independently."""
+
+    def test_root_is_cryptroot(self) -> None:
+        assert _manual_mapper_name("/") == "cryptroot"
+
+    def test_home_is_crypthome(self) -> None:
+        assert _manual_mapper_name("/home") == "crypthome"
+
+    def test_swap_is_cryptswap(self) -> None:
+        assert _manual_mapper_name("swap") == "cryptswap"
+
+    def test_other_data_mountpoint_is_sanitized(self) -> None:
+        assert _manual_mapper_name("/var/lib/data") == "cryptdata-var-lib-data"
+
+    def test_blank_mountpoint_falls_back_to_generic_name(self) -> None:
+        assert _manual_mapper_name("") == "cryptdata"
