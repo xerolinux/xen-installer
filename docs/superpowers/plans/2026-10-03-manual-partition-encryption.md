@@ -696,6 +696,12 @@ class TestPostApplyReconciliation:
         ]
         assert matching
         assert matching[0]["path"] == "/dev/mapper/crypthome"
+        # raw_path preserves the original device - Task 8's crypttab/keyfile
+        # step needs it (cryptsetup luksAddKey operates on the raw partition,
+        # not the already-open mapper), and it has to survive the
+        # applySelectionsToContext normalization to actually reach that job.
+        assert matching[0]["raw_path"].startswith("/dev/")
+        assert matching[0]["raw_path"] != matching[0]["path"]
 
     def test_non_root_encrypted_generated_passphrase_carried_over(
         self, bridge: EngineBridge
@@ -757,6 +763,7 @@ Add a new method, placed right before `_on_partition_apply_finished`:
             if params.get("subvolumes"):
                 entry["subvolumes"] = params["subvolumes"]
             if encrypt:
+                entry["raw_path"] = f"/dev/{real_name}"
                 entry["path"] = f"/dev/mapper/{_manual_mapper_name(str(mountpoint or ''))}"
 
         self.partitionPlanChanged.emit()
@@ -783,6 +790,14 @@ Add a new method, placed right before `_on_partition_apply_finished`:
 ```
 
 Add `_manual_mapper_name` to `bridge.py`'s existing `from xen.jobs.partition import (...)` block.
+
+`_reconcile_after_apply` writes `raw_path` into `self._partition_assignments`, but that dict's entries only reach the real install job through `applySelectionsToContext`'s existing `normalized["partition_assignments"]` comprehension (`bridge.py`, inside the `if normalized.get("partition_mode") == "manual":` block) - which today only forwards `name`/`path`/`mountpoint`/`format`/`fstype`/`subvolumes`. Without `raw_path` added to that comprehension too, Task 8's `systemconfig.py` step (which needs the raw device path to run `cryptsetup luksAddKey`) would always see an empty string, since `context.selections` is a different dict than bridge's own live `self._partition_assignments` and nothing else carries it across. Extend that existing comprehension's dict literal to add:
+
+```python
+                    "raw_path": entry.get("raw_path", ""),
+```
+
+(as one more key alongside the existing `"subvolumes": entry.get("subvolumes") or [],` line - same dict, no other changes to that block).
 
 Update `_on_partition_apply_finished` to call this before clearing the queue:
 
@@ -911,6 +926,7 @@ git commit -m "feat: reconcile queued partition intent onto real names after App
 
 **Interfaces:**
 - Consumes: `bridge._manual_luks_passphrases`, `bridge._partition_operations` (each op's `params.get("encryption_passphrase")`).
+- Produces: `context.selections["manual_luks_passphrases"]` - without this, `bridge._manual_luks_passphrases` only ever exists in the GUI process's own memory and Task 8's `systemconfig.py` step (a different job, reading only `context.selections`) can never see it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -931,6 +947,21 @@ class TestManualEncryptionRedaction:
         bridge._manual_luks_passphrases["sda3"] = "GeneratedHomePass!"
         bridge.applySelectionsToContext()
         assert "GeneratedHomePass!" in bridge._redactor._secrets
+
+    def test_manual_luks_passphrases_forwarded_to_context(self, bridge: EngineBridge) -> None:
+        """Without this, systemconfig.py's per-partition keyfile step (a
+        separate job, reading only context.selections) can never see a
+        passphrase that only ever existed in the bridge's own memory.
+        applySelectionsToContext hands its normalized dict to
+        engine.set_selections(), which is what run_all() later copies into
+        every job's context.selections - check it landed there."""
+        bridge._selections["partitionMode"] = "manual"
+        bridge._manual_luks_passphrases["sda3"] = "GeneratedHomePass!"
+        bridge.applySelectionsToContext()
+        assert (
+            bridge._engine._selections.get("manual_luks_passphrases", {}).get("sda3")
+            == "GeneratedHomePass!"
+        )
 ```
 
 (If `SecretRedactor` doesn't expose `_secrets` as a plain attribute, use whatever public check it already offers elsewhere in this test file - e.g. a `redact()`/`is_secret()` method - matching the pattern the file's other redaction tests already use instead of reaching into a private attribute blind.)
@@ -954,10 +985,19 @@ In `src/xen/gui/bridge.py`'s `applySelectionsToContext`, right after the existin
                 self._redactor.add_secret(passphrase)
 ```
 
+Separately, forward the passphrases themselves into `context.selections` - redaction alone only stops them from being logged, it doesn't get them to the job that needs them. Inside the SAME `if normalized.get("partition_mode") == "manual":` block Task 4 extended (where `normalized["partition_assignments"]`/`normalized["partition_operations"]` are already set), add:
+
+```python
+            if self._manual_luks_passphrases:
+                normalized["manual_luks_passphrases"] = dict(self._manual_luks_passphrases)
+```
+
+right after the existing `normalized["partition_operations"] = list(self._partition_operations)` line (same indentation, still inside the `if normalized.get("partition_mode") == "manual":` block).
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `PYTHONPATH=src python -m pytest tests/unit/test_bridge_partition_ops.py::TestManualEncryptionRedaction -v`
-Expected: PASS (2 tests)
+Expected: PASS (3 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -1384,7 +1424,7 @@ In `src/xen/jobs/systemconfig.py`, add a helper used by `_generate_crypttab` for
         return JobResult.ok(f"Keyfile added for {raw_path}")
 ```
 
-(`assignment.get("raw_path")` is a NEW field this task introduces - Task 4's `_reconcile_after_apply` sets `entry["path"]` to the mapper path for an encrypted partition but does not currently preserve the original raw device path anywhere, which this task needs. Go back and extend Task 4's `_reconcile_after_apply`: when `encrypt` is true, also set `entry["raw_path"] = f"/dev/{real_name}"` alongside overwriting `entry["path"]` - add this one line to that method and its test before starting this task's implementation.)
+(`assignment.get("raw_path")` is populated by Task 4's `_reconcile_after_apply` and forwarded into `context.selections` by `applySelectionsToContext`'s `partition_assignments` comprehension - both already wired by Task 4, nothing further needed here.)
 
 Add `import os` to `systemconfig.py`'s imports if not already present (check first - `_generate_machine_id` already does file operations, so it likely is).
 
