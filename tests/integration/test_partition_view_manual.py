@@ -532,3 +532,66 @@ def test_encrypt_checkbox_passphrase_visibility(bridge: EngineBridge, qapp: QApp
     finally:
         qInstallMessageHandler(None)
         del qml_engine
+
+
+def test_encrypt_checkbox_hidden_for_esp(bridge: EngineBridge, qapp: QApplication) -> None:
+    """The encrypt option must never render when formatting as vfat with
+    the esp flag - GRUB/systemd-boot both need to read the ESP in the clear.
+
+    newDialog is a Popup nested inside PartitionView's own
+    "manualEditorPopup" Popup (same caveat as
+    test_encrypt_checkbox_passphrase_visibility above): a closed Popup's
+    children always report effective visibility False regardless of their
+    own bindings, so both outer and inner popups must actually be opened
+    for a `visible` assertion to mean anything. Likewise, setting
+    newFsCombo.currentIndex via setProperty alone does NOT update
+    newDialog.fsChoice - only the real `onActivated` handler does that -
+    so the "activated" signal is invoked directly here to drive fsChoice
+    the way a real click would.
+    """
+    bridge._disks_model = [_mock_disk()]
+    qml_engine, root, collector = _load_main(bridge)
+    try:
+        root.setProperty("currentStep", 4)
+        bridge.setSelectedDisk("sda")
+        bridge.setPartitionMode("manual")
+        qapp.processEvents()
+
+        manual_popup = _find_by_object_name(root, "manualEditorPopup")
+        assert manual_popup is not None
+        QMetaObject.invokeMethod(manual_popup, "open")
+        qapp.processEvents()
+
+        new_dialog = _find_by_object_name(root, "newPartitionDialog")
+        assert new_dialog is not None
+
+        free_seg = {
+            "kind": "free",
+            "startSector": _ALIGN,
+            "sizeSectors": DISK_SECTORS - _ALIGN - 34,
+            "sizeBytes": (DISK_SECTORS - _ALIGN - 34) * _SECTOR_SIZE,
+        }
+        QMetaObject.invokeMethod(new_dialog, "openFor", Q_ARG("QVariant", free_seg))
+        qapp.processEvents()
+
+        fs_combo = _find_by_object_name(new_dialog, "newFsCombo")
+        encrypt_row = _find_by_object_name(new_dialog, "newEncryptRow")
+        assert fs_combo is not None
+        assert encrypt_row is not None
+
+        # Default fstype (not fat32): encrypt option visible.
+        assert bool(encrypt_row.property("visible")) is True
+
+        # Select "fat32" explicitly by value rather than index (index can
+        # shift based on online/offline btrfs gating) - find it in the model.
+        model = list(fs_combo.property("model"))
+        fat32_index = model.index("fat32")
+        fs_combo.setProperty("currentIndex", fat32_index)
+        QMetaObject.invokeMethod(fs_combo, "activated", Q_ARG("int", fat32_index))
+        qapp.processEvents()
+        assert bool(encrypt_row.property("visible")) is False
+
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine

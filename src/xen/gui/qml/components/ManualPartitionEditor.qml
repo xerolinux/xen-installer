@@ -974,7 +974,9 @@ Item {
             }
 
             RowLayout {
+                objectName: "newEncryptRow"
                 spacing: 8
+                visible: newDialog.fsChoice !== "fat32"
                 CheckBox {
                     id: newEncryptCheck
                     objectName: "newEncryptCheck"
@@ -1257,7 +1259,9 @@ Item {
                     }
                 }
                 RowLayout {
+                    objectName: "editEncryptRow"
                     spacing: 8
+                    visible: editDialog.fsChoice !== "fat32"
                     CheckBox {
                         id: editEncryptCheck
                         objectName: "editEncryptCheck"
