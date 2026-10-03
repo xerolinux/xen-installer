@@ -595,3 +595,94 @@ def test_encrypt_checkbox_hidden_for_esp(bridge: EngineBridge, qapp: QApplicatio
     finally:
         qInstallMessageHandler(None)
         del qml_engine
+
+
+def test_encrypt_checkbox_hidden_for_esp_edit_dialog(bridge: EngineBridge, qapp: QApplication) -> None:
+    """Same ESP exclusion as test_encrypt_checkbox_hidden_for_esp above, but
+    for editDialog's mirrored editEncryptRow/editFsCombo - the Edit dialog's
+    gating is structurally identical to the New dialog's (same fsChoice
+    !== "fat32" binding) but was previously unverified by any test.
+
+    editDialog.openFor() needs an *existing* partition segment (not a free
+    region like newDialog.openFor()), following the same seg/disk shape
+    used by test_edit_dialog_ok_commits_mount_point.
+    """
+    root_size = DISK_SECTORS - _ALIGN - 34
+    seg = {
+        "kind": "existing",
+        "name": "sda2",
+        "startSector": _ALIGN,
+        "sizeSectors": root_size,
+        "sizeBytes": root_size * _SECTOR_SIZE,
+        "fstype": "ext4",
+        "partType": "linux",
+        "mountpoint": "",
+        "pendingDelete": False,
+        "number": 2,
+        "minSizeSectors": _ALIGN,
+        "freeAfterSectors": 0,
+    }
+    disk = {
+        "name": "sda",
+        "sizeBytes": 500 * 1024**3,
+        "sizeSectors": DISK_SECTORS,
+        "segments": [
+            {
+                "kind": "partition",
+                "name": "sda2",
+                "startSector": _ALIGN,
+                "sizeSectors": root_size,
+                "sizeBytes": root_size * _SECTOR_SIZE,
+                "fstype": "ext4",
+                "partType": "linux",
+            }
+        ],
+    }
+    bridge._disks_model = [disk]
+    qml_engine, root, collector = _load_main(bridge)
+    try:
+        root.setProperty("currentStep", 4)
+        bridge.setSelectedDisk("sda")
+        bridge.setPartitionMode("manual")
+        qapp.processEvents()
+
+        manual_popup = _find_by_object_name(root, "manualEditorPopup")
+        assert manual_popup is not None
+        QMetaObject.invokeMethod(manual_popup, "open")
+        qapp.processEvents()
+
+        edit_dialog = _find_by_object_name(root, "editPartitionDialog")
+        assert edit_dialog is not None
+        QMetaObject.invokeMethod(edit_dialog, "openFor", Q_ARG("QVariant", seg))
+        qapp.processEvents()
+
+        # editFsCombo/editEncryptRow live inside the "Format" content
+        # radio's ColumnLayout (visible: editDialog.doFormat) - "Keep" is
+        # the default, so Format must be selected first or both read as
+        # invisible regardless of fsChoice.
+        edit_dialog.setProperty("doFormat", True)
+        qapp.processEvents()
+
+        fs_combo = _find_by_object_name(edit_dialog, "editFsCombo")
+        encrypt_row = _find_by_object_name(edit_dialog, "editEncryptRow")
+        assert fs_combo is not None
+        assert encrypt_row is not None
+
+        # Default fstype (ext4, not fat32): encrypt option visible.
+        assert bool(encrypt_row.property("visible")) is True
+
+        # Select "fat32" explicitly by value rather than index, and via the
+        # real "activated" signal (not just setProperty(currentIndex)) -
+        # same rationale as test_encrypt_checkbox_hidden_for_esp above:
+        # only onActivated updates editDialog.fsChoice.
+        model = list(fs_combo.property("model"))
+        fat32_index = model.index("fat32")
+        fs_combo.setProperty("currentIndex", fat32_index)
+        QMetaObject.invokeMethod(fs_combo, "activated", Q_ARG("int", fat32_index))
+        qapp.processEvents()
+        assert bool(encrypt_row.property("visible")) is False
+
+        assert not collector.errors, f"QML errors: {collector.errors}"
+    finally:
+        qInstallMessageHandler(None)
+        del qml_engine
