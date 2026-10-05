@@ -83,9 +83,9 @@ class BrandingAssets(BaseModel):
 class BrandingFonts(BaseModel):
     """Typography configuration."""
 
-    primary: str = "sans-serif"
-    display: str = "sans-serif"
-    monospace: str = "monospace"
+    primary: str = "Noto Sans"
+    display: str = "Noto Sans"
+    monospace: str = "Noto Sans Mono"
 
 
 class BrandingStrings(BaseModel):

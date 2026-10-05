@@ -108,8 +108,8 @@ Item {
                     source: distroLogo
                     visible: distroLogo.length > 0 && status === Image.Ready
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.height: 64
-                    height: 64
+                    sourceSize.height: 96
+                    height: 96
                 }
 
                 // Matrix rain animation band - transparent canvas (never
