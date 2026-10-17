@@ -37,6 +37,7 @@ Item {
     property bool hasInternet: true
 
     // Theme colors (from branding)
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color accentColor: "#6b9ce8"
     property color accentGradientEnd: "#ED1C24"
@@ -112,8 +113,13 @@ Item {
     Rectangle {
         id: heroCard
         anchors.centerIn: parent
-        width: Math.min(parent.width - 96, 720)
-        height: heroColumn.implicitHeight + 72
+        // Never shrinks below the 720 baseline (only grows): the
+        // requirement chips below have their own fixed internal sizing
+        // (RequirementChip.qml), not uiScale-aware, so a narrower card
+        // overflowed the 3-chip row off its right edge at minimum window
+        // size.
+        width: Math.min(parent.width - 96, 720 * Math.max(1.0, uiScale))
+        height: heroColumn.implicitHeight + 72 * uiScale
         radius: 20
         color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
         border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
@@ -127,8 +133,8 @@ Item {
 
             // Logo - centered
             Item {
-                Layout.preferredWidth: 96
-                Layout.preferredHeight: 96
+                Layout.preferredWidth: 96 * uiScale
+                Layout.preferredHeight: 96 * uiScale
                 Layout.alignment: Qt.AlignHCenter
 
                 Image {
@@ -159,7 +165,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: welcomeTitle.charAt(welcomeTitle.indexOf(" ") + 1) || "O"
-                        font.pixelSize: 40
+                        font.pixelSize: 40 * uiScale
                         font.bold: true
                         color: textColor
                     }
@@ -179,7 +185,7 @@ Item {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: brandingEdition
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
                     font.bold: true
                     color: primaryColor
                     visible: brandingEdition !== ""
@@ -192,25 +198,25 @@ Item {
 
                     Text {
                         text: "Intel"
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * uiScale
                         font.bold: true
                         color: primaryColor
                     }
                     Text {
                         text: "/"
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * uiScale
                         font.bold: true
                         color: textMutedColor
                     }
                     Text {
                         text: "AMD"
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * uiScale
                         font.bold: true
                         color: accentGradientEnd
                     }
                     Text {
                         text: " " + qsTr("Edition")
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * uiScale
                         font.bold: true
                         color: textColor
                     }
@@ -220,7 +226,7 @@ Item {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: welcomeTitle
-                    font.pixelSize: 27
+                    font.pixelSize: 27 * uiScale
                     font.bold: true
                     color: textColor
                     horizontalAlignment: Text.AlignHCenter
@@ -230,7 +236,7 @@ Item {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: welcomeSubtitle
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * uiScale
                     color: textMutedColor
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -261,7 +267,7 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     visible: isCheckingRequirements
                     text: qsTr("Checking system requirements...")
-                    font.pixelSize: 12
+                    font.pixelSize: 12 * uiScale
                     color: textMutedColor
                 }
 
@@ -279,12 +285,16 @@ Item {
                             RequirementChip {
                                 // Overrides the component's own fixed 210px
                                 // default so a row of chipsPerRow always
-                                // fits requirementsColumn's actual width
-                                // exactly, regardless of card width tuning -
-                                // a hardcoded card width matched to one
-                                // specific chip count is what overflowed
-                                // the card in the first place.
-                                width: (requirementsColumn.width - (requirementsColumn.chipsPerRow - 1) * 8) / requirementsColumn.chipsPerRow
+                                // fits exactly, regardless of card width
+                                // tuning. Driven off heroColumn.width, not
+                                // requirementsColumn.width: a ColumnLayout
+                                // child's Layout.fillWidth measured width
+                                // was not resolving correctly here (chips
+                                // rendered wider than expected and overflowed
+                                // the card) - heroColumn's own width is set
+                                // directly from heroCard, not layout-derived,
+                                // so it is unambiguous.
+                                width: (heroColumn.width - (requirementsColumn.chipsPerRow - 1) * 8) / requirementsColumn.chipsPerRow
                                 name: modelData.name || ""
                                 description: modelData.description || ""
                                 status: modelData.status || "skip"
@@ -313,14 +323,14 @@ Item {
             // Install button - centered
             Button {
                 id: installButton
-                Layout.preferredWidth: 220
-                Layout.preferredHeight: 52
+                Layout.preferredWidth: 220 * uiScale
+                Layout.preferredHeight: 52 * uiScale
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 4
                 enabled: canProceed && !isCheckingRequirements
 
                 text: installButtonText || qsTr("Install")
-                font.pixelSize: 16
+                font.pixelSize: 16 * uiScale
                 font.bold: true
 
                 background: Rectangle {
@@ -366,7 +376,7 @@ Item {
 
                         Text {
                             text: "\u2192"  // Right arrow
-                            font.pixelSize: 18
+                            font.pixelSize: 18 * uiScale
                             color: installButton.enabled ? "#ffffff" : textMutedColor
                             verticalAlignment: Text.AlignVCenter
                             anchors.verticalCenter: parent.verticalCenter
@@ -385,7 +395,7 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 visible: !canProceed && !isCheckingRequirements
                 text: qsTr("Please resolve system requirements before installing")
-                font.pixelSize: 12
+                font.pixelSize: 12 * uiScale
                 color: warningColor
                 wrapMode: Text.WordWrap
             }
@@ -402,7 +412,7 @@ Item {
             horizontalCenter: parent.horizontalCenter
         }
         text: qsTr("No internet connection detected — installing offline (no optional software, no system update)")
-        font.pixelSize: 12
+        font.pixelSize: 12 * uiScale
         color: warningColor
         horizontalAlignment: Text.AlignHCenter
     }
@@ -425,7 +435,7 @@ Item {
             // "Powered by Xen Installer" (left)
             Text {
                 text: qsTr("Powered by Xen Installer")
-                font.pixelSize: 12
+                font.pixelSize: 12 * uiScale
                 color: textMutedColor
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -436,7 +446,7 @@ Item {
             Text {
                 id: websiteLink
                 text: root.websiteLabel || root.websiteUrl
-                font.pixelSize: 12
+                font.pixelSize: 12 * uiScale
                 color: primaryColor
                 visible: root.websiteUrl !== ""
                 Layout.alignment: Qt.AlignVCenter

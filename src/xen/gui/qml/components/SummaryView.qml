@@ -58,6 +58,7 @@ Item {
     property string distroLogo: ""
 
     // Theme colors
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
@@ -72,8 +73,8 @@ Item {
     // Reusable "Edit" button - styling only, callers own onClicked.
     component EditButton: Button {
         text: qsTr("Edit")
-        implicitWidth: 64
-        implicitHeight: 30
+        implicitWidth: 64 * root.uiScale
+        implicitHeight: 30 * root.uiScale
         Layout.alignment: Qt.AlignVCenter
 
         background: Rectangle {
@@ -89,7 +90,7 @@ Item {
 
         contentItem: Text {
             text: parent.text
-            font.pixelSize: 13
+            font.pixelSize: 13 * root.uiScale
             color: root.textColor
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -105,14 +106,14 @@ Item {
 
         Text {
             text: fieldLabel
-            font.pixelSize: 12
+            font.pixelSize: 12 * root.uiScale
             color: root.textMutedColor
             width: 128
         }
 
         Text {
             text: fieldValue
-            font.pixelSize: 12
+            font.pixelSize: 12 * root.uiScale
             font.bold: true
             color: root.textColor
         }
@@ -173,13 +174,13 @@ Item {
             ColumnLayout {
                 id: pageColumn
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 24, 940)
+                width: Math.min(parent.width - 24, 940 * uiScale)
                 spacing: 8
 
                 // Title
                 Text {
                     text: qsTr("Review Installation")
-                    font.pixelSize: 22
+                    font.pixelSize: 22 * root.uiScale
                     font.bold: true
                     color: textColor
                     Layout.alignment: Qt.AlignHCenter
@@ -187,7 +188,7 @@ Item {
 
                 Text {
                     text: qsTr("Please review your selections before starting the installation")
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * root.uiScale
                     color: textMutedColor
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -227,10 +228,10 @@ Item {
 
                                     RowLayout {
                                         spacing: 12
-                                        Text { text: "\u{1F5A5}\u{FE0F}"; font.pixelSize: 15 }
+                                        Text { text: "\u{1F5A5}\u{FE0F}"; font.pixelSize: 15 * root.uiScale }
                                         Text {
                                             text: qsTr("System")
-                                            font.pixelSize: 14
+                                            font.pixelSize: 14 * root.uiScale
                                             font.bold: true
                                             color: textColor
                                         }
@@ -255,10 +256,10 @@ Item {
 
                                     RowLayout {
                                         spacing: 12
-                                        Text { text: "\u{1F310}"; font.pixelSize: 15 }
+                                        Text { text: "\u{1F310}"; font.pixelSize: 15 * root.uiScale }
                                         Text {
                                             text: qsTr("Locale & Keyboard")
-                                            font.pixelSize: 14
+                                            font.pixelSize: 14 * root.uiScale
                                             font.bold: true
                                             color: textColor
                                         }
@@ -285,10 +286,10 @@ Item {
 
                                     RowLayout {
                                         spacing: 12
-                                        Text { text: "\u{1F464}"; font.pixelSize: 15 }
+                                        Text { text: "\u{1F464}"; font.pixelSize: 15 * root.uiScale }
                                         Text {
                                             text: qsTr("User Account")
-                                            font.pixelSize: 14
+                                            font.pixelSize: 14 * root.uiScale
                                             font.bold: true
                                             color: textColor
                                         }
@@ -318,10 +319,10 @@ Item {
 
                                     RowLayout {
                                         spacing: 12
-                                        Text { text: "\u{1F4BE}"; font.pixelSize: 15 }
+                                        Text { text: "\u{1F4BE}"; font.pixelSize: 15 * root.uiScale }
                                         Text {
                                             text: qsTr("Storage")
-                                            font.pixelSize: 14
+                                            font.pixelSize: 14 * root.uiScale
                                             font.bold: true
                                             color: textColor
                                         }
@@ -374,13 +375,13 @@ Item {
 
                                     Text {
                                         text: "\u{1F4E2}"
-                                        font.pixelSize: 14
+                                        font.pixelSize: 14 * root.uiScale
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
 
                                     Text {
                                         text: qsTr("Ready to Install")
-                                        font.pixelSize: 14
+                                        font.pixelSize: 14 * root.uiScale
                                         font.bold: true
                                         color: textColor
                                         anchors.verticalCenter: parent.verticalCenter
@@ -389,7 +390,7 @@ Item {
 
                                 Text {
                                     text: qsTr("The installation will begin once you click the Install button. This process will modify your disk and cannot be undone. Please ensure all data is backed up.")
-                                    font.pixelSize: 12
+                                    font.pixelSize: 12 * root.uiScale
                                     color: textColor
                                     wrapMode: Text.WordWrap
                                     width: parent.width
@@ -408,8 +409,8 @@ Item {
                                     // is vertically centred over the wrapped (2-line) label,
                                     // which lands the box in the middle of the text.
                                     indicator: Rectangle {
-                                        implicitWidth: 22
-                                        implicitHeight: 22
+                                        implicitWidth: 22 * root.uiScale
+                                        implicitHeight: 22 * root.uiScale
                                         x: 0
                                         y: 0
                                         radius: 4
@@ -422,7 +423,7 @@ Item {
                                             visible: confirmCheckBox.checked
                                             text: "✓"
                                             color: successColor
-                                            font.pixelSize: 15
+                                            font.pixelSize: 15 * root.uiScale
                                             font.bold: true
                                         }
                                     }
@@ -430,7 +431,7 @@ Item {
                                     contentItem: Text {
                                         text: qsTr("I understand that the selected disk (%1) will be modified and erased.")
                                             .arg(diskValue || qsTr("target disk"))
-                                        font.pixelSize: 12
+                                        font.pixelSize: 12 * root.uiScale
                                         font.bold: true
                                         color: textColor
                                         wrapMode: Text.WordWrap

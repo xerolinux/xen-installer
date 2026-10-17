@@ -24,12 +24,23 @@ import "components"
 ApplicationWindow {
     id: root
 
-    width: 1200
-    height: 800
+    // Sized from the actual screen instead of a fixed 1200x800 - on a
+    // 1366x768 laptop that fixed size left barely any room for window
+    // decorations before Plasma reflows it; on a 4K screen it looked tiny.
+    width: Math.min(1600, Math.max(minimumWidth, Screen.width * 0.75))
+    height: Math.min(1000, Math.max(minimumHeight, Screen.height * 0.8))
     minimumWidth: 1024
-    minimumHeight: 600
+    minimumHeight: 640
     visible: true
     title: branding.name + " Installer"
+
+    // Global scale for font sizes/card widths, used by every step view.
+    // Bounded by BOTH window width and height against the baseline design
+    // size (1200x760 content area), so it never grows past what actually
+    // fits vertically - a width-only or height-only scale either left
+    // content cut off on a short window or barely grew on a wide one.
+    readonly property real uiScale: Math.min(2.0, Math.max(0.8,
+        Math.min((width - 40) / 1200, (height - 150) / 480)))
 
     // System font for non-Latin languages (CJK, Arabic, Hebrew, etc.)
     // Uses Noto Sans when a non-Latin locale is selected, otherwise system default
@@ -134,8 +145,8 @@ ApplicationWindow {
 
             // Logo
             Item {
-                width: 48
-                height: 48
+                width: 48 * uiScale
+                height: 48 * uiScale
 
                 Image {
                     id: headerLogo
@@ -155,7 +166,7 @@ ApplicationWindow {
                     Text {
                         anchors.centerIn: parent
                         text: branding.name.charAt(0)
-                        font.pixelSize: 24
+                        font.pixelSize: 24 * uiScale
                         font.bold: true
                         color: textColor
                     }
@@ -168,14 +179,14 @@ ApplicationWindow {
 
                 Text {
                     text: branding.name + " Installer"
-                    font.pixelSize: 20
+                    font.pixelSize: 20 * uiScale
                     font.bold: true
                     color: textColor
                 }
 
                 Text {
                     text: stepNames[currentStep] || ""
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * uiScale
                     color: textMutedColor
                 }
             }
@@ -189,7 +200,7 @@ ApplicationWindow {
                     model: 5  // Steps 1-5
 
                     Rectangle {
-                        width: 40
+                        width: 40 * uiScale
                         height: 4
                         radius: 2
                         color: (index + 1) < currentStep ? primaryColor :
@@ -230,6 +241,7 @@ ApplicationWindow {
                 isCheckingRequirements: engine.isCheckingRequirements
                 hasInternet: engine.hasInternet
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 accentColor: root.accentColor
                 accentGradientEnd: root.accentGradientEnd
@@ -280,6 +292,7 @@ ApplicationWindow {
                 // désormais lues directement depuis engine par la vue (miroirs
                 // readonly), plus besoin de les passer ici.
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -339,6 +352,7 @@ ApplicationWindow {
 
                 groups: engine.packageGroupsModel
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -365,6 +379,7 @@ ApplicationWindow {
                 // descendant dès la première saisie. Les mots de passe restent
                 // write-only côté vue (aucun binding descendant depuis engine).
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -391,6 +406,7 @@ ApplicationWindow {
                 // encryption sont lus directement depuis engine par la vue
                 // (miroirs readonly), plus besoin de les passer ici.
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -455,6 +471,7 @@ ApplicationWindow {
                 distroVersion: branding.version
                 distroLogo: branding.logoSmallUrl
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -491,6 +508,7 @@ ApplicationWindow {
                 distroName: branding.name
                 distroLogo: branding.logoSmallUrl
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -526,6 +544,7 @@ ApplicationWindow {
                 finishedSubtitle: branding.finishedSubtitle
                 finishedMessage: branding.finishedMessage
 
+                uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
                 surfaceColor: root.surfaceColor
@@ -560,7 +579,7 @@ ApplicationWindow {
 
             Text {
                 text: qsTr("Powered by Xen Installer")
-                font.pixelSize: 12
+                font.pixelSize: 12 * uiScale
                 color: textMutedColor
                 Layout.leftMargin: 6
             }
@@ -570,7 +589,7 @@ ApplicationWindow {
             // Website link
             Text {
                 text: branding.websiteLabel || branding.websiteUrl
-                font.pixelSize: 12
+                font.pixelSize: 12 * uiScale
                 color: accentColor
 
                 MouseArea {
@@ -604,8 +623,8 @@ ApplicationWindow {
                 onClicked: navigateBack()
 
                 background: Rectangle {
-                    implicitWidth: 100
-                    implicitHeight: 40
+                    implicitWidth: 100 * uiScale
+                    implicitHeight: 40 * uiScale
                     radius: 8
                     color: parent.pressed ? Qt.darker(surfaceColor, 1.2) :
                            parent.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
@@ -615,7 +634,7 @@ ApplicationWindow {
 
                 contentItem: Text {
                     text: parent.text
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * uiScale
                     color: textColor
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -629,8 +648,8 @@ ApplicationWindow {
                 enabled: canProceedToNext()
 
                 background: Rectangle {
-                    implicitWidth: 120
-                    implicitHeight: 40
+                    implicitWidth: 120 * uiScale
+                    implicitHeight: 40 * uiScale
                     radius: 8
                     color: !parent.enabled ? Qt.darker(surfaceColor, 1.3) :
                            parent.pressed ? Qt.darker(primaryColor, 1.2) :
@@ -639,7 +658,7 @@ ApplicationWindow {
 
                 contentItem: Text {
                     text: parent.text
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * uiScale
                     font.bold: true
                     color: parent.enabled ? textColor : textMutedColor
                     horizontalAlignment: Text.AlignHCenter

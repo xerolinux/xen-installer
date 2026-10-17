@@ -28,6 +28,11 @@ Item {
     property var keymapsModel: []
     property var keyboardVariantsModel: []
 
+    // Scales fonts/spacing/card width with the window size (see Main.qml) -
+    // keeps small windows from clipping content and stops the card from
+    // staying a fixed small island on large, high-res displays.
+    property real uiScale: 1.0
+
     // Helper function to get native name from locale code
     function getNativeNameForLocale(localeCode) {
         for (var i = 0; i < localesModelNative.length; i++) {
@@ -104,7 +109,7 @@ Item {
         // below on tall windows; a taller card still scrolls normally.
         Item {
             width: scrollView.availableWidth
-            height: Math.max(heroCard.height + 32, scrollView.availableHeight)
+            height: Math.max(heroCard.height + 24, scrollView.availableHeight)
 
             // Ambient glow behind the card - plain stacked rectangles, not a
             // MultiEffect shadow: the installer always runs with
@@ -126,8 +131,8 @@ Item {
             Rectangle {
                 id: heroCard
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 48, 640)
-                height: cardColumn.implicitHeight + 64
+                width: Math.min(parent.width - 64, 1100 * uiScale)
+                height: cardColumn.implicitHeight + 48 * uiScale
                 radius: 20
                 color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
                 border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
@@ -137,16 +142,16 @@ Item {
                     id: cardColumn
                     anchors.centerIn: parent
                     width: parent.width - 64
-                    spacing: 10
+                    spacing: 8
 
                     // Title section
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 4
+                        spacing: 3
 
                         Text {
                             text: qsTr("Country & Language")
-                            font.pixelSize: 22
+                            font.pixelSize: 20 * uiScale
                             font.bold: true
                             color: textColor
                             Layout.alignment: Qt.AlignHCenter
@@ -154,7 +159,7 @@ Item {
 
                         Text {
                             text: qsTr("Configure your system language, timezone, and keyboard layout")
-                            font.pixelSize: 12
+                            font.pixelSize: 12 * uiScale
                             color: textMutedColor
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
@@ -165,8 +170,8 @@ Item {
                     // ===== System language =====
                     ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 8
-                        spacing: 6
+                        Layout.topMargin: 6
+                        spacing: 5
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -174,12 +179,12 @@ Item {
 
                             Text {
                                 text: "\u{1F310}"
-                                font.pixelSize: 20
+                                font.pixelSize: 18 * uiScale
                             }
 
                             Text {
                                 text: qsTr("System Language")
-                                font.pixelSize: 15
+                                font.pixelSize: 14 * uiScale
                                 font.bold: true
                                 color: textColor
                             }
@@ -188,7 +193,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("Select your preferred system language and locale")
-                            font.pixelSize: 11
+                            font.pixelSize: 10 * uiScale
                             color: textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -196,7 +201,7 @@ Item {
                         SearchableComboBox {
                             id: localeCombo
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 40
+                            Layout.preferredHeight: 34 * uiScale
 
                             model: getLocaleDisplayModel()
                             currentValue: getNativeNameForLocale(selectedLocale)
@@ -222,8 +227,8 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        Layout.bottomMargin: 4
+                        Layout.topMargin: 3
+                        Layout.bottomMargin: 3
                         height: 1
                         color: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.08)
                     }
@@ -231,7 +236,7 @@ Item {
                     // ===== Timezone =====
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 6
+                        spacing: 5
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -239,12 +244,12 @@ Item {
 
                             Text {
                                 text: "\u{1F30D}"
-                                font.pixelSize: 20
+                                font.pixelSize: 18 * uiScale
                             }
 
                             Text {
                                 text: qsTr("Timezone")
-                                font.pixelSize: 15
+                                font.pixelSize: 14 * uiScale
                                 font.bold: true
                                 color: textColor
                             }
@@ -253,7 +258,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("Select your timezone for accurate time display")
-                            font.pixelSize: 11
+                            font.pixelSize: 10 * uiScale
                             color: textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -261,7 +266,7 @@ Item {
                         SearchableComboBox {
                             id: timezoneCombo
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 40
+                            Layout.preferredHeight: 34 * uiScale
 
                             model: timezonesModel
                             currentValue: selectedTimezone
@@ -282,8 +287,8 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        Layout.bottomMargin: 4
+                        Layout.topMargin: 3
+                        Layout.bottomMargin: 3
                         height: 1
                         color: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.08)
                     }
@@ -291,7 +296,7 @@ Item {
                     // ===== Keyboard layout & variant (combined, side-by-side) =====
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 6
+                        spacing: 5
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -299,12 +304,12 @@ Item {
 
                             Text {
                                 text: "\u{2328}\u{FE0F}"
-                                font.pixelSize: 20
+                                font.pixelSize: 18 * uiScale
                             }
 
                             Text {
                                 text: qsTr("Keyboard Configuration")
-                                font.pixelSize: 15
+                                font.pixelSize: 14 * uiScale
                                 font.bold: true
                                 color: textColor
                             }
@@ -313,7 +318,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("Select your keyboard layout and variant")
-                            font.pixelSize: 11
+                            font.pixelSize: 10 * uiScale
                             color: textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -331,7 +336,7 @@ Item {
 
                                 Text {
                                     text: qsTr("Layout")
-                                    font.pixelSize: 12
+                                    font.pixelSize: 11 * uiScale
                                     font.bold: true
                                     color: textMutedColor
                                 }
@@ -339,7 +344,7 @@ Item {
                                 SearchableComboBox {
                                     id: keymapCombo
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 36
+                                    Layout.preferredHeight: 32 * uiScale
 
                                     model: keymapsModel
                                     currentValue: selectedKeymap
@@ -366,7 +371,7 @@ Item {
 
                                 Text {
                                     text: qsTr("Variant")
-                                    font.pixelSize: 12
+                                    font.pixelSize: 11 * uiScale
                                     font.bold: true
                                     color: textMutedColor
                                 }
@@ -374,7 +379,7 @@ Item {
                                 ComboBox {
                                     id: variantCombo
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 36
+                                    Layout.preferredHeight: 32 * uiScale
 
                                     model: keyboardVariantsModel
                                     currentIndex: {

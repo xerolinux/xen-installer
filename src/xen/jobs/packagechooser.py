@@ -13,6 +13,11 @@ Two kinds of group:
 - Multi-choice groups: ``packages`` is a list of {package, description}
   dicts (e.g. "Graphics & Design" containing gimp/krita/blender/...).
   Each package gets its own checkbox.
+
+A multi-choice entry may also carry ``extra_packages`` (a list of raw
+name strings): selecting that one checkbox installs its ``package``
+plus every name in ``extra_packages`` (e.g. easyeffects bundling its
+LV2 plugin set) without exposing them as separate checkboxes.
 """
 
 from __future__ import annotations
@@ -105,6 +110,22 @@ class PackageChooserJob(BaseJob):
 
         return name.replace("$LOCALE", lang)
 
+    def _resolve_package_names(self, entry: Any, lang: str) -> list[str]:
+        """Package names installed by one entry: its own name plus any
+        bundled ``extra_packages``."""
+        names = []
+        primary = self._resolve_package_name(entry, lang)
+        if primary:
+            names.append(primary)
+
+        if isinstance(entry, dict):
+            for extra in entry.get("extra_packages") or []:
+                resolved = self._resolve_package_name(extra, lang)
+                if resolved:
+                    names.append(resolved)
+
+        return names
+
     def _group_id(self, group: dict[str, Any]) -> str:
         return str(group.get("id") or _slugify(str(group.get("name", ""))))
 
@@ -193,9 +214,9 @@ class PackageChooserJob(BaseJob):
                 entries = []
 
             for entry in entries:
-                package_name = self._resolve_package_name(entry, lang)
-                if package_name and package_name not in selected_packages:
-                    selected_packages.append(package_name)
+                for package_name in self._resolve_package_names(entry, lang):
+                    if package_name not in selected_packages:
+                        selected_packages.append(package_name)
 
         context.selections["optional_packages"] = selected_packages
         context.report_progress(100, f"{len(selected_packages)} optional packages selected")

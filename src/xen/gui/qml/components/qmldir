@@ -9,3 +9,4 @@ ManualPartitionEditor 1.0 ManualPartitionEditor.qml
 SummaryView 1.0 SummaryView.qml
 ProgressView 1.0 ProgressView.qml
 FinishedView 1.0 FinishedView.qml
+SpaceInvadersGame 1.0 SpaceInvadersGame.qml

@@ -22,6 +22,7 @@ Item {
 
     property var groups: []
 
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color backgroundColor: "#1a1a1a"
     property color surfaceColor: "#32373c"
@@ -172,7 +173,7 @@ Item {
 
         Text {
             text: qsTr("Optional Software")
-            font.pixelSize: 24
+            font.pixelSize: 24 * uiScale
             font.bold: true
             color: textColor
             Layout.alignment: Qt.AlignHCenter
@@ -180,7 +181,7 @@ Item {
 
         Text {
             text: qsTr("Pick any extra software to install alongside the base system")
-            font.pixelSize: 13
+            font.pixelSize: 13 * uiScale
             color: textMutedColor
             Layout.alignment: Qt.AlignHCenter
         }

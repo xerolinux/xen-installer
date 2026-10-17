@@ -83,6 +83,28 @@ class TestLocaleSubstitution:
         job = PackageChooserJob()
         assert job._resolve_package_name("firefox", "en") == "firefox"
 
+    def test_resolve_package_names_includes_extra_packages(self) -> None:
+        job = PackageChooserJob()
+        entry = {
+            "package": "easyeffects",
+            "description": "Audio effects",
+            "extra_packages": ["calf", "lsp-plugins-lv2"],
+        }
+        assert job._resolve_package_names(entry, "en") == [
+            "easyeffects",
+            "calf",
+            "lsp-plugins-lv2",
+        ]
+
+    def test_resolve_package_names_without_extra_packages(self) -> None:
+        job = PackageChooserJob()
+        entry = {"package": "floorp", "description": "Firefox fork"}
+        assert job._resolve_package_names(entry, "en") == ["floorp"]
+
+    def test_resolve_package_names_plain_string_entry(self) -> None:
+        job = PackageChooserJob()
+        assert job._resolve_package_names("firefox", "en") == ["firefox"]
+
 
 class TestGroupSelection:
     def test_critical_always_selected(self) -> None:
@@ -256,6 +278,44 @@ class TestPackageChooserJobRun:
         job.run(context)
 
         assert context.selections["optional_packages"] == ["gimp", "krita"]
+
+    def test_run_multi_choice_entry_bundles_extra_packages(self, tmp_path: Path) -> None:
+        """Selecting one checkbox (easyeffects) must also install its
+        extra_packages, with no separate checkbox for each of them."""
+        groups_file = _write_groups(
+            tmp_path,
+            [
+                {
+                    "id": "audio-tools",
+                    "name": "Audio Tools",
+                    "packages": [
+                        {
+                            "package": "easyeffects",
+                            "description": "Audio effects",
+                            "extra_packages": ["calf", "lsp-plugins-lv2"],
+                        },
+                        {"package": "amarok", "description": "Music player"},
+                    ],
+                }
+            ],
+        )
+        job = PackageChooserJob({"groups_file": groups_file})
+        context = JobContext(
+            selections={
+                "packagechooser_packages": {
+                    "audio-tools:easyeffects": True,
+                    "audio-tools:amarok": False,
+                }
+            }
+        )
+
+        job.run(context)
+
+        assert context.selections["optional_packages"] == [
+            "easyeffects",
+            "calf",
+            "lsp-plugins-lv2",
+        ]
 
     def test_run_multi_choice_group_defaults_to_none_selected(self, tmp_path: Path) -> None:
         groups_file = _write_groups(

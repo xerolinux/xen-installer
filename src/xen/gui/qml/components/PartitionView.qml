@@ -54,6 +54,7 @@ Item {
         (encPassField.text.length >= 8 && encPassField.text === encPassConfirmField.text)
 
     // Theme colors
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
@@ -116,7 +117,7 @@ Item {
             ColumnLayout {
                 id: pageColumn
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 40, 1100)
+                width: Math.min(parent.width - 40, 1100 * uiScale)
                 spacing: 14
 
                 // Page icon (same floppy-disk glyph SummaryView uses for
@@ -125,14 +126,14 @@ Item {
                 // monochrome outline).
                 Text {
                     text: "\u{1F4BE}"
-                    font.pixelSize: 48
+                    font.pixelSize: 48 * uiScale
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Title
                 Text {
                     text: qsTr("Select Installation Disk")
-                    font.pixelSize: 22
+                    font.pixelSize: 22 * uiScale
                     font.bold: true
                     color: textColor
                     Layout.alignment: Qt.AlignHCenter

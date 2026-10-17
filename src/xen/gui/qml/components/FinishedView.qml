@@ -42,6 +42,7 @@ Item {
     property string finishedMessage: ""
 
     // Theme colors
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
@@ -166,7 +167,7 @@ Item {
                 // and previously took the whole Text down with it).
                 Text {
                     text: success ? (finishedTitle || qsTr("Installation Complete!")) : qsTr("Installation Failed")
-                    font.pixelSize: 26
+                    font.pixelSize: 26 * uiScale
                     font.bold: true
                     color: textColor
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -176,7 +177,7 @@ Item {
                     text: success ?
                           (finishedSubtitle || qsTr("The system has been successfully installed on your computer")) :
                           qsTr("An error occurred during installation")
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
                     color: textMutedColor
                     wrapMode: Text.WordWrap
                     anchors.horizontalCenter: parent.horizontalCenter

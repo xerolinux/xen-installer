@@ -146,7 +146,13 @@
     - package: jamesdsp
       description: "Audio effects processor for PipeWire"
     - package: easyeffects
-      description: "Audio effects for PipeWire applications"
+      description: "Audio effects for PipeWire applications, with LV2 plugin packs"
+      extra_packages:
+        - calf
+        - lsp-plugins-lv2
+        - mda.lv2
+        - x42-plugins-lv2
+        - zam-plugins-lv2
 
 - id: video-production
   name: "Video Production"

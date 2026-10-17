@@ -50,6 +50,7 @@ Item {
     }
 
     // Theme colors
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
@@ -183,8 +184,8 @@ Item {
             Rectangle {
                 id: heroCard
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 48, 880)
-                height: cardColumn.implicitHeight + 64
+                width: Math.min(parent.width - 64, 1100 * uiScale)
+                height: cardColumn.implicitHeight + 48 * uiScale
                 radius: 20
                 color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
                 border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
@@ -194,12 +195,12 @@ Item {
                 id: cardColumn
                 anchors.centerIn: parent
                 width: parent.width - 64
-                spacing: 8
+                spacing: 6
 
                 // Title
                 Text {
                     text: qsTr("Create User Account")
-                    font.pixelSize: 24
+                    font.pixelSize: 20 * uiScale
                     font.bold: true
                     color: textColor
                     Layout.alignment: Qt.AlignHCenter
@@ -207,7 +208,7 @@ Item {
 
                 Text {
                     text: qsTr("Set up your user account and system hostname")
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
                     color: textMutedColor
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -220,8 +221,8 @@ Item {
                 // generous spacing; a thin divider marks the password block.
                 GridLayout {
                     columns: 2
-                    columnSpacing: 24
-                    rowSpacing: 16
+                    columnSpacing: 18
+                    rowSpacing: 10
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
                     Layout.maximumWidth: 900
@@ -233,7 +234,7 @@ Item {
                         Layout.column: 0
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        spacing: 8
+                        spacing: 6
 
                         Row {
                             Layout.fillWidth: true
@@ -245,7 +246,7 @@ Item {
 
                             Text {
                                 text: qsTr("Username")
-                                font.pixelSize: 15
+                                font.pixelSize: 15 * uiScale
                                 font.bold: true
                                 color: textColor
                                 anchors.verticalCenter: parent.verticalCenter
@@ -253,7 +254,7 @@ Item {
 
                             Text {
                                 text: "*"
-                                font.pixelSize: 15
+                                font.pixelSize: 15 * uiScale
                                 color: errorColor
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -262,11 +263,11 @@ Item {
                         TextField {
                             id: usernameField
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: 46 * uiScale
                             padding: 0
                             verticalAlignment: TextInput.AlignVCenter
                             placeholderText: qsTr("username (lowercase, no spaces)")
-                            font.pixelSize: 16
+                            font.pixelSize: 16 * uiScale
 
                             // Source de vérité unique : lecture/écriture
                             // directes vers engine (pas de miroir local
@@ -314,7 +315,7 @@ Item {
                                   usernameField.text.length > 0 && !usernameValid ?
                                   qsTr("Username must start with a letter and contain only lowercase letters, numbers, hyphens, or underscores") :
                                   qsTr("This will be your login name")
-                            font.pixelSize: 11
+                            font.pixelSize: 11 * uiScale
                             color: usernameField.text.length > 0 && !usernameValid ? errorColor : textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -327,7 +328,7 @@ Item {
                         Layout.column: 1
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        spacing: 8
+                        spacing: 6
 
                         Row {
                             Layout.fillWidth: true
@@ -339,7 +340,7 @@ Item {
 
                             Text {
                                 text: qsTr("Full Name")
-                                font.pixelSize: 15
+                                font.pixelSize: 15 * uiScale
                                 font.bold: true
                                 color: textColor
                                 anchors.verticalCenter: parent.verticalCenter
@@ -349,11 +350,11 @@ Item {
                         TextField {
                             id: fullNameField
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: 46 * uiScale
                             padding: 0
                             verticalAlignment: TextInput.AlignVCenter
                             placeholderText: qsTr("Your full name")
-                            font.pixelSize: 16
+                            font.pixelSize: 16 * uiScale
 
                             text: engine.fullName
                             onTextChanged: {
@@ -383,7 +384,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("Optional: Display name for your account")
-                            font.pixelSize: 11
+                            font.pixelSize: 11 * uiScale
                             color: textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -399,7 +400,7 @@ Item {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        spacing: 8
+                        spacing: 6
 
                         Row {
                             Layout.fillWidth: true
@@ -411,7 +412,7 @@ Item {
 
                             Text {
                                 text: qsTr("Computer Name")
-                                font.pixelSize: 15
+                                font.pixelSize: 15 * uiScale
                                 font.bold: true
                                 color: textColor
                                 anchors.verticalCenter: parent.verticalCenter
@@ -419,7 +420,7 @@ Item {
 
                             Text {
                                 text: "*"
-                                font.pixelSize: 15
+                                font.pixelSize: 15 * uiScale
                                 color: errorColor
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -428,11 +429,11 @@ Item {
                         TextField {
                             id: hostnameField
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: 46 * uiScale
                             padding: 0
                             verticalAlignment: TextInput.AlignVCenter
                             placeholderText: qsTr("hostname (lowercase, no spaces)")
-                            font.pixelSize: 16
+                            font.pixelSize: 16 * uiScale
 
                             text: engine.hostname
                             onTextChanged: {
@@ -468,7 +469,7 @@ Item {
                             text: hostnameField.text.length > 0 && !hostnameValid ?
                                   qsTr("Hostname must start with a letter and contain only lowercase letters, numbers, or hyphens") :
                                   qsTr("Your computer's network name")
-                            font.pixelSize: 11
+                            font.pixelSize: 11 * uiScale
                             color: hostnameField.text.length > 0 && !hostnameValid ? errorColor : textMutedColor
                             wrapMode: Text.WordWrap
                         }
@@ -481,7 +482,7 @@ Item {
                         Layout.column: 0
                         Layout.fillWidth: true
                         Layout.columnSpan: 2
-                        spacing: 8
+                        spacing: 6
 
                             Row {
                                 Layout.fillWidth: true
@@ -493,7 +494,7 @@ Item {
 
                                 Text {
                                     text: qsTr("Password")
-                                    font.pixelSize: 15
+                                    font.pixelSize: 15 * uiScale
                                     font.bold: true
                                     color: textColor
                                     anchors.verticalCenter: parent.verticalCenter
@@ -501,7 +502,7 @@ Item {
 
                                 Text {
                                     text: "*"
-                                    font.pixelSize: 15
+                                    font.pixelSize: 15 * uiScale
                                     color: errorColor
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
@@ -516,16 +517,16 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
                                     Layout.alignment: Qt.AlignTop
-                                    spacing: 8
+                                    spacing: 6
 
                             TextField {
                                 id: passwordField
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 56
+                                Layout.preferredHeight: 46 * uiScale
                                 padding: 0
                                 verticalAlignment: TextInput.AlignVCenter
                                 placeholderText: qsTr("Enter password")
-                                font.pixelSize: 16
+                                font.pixelSize: 16 * uiScale
                                 echoMode: showPasswordCheck.checked ? TextInput.Normal : TextInput.Password
 
                                 // SÉCURITÉ : mot de passe write-only. On écrit
@@ -561,16 +562,16 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
                                     Layout.alignment: Qt.AlignTop
-                                    spacing: 8
+                                    spacing: 6
 
                                     TextField {
                                         id: passwordConfirmField
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 56
+                                        Layout.preferredHeight: 46 * uiScale
                                         padding: 0
                                         verticalAlignment: TextInput.AlignVCenter
                                         placeholderText: qsTr("Confirm password")
-                                        font.pixelSize: 16
+                                        font.pixelSize: 16 * uiScale
                                         echoMode: showPasswordCheck.checked ? TextInput.Normal : TextInput.Password
 
                                         text: root.passwordConfirm
@@ -600,7 +601,7 @@ Item {
                                     // Password match indicator
                                     Row {
                                         Layout.fillWidth: true
-                                        spacing: 8
+                                        spacing: 6
                                         visible: passwordConfirmField.text.length > 0
 
                                         Image {
@@ -621,7 +622,7 @@ Item {
 
                                         Text {
                                             text: passwordsMatch ? qsTr("Passwords match") : qsTr("Passwords do not match")
-                                            font.pixelSize: 11
+                                            font.pixelSize: 11 * uiScale
                                             color: passwordsMatch ? successColor : errorColor
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
@@ -634,7 +635,7 @@ Item {
                                 Layout.fillWidth: true
                                 visible: passwordField.text.length > 0 && passwordStrength < 70
                                 text: qsTr("We Recommend a Stronger Password")
-                                font.pixelSize: 11
+                                font.pixelSize: 11 * uiScale
                                 color: warningColor
                                 wrapMode: Text.WordWrap
                             }
@@ -642,11 +643,11 @@ Item {
                             CheckBox {
                                 id: showPasswordCheck
                                 text: qsTr("Show password")
-                                font.pixelSize: 14
+                                font.pixelSize: 14 * uiScale
 
                                 indicator: Rectangle {
-                                    implicitWidth: 20
-                                    implicitHeight: 20
+                                    implicitWidth: 20 * uiScale
+                                    implicitHeight: 20 * uiScale
                                     x: showPasswordCheck.leftPadding
                                     y: parent.height / 2 - height / 2
                                     radius: 4
@@ -675,7 +676,7 @@ Item {
                                         anchors.centerIn: parent
                                         text: "\u2713"
                                         color: textColor
-                                        font.pixelSize: 14
+                                        font.pixelSize: 14 * uiScale
                                         visible: showPasswordCheck.checked && (!root.branding || root.branding.iconCheckUrl === "")
                                     }
                                 }
@@ -704,11 +705,11 @@ Item {
                                 onCheckedChanged: engine.setRootSameAsUser(checked)
 
                                 text: qsTr("Use the same password for the root account")
-                                font.pixelSize: 14
+                                font.pixelSize: 14 * uiScale
 
                                 indicator: Rectangle {
-                                    implicitWidth: 20
-                                    implicitHeight: 20
+                                    implicitWidth: 20 * uiScale
+                                    implicitHeight: 20 * uiScale
                                     x: rootSameAsUserCheck.leftPadding
                                     y: parent.height / 2 - height / 2
                                     radius: 4
@@ -736,7 +737,7 @@ Item {
                                         anchors.centerIn: parent
                                         text: "✓"
                                         color: textColor
-                                        font.pixelSize: 14
+                                        font.pixelSize: 14 * uiScale
                                         visible: rootSameAsUserCheck.checked && (!root.branding || root.branding.iconCheckUrl === "")
                                     }
                                 }
@@ -762,16 +763,16 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
                                     Layout.alignment: Qt.AlignTop
-                                    spacing: 8
+                                    spacing: 6
 
                                     TextField {
                                         id: rootPasswordField
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 56
+                                        Layout.preferredHeight: 46 * uiScale
                                         padding: 0
                                         verticalAlignment: TextInput.AlignVCenter
                                         placeholderText: qsTr("Root password")
-                                        font.pixelSize: 16
+                                        font.pixelSize: 16 * uiScale
                                         echoMode: showPasswordCheck.checked ? TextInput.Normal : TextInput.Password
 
                                         // SÉCURITÉ : write-only (cf. password).
@@ -803,16 +804,16 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
                                     Layout.alignment: Qt.AlignTop
-                                    spacing: 8
+                                    spacing: 6
 
                                     TextField {
                                         id: rootPasswordConfirmField
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 56
+                                        Layout.preferredHeight: 46 * uiScale
                                         padding: 0
                                         verticalAlignment: TextInput.AlignVCenter
                                         placeholderText: qsTr("Confirm root password")
-                                        font.pixelSize: 16
+                                        font.pixelSize: 16 * uiScale
                                         echoMode: showPasswordCheck.checked ? TextInput.Normal : TextInput.Password
 
                                         text: root.rootPasswordConfirm
@@ -842,7 +843,7 @@ Item {
                                     // Indicateur de correspondance des mots de passe root.
                                     Row {
                                         Layout.fillWidth: true
-                                        spacing: 8
+                                        spacing: 6
                                         visible: rootPasswordConfirmField.text.length > 0
 
                                         Image {
@@ -863,7 +864,7 @@ Item {
 
                                         Text {
                                             text: rootPasswordsMatch ? qsTr("Passwords match") : qsTr("Passwords do not match")
-                                            font.pixelSize: 11
+                                            font.pixelSize: 11 * uiScale
                                             color: rootPasswordsMatch ? successColor : errorColor
                                             anchors.verticalCenter: parent.verticalCenter
                                         }

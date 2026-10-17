@@ -39,6 +39,7 @@ Item {
     property string distroLogo: ""
 
     // Theme colors
+    property real uiScale: 1.0
     property color primaryColor: "#5597e6"
     property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
@@ -61,13 +62,13 @@ Item {
             anchors.top: parent.top
             anchors.topMargin: 8
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 40, 900)
+            width: Math.min(parent.width - 40, 900 * uiScale)
             spacing: 18
 
             // Title
             Text {
                 text: qsTr("Installing...")
-                font.pixelSize: 22
+                font.pixelSize: 22 * uiScale
                 font.bold: true
                 color: textColor
                 Layout.alignment: Qt.AlignHCenter
@@ -75,7 +76,7 @@ Item {
 
             Text {
                 text: qsTr("Please wait while the system is being installed")
-                font.pixelSize: 13
+                font.pixelSize: 13 * uiScale
                 color: textMutedColor
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -88,7 +89,7 @@ Item {
                 // floating loose on the page background.
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: heroColumn.implicitHeight + 24
+                    Layout.preferredHeight: heroColumn.implicitHeight + 48
                     radius: 20
                     color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
                     border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
@@ -96,7 +97,7 @@ Item {
 
                     ColumnLayout {
                         id: heroColumn
-                        anchors.top: parent.top
+                        anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.margins: 18
@@ -108,8 +109,8 @@ Item {
                     source: distroLogo
                     visible: distroLogo.length > 0 && status === Image.Ready
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.height: 96
-                    height: 96
+                    sourceSize.height: 140
+                    height: 140
                 }
 
                 // Matrix rain animation band - transparent canvas (never
@@ -410,32 +411,63 @@ Item {
                     }
                 }
 
-                // Raw job output stays out of the way by default - opened on
-                // demand in a popup (see logPopup below) instead of always
+                // Raw job output and the waiting-room game both stay out of
+                // the way by default - opened on demand instead of always
                 // taking up the main progress view.
-                Button {
+                RowLayout {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("Show Progress Output")
+                    spacing: 12 * uiScale
 
-                    background: Rectangle {
-                        implicitWidth: 220
-                        implicitHeight: 42
-                        radius: 8
-                        color: parent.pressed ? Qt.darker(surfaceColor, 1.2) :
-                               parent.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
-                        border.color: textMutedColor
-                        border.width: 1
+                    Button {
+                        text: qsTr("Show Progress Output")
+
+                        background: Rectangle {
+                            implicitWidth: 220 * uiScale
+                            implicitHeight: 42 * uiScale
+                            radius: 8
+                            color: parent.pressed ? Qt.darker(surfaceColor, 1.2) :
+                                   parent.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
+                            border.color: textMutedColor
+                            border.width: 1
+                        }
+
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: 14 * uiScale
+                            color: textColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        onClicked: logPopup.open()
                     }
 
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 14
-                        color: textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    // Totally separate from the install itself - a pure
+                    // waiting-room distraction while jobs run in the
+                    // background (see SpaceInvadersGame.qml).
+                    Button {
+                        text: qsTr("\u{1F47E} Play a Game")
 
-                    onClicked: logPopup.open()
+                        background: Rectangle {
+                            implicitWidth: 180 * uiScale
+                            implicitHeight: 42 * uiScale
+                            radius: 8
+                            color: parent.pressed ? Qt.darker(primaryColor, 1.2) :
+                                   parent.hovered ? Qt.lighter(primaryColor, 1.1) : primaryColor
+                            border.color: Qt.rgba(1, 1, 1, 0.25)
+                            border.width: 1
+                        }
+
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: 14 * uiScale
+                            color: "#ffffff"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        onClicked: gamePopup.open()
+                    }
                 }
 
             // Info text
@@ -550,6 +582,117 @@ Item {
                     // Always follows the bottom: the tail always shows the
                     // most recent lines, so re-pin on every update.
                     onTextChanged: cursorPosition = length
+                }
+            }
+        }
+    }
+
+    // Waiting-room mini-game - entirely separate from the install, just a
+    // distraction while jobs run. Space Invaders, colorful on purpose.
+    Popup {
+        id: gamePopup
+        objectName: "gamePopup"
+        anchors.centerIn: parent
+        width: Math.min(root.width * 0.7, 560 * uiScale)
+        height: Math.min(root.height * 0.85, 520 * uiScale)
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: 16
+            color: surfaceColor
+            border.color: Qt.darker(surfaceColor, 1.3)
+            border.width: 1
+        }
+
+        onOpened: { game.initGame(); game.forceActiveFocus() }
+        onClosed: game.running = false
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 18 * uiScale
+            spacing: 12 * uiScale
+
+            Row {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Text {
+                    text: "\u{1F47E}"
+                    font.pixelSize: 22 * uiScale
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    text: qsTr("Space Invaders")
+                    font.pixelSize: 18 * uiScale
+                    font.bold: true
+                    color: textColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            SpaceInvadersGame {
+                id: game
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                textColor: root.textColor
+                textMutedColor: root.textMutedColor
+                surfaceColor: root.surfaceColor
+                primaryColor: root.primaryColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10 * uiScale
+
+                Button {
+                    text: qsTr("Restart")
+
+                    background: Rectangle {
+                        implicitWidth: 100 * uiScale
+                        implicitHeight: 34 * uiScale
+                        radius: 8
+                        color: parent.pressed ? Qt.darker(surfaceColor, 1.2) : Qt.darker(surfaceColor, 1.0)
+                        border.color: textMutedColor
+                        border.width: 1
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 13 * uiScale
+                        color: textColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: { game.initGame(); game.forceActiveFocus() }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: qsTr("Close")
+
+                    background: Rectangle {
+                        implicitWidth: 90 * uiScale
+                        implicitHeight: 34 * uiScale
+                        radius: 8
+                        color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
+                        border.color: textMutedColor
+                        border.width: 1
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 13 * uiScale
+                        color: textColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: gamePopup.close()
                 }
             }
         }

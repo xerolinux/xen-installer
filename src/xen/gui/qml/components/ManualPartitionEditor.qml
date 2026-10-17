@@ -862,6 +862,10 @@ Item {
         id: newTableDialog
         anchors.centerIn: Overlay.overlay
         width: 380
+        // See editDialog below: anchors.fill: parent on the content column
+        // makes its implicitHeight follow the popup instead of the other
+        // way round, so the popup's own height is driven from it here.
+        height: Math.min(newTableDialogColumn.implicitHeight + 40, (Overlay.overlay ? Overlay.overlay.height - 40 : 400))
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -869,6 +873,7 @@ Item {
         background: Rectangle { radius: 16; color: surfaceColor; border.color: errorColor; border.width: 1 }
 
         ColumnLayout {
+            id: newTableDialogColumn
             anchors.fill: parent
             anchors.margins: 20
             spacing: 12
@@ -910,6 +915,12 @@ Item {
         id: subvolMountDialog
         anchors.centerIn: Overlay.overlay
         width: 440
+        // See editDialog below: anchors.fill: parent on the content column
+        // makes its implicitHeight follow the popup instead of the other
+        // way round, so the popup's own height is driven from it here -
+        // needed since rowSubvolEditor's row count (and so content height)
+        // grows as subvolumes are added.
+        height: Math.min(subvolMountDialogColumn.implicitHeight + 40, (Overlay.overlay ? Overlay.overlay.height - 40 : 500))
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -930,6 +941,7 @@ Item {
         background: Rectangle { radius: 16; color: surfaceColor; border.color: Qt.darker(surfaceColor, 1.3); border.width: 1 }
 
         ColumnLayout {
+            id: subvolMountDialogColumn
             anchors.fill: parent
             anchors.margins: 20
             spacing: 12
