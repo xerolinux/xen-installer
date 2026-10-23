@@ -14,6 +14,7 @@ picks up the grub-btrfs integration).
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -193,6 +194,49 @@ class SnapshotsJob(BaseJob):
         return JobResult.ok(msg("Snapper template written"))
 
     def _create_snapper_config(self, target_root: str) -> JobResult:
+        # create-config makes its own .snapshots subvolume and fails if one exists. With
+        # @snapshots mounted there, follow ArchWiki Snapper "Configuration of snapper and
+        # mount point": unmount, create the config, delete snapper's subvolume, re-mount.
+        snapshots = Path(target_root) / ".snapshots"
+        if not os.path.ismount(snapshots):
+            return self._run_create_config(target_root)
+        try:
+            found = subprocess.run(
+                ["findmnt", "-n", "-o", "SOURCE,OPTIONS", str(snapshots)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            source, options = found.stdout.split()
+            device = source.split("[", 1)[0]
+            subprocess.run(["umount", str(snapshots)], check=True, timeout=30)
+            snapshots.rmdir()
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
+            return JobResult.fail(
+                msg("Failed to unmount {path}: {error}", path=snapshots, error=e), error_code=134
+            )
+        result = self._run_create_config(target_root)
+        if not result.success:
+            return result
+        try:
+            subprocess.run(
+                ["btrfs", "subvolume", "delete", str(snapshots)],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            snapshots.mkdir(exist_ok=True)
+            subprocess.run(["mount", "-o", options, device, str(snapshots)], check=True, timeout=30)
+            snapshots.chmod(0o750)
+        except (subprocess.SubprocessError, OSError) as e:
+            return JobResult.fail(
+                msg("Failed to mount the snapshots subvolume on {path}: {error}", path=snapshots, error=e),
+                error_code=135,
+            )
+        return result
+
+    def _run_create_config(self, target_root: str) -> JobResult:
         # --no-dbus: snapperd isn't running inside arch-chroot.
         try:
             result = subprocess.run(

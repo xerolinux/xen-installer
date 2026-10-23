@@ -52,6 +52,8 @@ _DEFAULT_BTRFS_SUBVOLUMES = (
     ("@tmp", "/var/tmp"),
     ("@log", "/var/log"),
     ("@swap", "/swap"),
+    # Snapper snapshots outside @ (ArchWiki Snapper "Suggested filesystem layout")
+    ("@snapshots", "/.snapshots"),
 )
 
 

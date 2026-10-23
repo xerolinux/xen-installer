@@ -9,32 +9,32 @@
         <translation>Praegu:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>Pärast:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>Uue partitsiooni suurus</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>%1 kahandatakse suuruseni %2 ja luuakse uus %3 partitsioon, kuhu paigaldatakse %4.</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>EFI-süsteemipartitsiooni asukohas %1 kasutatakse uuesti (seda ei vormindata).</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>EFI-süsteemipartitsioon:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>Paigaldus on lõpetatud!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>Paigaldus nurjus</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>Süsteem on sinu arvutisse edukalt paigaldatud</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>Paigaldamise ajal tekkis viga</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>Paigalduse kokkuvõte</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>Distributsioon:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>Paigalduse sihtkoht:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>Teadmata</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>Paigaldusaeg:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>Vea üksikasjad</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>Paigaldamise ajal tekkis tundmatu viga</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>Vaata täielikke logisid</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>Saada logid</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>Logi saadetakse avalikku kleepimisteenusesse.</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>Saadan…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>Kopeeri</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>Saatmine nurjus: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>Taaskäivita kohe</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>Lülita välja</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>Jätka</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>Proovi paigaldust uuesti</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>Välju paigaldajast</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>Eemalda enne taaskäivitamist paigaldusmeedium</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>Vea kohta leiad rohkem teavet logidest</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Aluseks Xen Installer</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>Paigutus</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>Vali...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>Otsi paigutusi...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>Variant</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>Otsi variante...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>Vali ajavöönd kaardil või otsi seda allpool</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>Rohkemate asukohtade nägemiseks suumi kaardil sisse</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>Vali ajavöönd...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>Otsi ajavööndeid...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>Valmis</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Aluseks Xen Installer</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>Tagasi</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>Paigalda</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>Edasi</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>Paigalduslogid</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>Saadan…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>Kopeeri</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>Saatmine nurjus: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>Saada logid</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>Sulge</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(pole monteerimispunkti)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(juur)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>FS-i silt</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>valikuline</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>Krüpti</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>Salafraas</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>Kinnita salafraas</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>Vähemalt 8 märki. See avab ka teised krüptitud partitsioonid.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>Salafraasid ei ühti.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>Tühista</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(nõutav)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>Üksik pakett: lülita seda vasakpoolsest loendist.</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>Paigaldan...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>Palun oota, süsteemi paigaldatakse</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>Paigaldan ja käivitan Maatriksit...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>Ehitan sulle Archi, mille teravad servad on lihvitud.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>Seadistan Archi peale täielikult valmis KDE Plasma 6 töölaua, mis on kohe kasutamiseks.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>Kui olen valmis, on sul käepärast täielik pacman ja AUR: kogu Archi ökosüsteem, ilma lisaseadistuseta.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>Mul on kaasas Kernel Manager, nii et saad igal ajal vahetada kerneli CachyOS-i või mõne muu häälestatud kerneli vastu.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>Seadistan jõudlusprofiili, mis annab mängimisel ja viiteaja suhtes tundlikus töös tõelise, mõõdetava kasu.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>Mõistlikud vaikeseaded täna, täielik häälestusvõimsus hiljem: annan sulle mõlemad.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>Paigaldan ka XeroLinux Toolkiti, et paigalduse järgne seadistus jääks terminalist väljapoole, kui sa just ise ei soovi.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>See on veerev väljalase (rolling release): kui olen valmis, jõuavad uuendused otse Archi lähtest.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Valisid Btrfs-i? Seadistan Snapperi hetktõmmised ja sa saad vanema käivitada otse GRUB-i menüüst.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Jätsid Windowsi alles? See jääb GRUB-i käivitusmenüüs iga käivituse ajal ühe valiku kaugusele.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>Krüptisid ketta? Sisestad salafraasi käivitamisel ainult ühe korra ja ma hoolitsen, et kõik muu avaneks iseenesest.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>Üks käsk hoiab kõik värske: pacman -Syu uuendab süsteemi, rakendused ja kerneli korraga.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>AUR-is on kümneid tuhandeid kogukonna pakette, alates nišitööriistadest kuni uusimate rakendusteni.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>Jäid hiljem hätta? Arch Wiki on üks parimaid Linuxi käsiraamatuid ja kõik selles kehtib ka sinu uuel süsteemil.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>Tee töölaual paremklõps, kui olen valmis: Plasma lubab ümber kujundada peaaegu kõike, mida näed.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>Ma pean iga sammu kohta täielikku logi. Kui miski läheb valesti, saadab üks klõps selle ära, et saaksid kiiresti abi.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>Igav, kuni ma töötan? Vajuta «Mängi mängu» ja kaitse oma töölauda geekide sissetungijate laine eest.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>Hoia toide ja USB-pulk ühendatud, kuni ütlen, et olen valmis.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>Kas teadsid?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>Ettevalmistus</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>Töötan...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>See võib võtta mitu minutit; liides võib tunduda aeglane.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>Näita edenemise väljundit</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 Mängi mängu</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>Ära lülita arvutit paigalduse ajal välja</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>Paigaldusloog</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>Sulge</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>Space Invaders</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>Alusta uuesti</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>TASE %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>MÄNG LÄBI</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>Jõudsid tasemele %1 · skoor %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>Uuesti mängimiseks vajuta R või allolevat nuppu</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>Skoor: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>Tase %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → liigu · tühik tulistab</translation>
     </message>
@@ -4679,125 +4734,125 @@
         <translation>Seadista oma kasutajakonto ja süsteemi arvuti nimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>Kasutajanimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>kasutajanimi (väiketähed, ilma tühikuteta)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>See kasutajanimi on süsteemi poolt reserveeritud, palun vali teine</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>Kasutajanimi peab algama väiketähe või alakriipsuga, sisaldama ainult väiketähti, numbreid, sidekriipse või alakriipse ning olema kuni 32 märki pikk</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>See on sinu sisselogimisnimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>Täisnimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>Sinu täisnimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>Valikuline: sinu konto kuvatav nimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>Täisnimi ei tohi sisaldada märki &apos;:&apos; ega reavahetusi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>Arvuti nimi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>arvuti nimi (väiketähed, ilma tühikuteta)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>Arvuti nimi tohib sisaldada ainult väiketähti, numbreid, sidekriipse ja punkte; ükski osa ei tohi algada ega lõppeda sidekriipsuga ning olla pikem kui 63 märki</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>Sinu arvuti nimi võrgus</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>Parool</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>Sisesta parool</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>Paroolid ei tohi sisaldada reavahetusi</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>Kinnita parool</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>Paroolid ühtivad</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>Paroolid ei ühti</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>Soovitame tugevamat parooli</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>Näita parooli</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>Kasuta root-konto jaoks sama parooli</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>Root-parool</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>Kinnita root-parool</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>Kontrollin süsteeminõudeid...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>Vali keel...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>Otsi keeli...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>Muudab ainult paigaldaja keelt. Süsteemi keel ja klaviatuur tulevad järgmisena.</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>Paigalda</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>Enne paigaldamist lahenda süsteeminõuetega seotud probleemid</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>Internetiühendust ei tuvastatud: paigaldan võrguühenduseta (ilma valikulise tarkvara ja süsteemi uuenduseta)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Aluseks Xen Installer</translation>
     </message>

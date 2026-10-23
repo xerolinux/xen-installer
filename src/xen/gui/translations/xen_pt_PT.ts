@@ -9,32 +9,32 @@
         <translation>Atual:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>Depois:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>Tamanho da nova partição</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>%1 será reduzida para %2 e será criada uma nova partição %3 para %4.</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>A partição de sistema EFI em %1 será reutilizada (não será formatada).</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>Partição de sistema EFI:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>Instalação concluída!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>Falha na instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>O sistema foi instalado com êxito no seu computador</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>Ocorreu um erro durante a instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>Resumo da instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>Distribuição:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>Destino da instalação:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>Desconhecido</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>Duração da instalação:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>Detalhes do erro</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>Ocorreu um erro desconhecido durante a instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>Ver registo completo</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>Enviar registo</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>O registo será enviado para um serviço público de partilha de texto.</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>A enviar…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>Falha no envio: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>Reiniciar agora</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>Desligar</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>Continuar</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>Repetir instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>Sair do instalador</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>Retire o suporte de instalação antes de reiniciar</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>Consulte o registo para mais detalhes sobre o erro</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Desenvolvido com o Xen Installer</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>Disposição</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>Selecionar...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>Pesquisar disposições...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>Variante</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>Pesquisar variantes...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>Escolha o seu fuso horário no mapa ou pesquise-o abaixo</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>Aumente o zoom do mapa para ver mais localizações</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>Selecionar fuso horário...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>Pesquisar fusos horários...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>Concluído</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Desenvolvido com o Xen Installer</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>Anterior</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>Seguinte</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>Instalar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>Registo da instalação</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>A enviar…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>Falha no envio: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>Enviar registo</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>Fechar</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(sem ponto de montagem)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(raiz)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>Etiqueta do SF</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>opcional</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>Encriptar</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>Frase-passe</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>Confirmar frase-passe</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>Pelo menos 8 caracteres. Também desbloqueia as outras partições encriptadas.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>As frases-passe não coincidem.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(obrigatório)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>Pacote único - ative-o ou desative-o na lista à esquerda.</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>A instalar...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>Aguarde enquanto o sistema é instalado</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>A instalar e a arrancar a Matrix...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>Estou a construir-lhe um Arch, com as arestas afiadas limadas.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>Estou a montar um ambiente de trabalho KDE Plasma 6 totalmente configurado sobre o Arch, pronto a usar.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>Quando acabar, terá o pacman completo e o AUR à mão - todo o ecossistema Arch, sem configuração extra.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>Incluo um Gestor de Kernels, para poder trocar para o CachyOS ou outros kernels otimizados quando quiser.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>Estou a aplicar um perfil de desempenho com ganhos reais e mensuráveis em jogos e em trabalho sensível à latência.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>Predefinições sensatas hoje, todo o poder de afinação mais tarde - dou-lhe as duas coisas.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>Também instalo o XeroLinux Toolkit, para que a configuração pós-instalação não o obrigue a usar o terminal, a menos que queira.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>Esta é uma distribuição rolling release - quando eu acabar, as atualizações continuam a chegar diretamente do Arch original.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Escolheu Btrfs? Estou a configurar instantâneos do Snapper, e pode arrancar um mais antigo diretamente a partir do menu do GRUB.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Manteve o Windows? Fica a uma escolha de distância no menu de arranque do GRUB sempre que ligar o computador.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>Encriptou o disco? Escreve a frase-passe uma só vez no arranque, e eu garanto que tudo o resto se desbloqueia sozinho.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>Um só comando mantém tudo atualizado: pacman -Syu atualiza o sistema, as aplicações e o kernel em conjunto.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>O AUR tem dezenas de milhares de pacotes da comunidade, de ferramentas de nicho às aplicações mais recentes.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>Ficou preso mais tarde? A Arch Wiki é um dos melhores manuais de Linux que existem, e tudo nela se aplica ao seu novo sistema.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>Quando eu acabar, clique com o botão direito no ambiente de trabalho: o Plasma deixa-o remodelar quase tudo o que vê.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>Guardo um registo completo de cada passo. Se algo correr mal, um clique envia-o para que obtenha ajuda depressa.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>Aborrecido enquanto trabalho? Clique em Jogar um jogo e defenda o seu ambiente de trabalho de uma vaga de invasores geeks.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>Mantenha a alimentação e a pen USB ligadas até eu dizer que terminei.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>Sabia que?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>A preparar</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>Isto pode demorar vários minutos; a interface pode parecer lenta.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>Mostrar o progresso</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 Jogar um jogo</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>Fechar</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>Space Invaders</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>Reiniciar</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>A trabalhar...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>Registo da instalação</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>Não desligue o computador durante a instalação</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>NÍVEL %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>FIM DE JOGO</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>Nível %1 alcançado · pontos %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>Prima R ou o botão abaixo para jogar de novo</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>Pontos: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>Nível %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → mover · espaço para disparar</translation>
     </message>
@@ -4669,7 +4724,7 @@
 <context>
     <name>UsersView</name>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>Introduza a palavra-passe</translation>
     </message>
@@ -4684,120 +4739,120 @@
         <translation>Configure a sua conta de utilizador e o nome do computador</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>Nome de utilizador</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>nome de utilizador (minúsculas, sem espaços)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>Este nome de utilizador está reservado pelo sistema, escolha outro</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>O nome de utilizador tem de começar por uma letra minúscula ou sublinhado, conter apenas letras minúsculas, números, hífenes ou sublinhados, e ter no máximo 32 caracteres</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>Este será o seu nome de início de sessão</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>Nome completo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>O seu nome completo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>Opcional: nome a mostrar para a sua conta</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>O nome completo não pode conter &apos;:&apos; nem quebras de linha</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>Nome do computador</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>nome do computador (minúsculas, sem espaços)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>O nome do computador só pode conter letras minúsculas, números, hífenes e pontos; cada parte não pode começar nem acabar com hífen e tem no máximo 63 caracteres</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>As palavras-passe não podem conter quebras de linha</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>Recomendamos uma palavra-passe mais forte</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>Palavra-passe do root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>O nome do seu computador na rede</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>Palavra-passe</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>Confirmar palavra-passe</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>As palavras-passe coincidem</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>As palavras-passe não coincidem</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>Mostrar palavra-passe</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>Usar a mesma palavra-passe para a conta root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>Confirmar palavra-passe do root</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>A verificar os requisitos do sistema...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>Selecionar idioma...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>Pesquisar idiomas...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>Altera apenas o idioma do instalador. O idioma do sistema e o teclado vêm a seguir.</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>Instalar</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>Resolva os requisitos do sistema antes de instalar</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>Nenhuma ligação à internet detetada: a instalar offline (sem software opcional nem atualização do sistema)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Desenvolvido com o Xen Installer</translation>
     </message>

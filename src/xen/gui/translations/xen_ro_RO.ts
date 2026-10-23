@@ -9,32 +9,32 @@
         <translation>Actual:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>După:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>Dimensiunea noii partiții</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>%1 va fi redusă la %2 și se va crea o nouă partiție %3 pentru %4.</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>Partiția de sistem EFI de la %1 va fi refolosită (nu va fi formatată).</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>Partiție de sistem EFI:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>Instalare finalizată!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>Instalare eșuată</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>Sistemul a fost instalat cu succes pe calculatorul tău</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>A apărut o eroare în timpul instalării</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>Rezumatul instalării</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>Distribuție:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>Destinația instalării:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>Necunoscut</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>Durata instalării:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>Detaliile erorii</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>A apărut o eroare necunoscută în timpul instalării</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>Vezi jurnalul complet</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>Trimite jurnalul</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>Jurnalul va fi trimis către un serviciu public de partajare text (paste).</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>Se trimite…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>Copiază</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>Trimiterea a eșuat: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>Repornește acum</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>Oprește</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>Continuă</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>Reîncearcă instalarea</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>Închide programul de instalare</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>Scoate mediul de instalare înainte de repornire</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>Verifică jurnalul pentru mai multe detalii despre eroare</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Realizat cu Xen Installer</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>Aranjament</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>Alege...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>Caută aranjamente...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>Variantă</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>Caută variante...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>Alege fusul orar pe hartă sau caută-l mai jos</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>Mărește harta pentru a vedea mai multe locații</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>Alege fusul orar...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>Caută fusuri orare...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>Final</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Realizat cu Xen Installer</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>Înapoi</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>Înainte</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>Instalează</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>Jurnalul instalării</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>Se trimite…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>Copiază</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>Trimiterea a eșuat: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>Trimite jurnalul</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>Închide</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(fără punct de montare)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(root)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>Etichetă FS</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>opțional</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>Criptează</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>Parolă de criptare</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>Confirmă parola de criptare</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>Cel puțin 8 caractere. Deblochează și celelalte partiții criptate.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>Parolele nu se potrivesc.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>Anulează</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(obligatoriu)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>Un singur pachet - activează-l din lista din stânga.</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>Se instalează...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>Așteaptă până se instalează sistemul</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>Se instalează și se pornește Matrix...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>Îți construiesc un Arch cu marginile ascuțite șlefuite.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>Îți configurez un desktop KDE Plasma 6 complet, peste Arch, gata de folosit.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>Când termin, vei avea pacman și AUR la îndemână - tot ecosistemul Arch, fără configurări în plus.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>Am inclus un Kernel Manager, ca să poți trece oricând la CachyOS sau la alte nuclee optimizate.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>Aplic un profil de performanță cu câștiguri reale, măsurabile, pentru jocuri și lucru sensibil la latență.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>Valori implicite sănătoase azi, control total al optimizării mai târziu - îți ofer ambele.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>Instalez și XeroLinux Toolkit, ca configurarea de după instalare să rămână în afara terminalului, dacă nu vrei altfel.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>Este o distribuție rolling release - după ce termin, actualizările vin direct de la Arch.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Ai ales Btrfs? Configurez instantanee Snapper și poți porni unul mai vechi direct din meniul GRUB.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Ai păstrat Windows? Rămâne la o alegere distanță în meniul de pornire GRUB la fiecare pornire.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>Ai criptat discul? Introduci parola de criptare o singură dată la pornire, iar eu mă asigur că tot restul se deblochează singur.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>O singură comandă ține totul la zi: pacman -Syu actualizează sistemul, aplicațiile și kernelul împreună.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>AUR are zeci de mii de pachete din partea comunității, de la unelte de nișă până la cele mai noi aplicații.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>Te blochezi mai târziu? Arch Wiki este unul dintre cele mai bune manuale Linux și tot ce scrie acolo se aplică noului tău sistem.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>Când termin, dă clic dreapta pe desktop: Plasma îți permite să remodelezi aproape tot ce vezi.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>Țin un jurnal complet al fiecărui pas. Dacă ceva nu merge, un singur clic îl trimite, ca să primești ajutor rapid.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>Te plictisești cât lucrez? Apasă Joacă un joc și apără-ți desktopul de un val de invadatori geeki.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>Ține alimentarea și stick-ul USB conectate până îți spun că am terminat.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>Știai că?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>Pregătire</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>Poate dura câteva minute; interfața poate părea lentă.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>Arată rezultatul progresului</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 Joacă un joc</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>Închide</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>Space Invaders</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>Reia</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>Se lucrează...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>Jurnalul instalării</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>Nu opri calculatorul în timpul instalării</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>NIVEL %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>JOC TERMINAT</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>Ai ajuns la nivelul %1 · scor %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>Apasă R sau butonul de mai jos pentru a juca din nou</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>Scor: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>Nivel %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → mișcare · spațiu pentru foc</translation>
     </message>
@@ -4669,7 +4724,7 @@
 <context>
     <name>UsersView</name>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>Introdu parola</translation>
     </message>
@@ -4684,120 +4739,120 @@
         <translation>Configurează contul de utilizator și numele calculatorului</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>Nume de utilizator</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>nume de utilizator (litere mici, fără spații)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>Acest nume de utilizator este rezervat de sistem, alege altul</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>Numele de utilizator trebuie să înceapă cu o literă mică sau cu liniuță joasă, să conțină doar litere mici, cifre, cratime sau liniuțe joase și să aibă cel mult 32 de caractere</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>Acesta va fi numele tău de autentificare</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>Nume complet</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>Numele tău complet</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>Opțional: numele afișat pentru contul tău</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>Numele complet nu poate conține „:” sau întreruperi de rând</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>Numele calculatorului</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>nume calculator (litere mici, fără spații)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>Numele calculatorului poate conține doar litere mici, cifre, cratime și puncte; fiecare parte nu trebuie să înceapă sau să se termine cu cratimă și să aibă cel mult 63 de caractere</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>Parolele nu pot conține întreruperi de rând</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>Îți recomandăm o parolă mai puternică</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>Parola root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>Numele calculatorului tău în rețea</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>Parolă</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>Confirmă parola</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>Parolele se potrivesc</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>Parolele nu se potrivesc</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>Arată parola</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>Folosește aceeași parolă pentru contul root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>Confirmă parola root</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>Se verifică cerințele sistemului...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>Alege limba...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>Caută limbi...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>Schimbă doar limba programului de instalare. Limba sistemului și tastatura urmează.</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>Instalează</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>Rezolvă cerințele sistemului înainte de instalare</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>Nu s-a detectat nicio conexiune la internet: instalare offline (fără software opțional, fără actualizarea sistemului)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Realizat cu Xen Installer</translation>
     </message>

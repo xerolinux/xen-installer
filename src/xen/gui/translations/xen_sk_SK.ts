@@ -9,32 +9,32 @@
         <translation>Súčasný stav:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>Po zmene:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>Veľkosť nového oddielu</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>Oddiel %1 sa zmenší na %2 a pre %4 sa vytvorí nový oddiel %3.</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>Systémový oddiel EFI na %1 sa použije znova (nenaformátuje sa).</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>Systémový oddiel EFI:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>Inštalácia dokončená!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>Inštalácia zlyhala</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>Systém bol úspešne nainštalovaný do vášho počítača</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>Počas inštalácie nastala chyba</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>Súhrn inštalácie</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>Distribúcia:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>Cieľ inštalácie:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>Neznáme</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>Čas inštalácie:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>Podrobnosti o chybe</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>Počas inštalácie nastala neznáma chyba</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>Zobraziť celý záznam</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>Odoslať záznam</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>Záznam sa odošle na verejnú službu na zdieľanie textu.</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>Odosiela sa…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>Kopírovať</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>Odoslanie zlyhalo: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>Reštartovať teraz</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>Vypnúť</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>Pokračovať</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>Skúsiť inštaláciu znova</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>Ukončiť inštalátor</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>Pred reštartom odpojte inštalačné médium</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>Podrobnosti o chybe nájdete v zázname</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Poháňa Xen Installer</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>Rozloženie</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>Vybrať...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>Hľadať rozloženia...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>Variant</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>Hľadať varianty...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>Vyberte časové pásmo na mape alebo ho vyhľadajte nižšie</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>Priblížte mapu, aby sa zobrazilo viac miest</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>Vybrať časové pásmo...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>Hľadať časové pásma...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>Hotovo</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Poháňa Xen Installer</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>Späť</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>Ďalej</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>Inštalovať</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>Záznam inštalácie</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>Odosiela sa…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>Kopírovať</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>Odoslanie zlyhalo: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>Odoslať záznam</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>Zavrieť</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(bez prípojného bodu)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(koreň)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>Názov súborového systému</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>voliteľné</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>Šifrovať</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>Heslo šifrovania</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>Potvrďte heslo šifrovania</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>Aspoň 8 znakov. Odomkne aj ostatné šifrované oddiely.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>Heslá sa nezhodujú.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>Zrušiť</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(povinné)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>Jeden balík: zapnite ho v zozname vľavo.</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>Inštaluje sa...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>Počkajte, kým sa systém inštaluje</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>Inštalujem a spúšťam Matrix...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>Staviam vám Arch s obrúsenými ostrými hranami.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>Nastavujem vám úplne pripravenú plochu KDE Plasma 6 nad Archom, hotovú na používanie.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>Keď skončím, budete mať po ruke plný pacman a AUR - celý ekosystém Archu bez ďalšieho nastavovania.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>Mám v sebe Správcu jadier, takže môžete kedykoľvek prejsť na CachyOS alebo iné vyladené jadrá.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>Zakladám výkonnostný profil s reálnymi, merateľnými zisky pre hry a prácu citlivú na oneskorenie.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>Rozumné predvolené nastavenia dnes, plná sila ladenia neskôr - dávam vám oboje.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>Inštalujem aj XeroLinux Toolkit, takže nastavenie po inštalácii zostane mimo terminálu, ak ho tam nechcete.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>Toto je priebežné vydávanie (rolling release) - keď skončím, aktualizácie budú plynúť priamo z Archu.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Vybrali ste Btrfs? Nastavujem snímky Snapper a starší môžete spustiť priamo z ponuky GRUB.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Ponechali ste Windows? Pri každom štarte je v ponuke GRUB vzdialený len jeden výber.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>Zašifrovali ste disk? Heslo šifrovania zadáte raz pri štarte a ja sa postarám, aby sa všetko ostatné odomklo samo.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>Jeden príkaz udrží všetko aktuálne: pacman -Syu aktualizuje systém, aplikácie aj jadro naraz.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>AUR obsahuje desiatky tisíc komunitných balíkov, od nišových nástrojov po najnovšie aplikácie.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>Zaseknete sa neskôr? Arch Wiki je jedna z najlepších príručiek k Linuxu a všetko v nej platí aj pre váš nový systém.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>Keď skončím, kliknite pravým tlačidlom na plochu: Plasma vám umožní prispôsobiť takmer všetko, čo vidíte.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>Zapisujem úplný záznam každého kroku. Ak sa niečo pokazí, jedno kliknutie ho odošle, aby ste rýchlo dostali pomoc.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>Nudíte sa, kým pracujem? Kliknite na Zahrať si hru a ubráňte svoju plochu pred vlnou geekovských votrelcov.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>Nechajte napájanie a USB kľúč pripojené, kým vám nepoviem, že som hotový.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>Vedeli ste?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>Príprava</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>Môže to trvať niekoľko minút; rozhranie sa môže zdať pomalé.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>Zobraziť výstup priebehu</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 Zahrať si hru</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>Zavrieť</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>Space Invaders</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>Znova</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>Pracuje sa...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>Záznam inštalácie</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>Počas inštalácie nevypínajte počítač</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>ÚROVEŇ %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>KONIEC HRY</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>Dosiahnutá úroveň %1 · skóre %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>Stlačte R alebo tlačidlo nižšie a hrajte znova</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>Skóre: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>Úroveň %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → pohyb · medzerník strieľa</translation>
     </message>
@@ -4669,7 +4724,7 @@
 <context>
     <name>UsersView</name>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>Zadajte heslo</translation>
     </message>
@@ -4684,120 +4739,120 @@
         <translation>Nastavte svoj používateľský účet a názov počítača</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>Používateľské meno</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>používateľské meno (malé písmená, bez medzier)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>Toto používateľské meno je vyhradené systémom, zvoľte iné</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>Používateľské meno musí začínať malým písmenom alebo podčiarkovníkom, obsahovať iba malé písmená, číslice, spojovníky alebo podčiarkovníky a mať najviac 32 znakov</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>Toto bude vaše prihlasovacie meno</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>Celé meno</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>Vaše celé meno</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>Voliteľné: zobrazované meno vášho účtu</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>Celé meno nemôže obsahovať &apos;:&apos; ani zalomenie riadka</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>Názov počítača</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>názov počítača (malé písmená, bez medzier)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>Názov počítača smie obsahovať iba malé písmená, číslice, spojovníky a bodky; každá časť nesmie začínať ani končiť spojovníkom a môže mať najviac 63 znakov</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>Heslá nemôžu obsahovať zalomenie riadka</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>Odporúčame silnejšie heslo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>Heslo root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>Názov vášho počítača v sieti</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>Heslo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>Potvrďte heslo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>Heslá sa zhodujú</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>Heslá sa nezhodujú</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>Zobraziť heslo</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>Použiť rovnaké heslo aj pre účet root</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>Potvrďte heslo root</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>Kontrolujú sa systémové požiadavky...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>Vyberte jazyk...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>Hľadať jazyky...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>Mení iba jazyk inštalátora. Jazyk systému a klávesnica nasledujú.</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>Inštalovať</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>Pred inštaláciou vyriešte systémové požiadavky</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>Nezistené internetové pripojenie: inštaluje sa offline (bez voliteľného softvéru a bez aktualizácie systému)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Poháňa Xen Installer</translation>
     </message>

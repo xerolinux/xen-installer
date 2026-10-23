@@ -266,7 +266,7 @@ def test_btrfs_subvolumes_from_selection_then_config_then_default() -> None:
 
     _, _, h = _run(_selections("auto", filesystem="btrfs"))
     names = [sv["name"] for sv in h.plan.targets[1].subvolumes]
-    assert names == ["@", "@home", "@root", "@srv", "@cache", "@tmp", "@log", "@swap"]
+    assert names == ["@", "@home", "@root", "@srv", "@cache", "@tmp", "@log", "@swap", "@snapshots"]
 
 
 def test_min_install_gib_from_config() -> None:
@@ -485,3 +485,4 @@ def test_run_reuses_the_engine_validation_and_scans_once() -> None:
         assert h.list_disks.call_count == 1
         assert job.run(context).success
         assert h.list_disks.call_count == 2
+

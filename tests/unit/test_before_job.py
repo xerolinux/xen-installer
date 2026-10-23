@@ -1,7 +1,7 @@
 """Unit tests for BeforeJob."""
 
 import tempfile
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from xen.jobs.base import JobContext
 from xen.jobs.before import BeforeJob
@@ -35,6 +35,7 @@ class TestRun:
                 capture_output=True,
                 text=True,
                 timeout=300,
+                env=ANY,
             )
 
     def test_name_is_before(self) -> None:

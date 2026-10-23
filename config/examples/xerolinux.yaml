@@ -79,6 +79,7 @@ jobs:
         - {name: "@tmp", mountpoint: "/var/tmp"}
         - {name: "@log", mountpoint: "/var/log"}
         - {name: "@swap", mountpoint: "/swap"}
+        - {name: "@snapshots", mountpoint: "/.snapshots"}
 
   - name: install
     # Extracts the live ISO's own squashfs image (InstallJob's built-in

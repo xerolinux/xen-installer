@@ -237,7 +237,17 @@ Item {
                         qsTr("I'm laying down a performance profile with real, measurable gains for gaming and latency-sensitive work."),
                         qsTr("Sane defaults today, full tuning power later - I'm giving you both."),
                         qsTr("I'm installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there."),
-                        qsTr("This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.")
+                        qsTr("This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch."),
+                        qsTr("Picked Btrfs? I'm setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu."),
+                        qsTr("Kept Windows? It stays one pick away in the GRUB boot menu every time you start up."),
+                        qsTr("Encrypted your disk? You'll type the passphrase once at boot, and I make sure everything else unlocks on its own."),
+                        qsTr("One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together."),
+                        qsTr("The AUR holds tens of thousands of community packages, from niche tools to the newest apps."),
+                        qsTr("Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system."),
+                        qsTr("Right-click the desktop once I'm done: Plasma lets you reshape almost everything you see."),
+                        qsTr("I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast."),
+                        qsTr("Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders."),
+                        qsTr("Keep the power and the USB stick connected until I tell you I'm done.")
                     ]
                     property int factIndex: 0
 

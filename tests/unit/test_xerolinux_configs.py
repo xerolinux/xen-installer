@@ -144,7 +144,7 @@ class TestDualBootAndPartitionConfig:
             assert not {"os-prober", "ntfs-3g"} & set(job._config.get("remove", []))
 
     def test_partition_job_carries_subvolumes_and_min_install_size(self) -> None:
-        expected = ["@", "@home", "@root", "@srv", "@cache", "@tmp", "@log", "@swap"]
+        expected = ["@", "@home", "@root", "@srv", "@cache", "@tmp", "@log", "@swap", "@snapshots"]
         for config_path in ALL_CONFIGS:
             engine = Engine.from_config_file(config_path)
             job = next(j for j in engine.jobs if j.name == "partition")

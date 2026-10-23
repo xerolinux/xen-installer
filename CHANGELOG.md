@@ -12,6 +12,11 @@ XeroLinux (Arch Linux) au lieu de la distribution NixOS d'origine.
 
 ### Added
 
+- Btrfs : sous-volume `@snapshots` monté sur `/.snapshots` par défaut, configuré
+  selon la procédure Snapper de l'ArchWiki (snapshots hors de `@`, droits 750).
+- Space Invaders : 20 envahisseurs geek (disquette, trombone, Pac-Man, BSOD...),
+  un nouveau groupe à chaque niveau, de plus en plus menaçants. 10 nouvelles astuces
+  sur l'écran d'installation. Partitionnement manuel : « / (root) » dans la liste.
 - Interface traduite dans les 67 langues proposées sur l'écran d'accueil
   (écrans et messages Python via `msg()`, traduits à l'affichage et au changement
   de langue) ; arabe, persan et hébreu en miroir ; zh_HK/zh_MO en chinois traditionnel.
@@ -84,6 +89,8 @@ XeroLinux (Arch Linux) au lieu de la distribution NixOS d'origine.
 
 ### Fixed
 
+- Btrfs : plus de paires de snapshots snap-pac créées par les scripts de finalisation
+  (`SNAP_PAC_SKIP=y`) ; le système démarre avec le seul snapshot « Fresh installation ».
 - Clavier : la disposition choisie s'applique à la session live KDE Plasma
   (kxkbrc + notification KConfig, en tant qu'utilisateur de la session sous pkexec),
   y compris si on garde celle proposée, donc la page Utilisateurs l'utilise.

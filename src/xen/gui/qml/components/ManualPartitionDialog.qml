@@ -552,25 +552,38 @@ Popup {
                 border.width: 1
             }
             popup: Popup {
+                objectName: "dialogMountPopup"
                 y: mountCombo.height
                 width: mountCombo.width
-                implicitHeight: Math.min(contentItem.implicitHeight, 200 * uiScale)
+                implicitHeight: contentItem.implicitHeight + topPadding + bottomPadding
                 padding: 1
                 background: Rectangle { radius: 6; color: surfaceColor; border.color: primaryColor; border.width: 1 }
+                // Own rows, not mountCombo.delegateModel: with the software renderer the
+                // combo destroys the delegate it highlights, emptying the list on hover
                 contentItem: ListView {
-                    clip: true
+                    interactive: false
                     implicitHeight: contentHeight
-                    model: mountCombo.popup.visible ? mountCombo.delegateModel : null
-                    currentIndex: mountCombo.highlightedIndex
+                    model: dialog.mountChoices
+                    delegate: ItemDelegate {
+                        required property int index
+                        required property string modelData
+                        objectName: "mountChoice_" + index
+                        width: ListView.view.width
+                        hoverEnabled: true
+                        contentItem: Row {
+                            leftPadding: 10
+                            spacing: 6 * uiScale
+                            Text { text: modelData; color: textColor; font.pixelSize: 12 * uiScale }
+                            // A lone "/" reads as an empty row
+                            Text { visible: modelData === "/"; text: qsTr("(root)"); color: textMutedColor; font.pixelSize: 12 * uiScale }
+                        }
+                        background: Rectangle { color: hovered ? Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.25) : "transparent" }
+                        onClicked: {
+                            dialog.setMount(modelData)
+                            mountCombo.popup.close()
+                        }
+                    }
                 }
-            }
-            delegate: ItemDelegate {
-                required property int index
-                required property string modelData
-                width: mountCombo.width
-                highlighted: mountCombo.highlightedIndex === index
-                contentItem: Text { text: modelData; color: textColor; font.pixelSize: 12 * uiScale; leftPadding: 10 }
-                background: Rectangle { color: highlighted ? Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.25) : "transparent" }
             }
         }
 

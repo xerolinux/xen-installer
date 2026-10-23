@@ -17,6 +17,10 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from fixtures import BOOT_HOSTNAME, BOOT_PASSWORD  # noqa: E402
+
 ROOT = HERE.parent.parent
 CACHE = HERE / ".cache"
 ISO_DIR = Path.home() / "ISOs"
@@ -29,10 +33,15 @@ INITRD = "arch/boot/x86_64/initramfs-linux.img"
 BOOT_ENTRY = "loader/entries/01-archiso-linux.conf"
 RESULT_RE = re.compile(r"XEN-RESULT (\{.*\})\s*$", re.M)
 PASSPHRASE_PROMPT = re.compile(r"Enter passphrase for ")
+# Root login, then the script. The markers are computed so the echoed command line never matches.
+SESSION_STEPS = [
+    (re.compile(rf"\b{BOOT_HOSTNAME} login:"), "root"),
+    (re.compile(r"Password:"), BOOT_PASSWORD),
+    (re.compile(r"# |❯ "), None),
+]
+SESSION_OUTPUT = re.compile(r"XEN-SESSION-2\r?\n(.*)XEN-SESSION-3", re.S)
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
-sys.path.insert(0, str(HERE))
-
-from fixtures import BOOT_HOSTNAME  # noqa: E402
 
 
 def fail_setup(msg):
@@ -160,13 +169,38 @@ def _serial_client(sock_path, serial, proc):
     return client
 
 
-def qemu(run_dir, serial, memory, extra, done, timeout, wait_exit=True, passphrase=None):
+class SerialConsole:
+    """Types into a socket serial port: LUKS passphrases, then optionally a root login and a script."""
+
+    def __init__(self, passphrase=None, script=None):
+        self.passphrase = passphrase
+        self.script = script
+        self.answered = 0
+        self.stage = 0
+        self.offset = 0
+
+    def react(self, client, text):
+        if self.passphrase:
+            for _ in range(len(PASSPHRASE_PROMPT.findall(text)) - self.answered):
+                client.sendall(f"{self.passphrase}\r".encode())
+                self.answered += 1
+        if not self.script or self.stage >= len(SESSION_STEPS):
+            return
+        prompt, reply = SESSION_STEPS[self.stage]
+        if prompt.search(text, self.offset):
+            line = f"echo XEN-SESSION-$((1+1)); {{ {self.script}; }} 2>&1; echo XEN-SESSION-$((1+2))"
+            client.sendall(f"{reply or line}\r".encode())
+            self.offset = len(text)
+            self.stage += 1
+
+
+def qemu(run_dir, serial, memory, extra, done, timeout, wait_exit=True, console=None):
     """Runs QEMU until done(serial text) returns a value, QEMU exits or the timeout hits.
 
-    With a passphrase, the serial port is a socket and every passphrase prompt gets it typed.
+    With a console, the serial port is a socket and the console types into it.
     """
     sock_path = run_dir / "serial.sock"
-    if passphrase:
+    if console:
         sock_path.unlink(missing_ok=True)
         serial_args = ["-chardev", f"socket,id=ser0,path={sock_path},server=on,wait=on",
                        "-serial", "chardev:ser0"]  # fmt: skip
@@ -184,17 +218,14 @@ def qemu(run_dir, serial, memory, extra, done, timeout, wait_exit=True, passphra
     err_path = serial.with_suffix(".err")
     with open(err_path, "wb") as err:
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err)
-    client = _serial_client(sock_path, serial, proc) if passphrase else None
-    answered = 0
+    client = _serial_client(sock_path, serial, proc) if console else None
     try:
         deadline = time.monotonic() + timeout
         while True:
             exited = proc.poll() is not None
             text = serial.read_text(errors="replace") if serial.exists() else ""
             if client is not None:
-                for _ in range(len(PASSPHRASE_PROMPT.findall(text)) - answered):
-                    client.sendall(f"{passphrase}\r".encode())
-                    answered += 1
+                console.react(client, text)
             found = done(text)
             if found:
                 if wait_exit:
@@ -235,18 +266,30 @@ def live_phase(name, phase, boot, port, run_dir, drives, cdroms, memory, timeout
     return result, ""
 
 
-def boot_from_disk(run_dir, drives, timeout, passphrase):
+def boot_from_disk(run_dir, drives, timeout, module):
+    """Boots the installed disk to its login prompt, then runs the module's BOOT_SESSION as root."""
+    passphrase = getattr(module, "BOOT_PASSPHRASE", None)
+    script = getattr(module, "BOOT_SESSION", None)
     login = re.compile(rf"\b{BOOT_HOSTNAME} login:")
+    done = SESSION_OUTPUT.search if script else login.search
+    console = SerialConsole(passphrase, script) if passphrase or script else None
     found, error = qemu(
         run_dir, run_dir / "serial-boot.log", BOOT_MEMORY, drives,
-        login.search, timeout, wait_exit=False, passphrase=passphrase,
+        done, timeout, wait_exit=False, console=console,
     )  # fmt: skip
     if not found:
+        if script and login.search(tail(run_dir / "serial-boot.log", 10**6)):
+            return f"boot session: no output on serial: {error}"
         return f"boot: no '{BOOT_HOSTNAME} login:' on serial: {error}"
     prompts = len(PASSPHRASE_PROMPT.findall(tail(run_dir / "serial-boot.log", 10**6)))
     if passphrase and prompts != 1:
         # GRUB asks once; the initramfs must unlock root with the embedded root.key
         return f"boot: {prompts} passphrase prompts on serial, expected 1"
+    if script:
+        try:
+            module.check_session(ANSI_ESCAPE.sub("", found.group(1)).replace("\r", ""))
+        except AssertionError as exc:
+            return f"boot session: {exc}"
     return ""
 
 
@@ -289,7 +332,7 @@ def run_gui(name, module, boot, port, www, run_dir, drives, args):
         session.launch()
         timings.append(f"live+launch {time.monotonic() - phase:.0f}s")
         phase = time.monotonic()
-        gui.front_pages(g, BOOT_HOSTNAME, "vmtest-password")
+        gui.front_pages(g, BOOT_HOSTNAME, BOOT_PASSWORD)
         module.drive(g)
         timings.append(f"pages {time.monotonic() - phase:.0f}s")
         phase = time.monotonic()
@@ -307,7 +350,7 @@ def run_gui(name, module, boot, port, www, run_dir, drives, args):
     finally:
         session.close()
     phase = time.monotonic()
-    error = boot_from_disk(run_dir, drives, args.login_timeout, getattr(module, "BOOT_PASSPHRASE", None))
+    error = boot_from_disk(run_dir, drives, args.login_timeout, module)
     if error:
         return False, error
     timings.append(f"boot {time.monotonic() - phase:.0f}s")
@@ -343,8 +386,7 @@ def run_scenario(name, boot, port, www, run_dir, args):
     if result is None:
         return False, error
     installed = time.monotonic()
-    passphrase = getattr(module, "BOOT_PASSPHRASE", None)
-    error = boot_from_disk(run_dir, drives, args.login_timeout, passphrase)
+    error = boot_from_disk(run_dir, drives, args.login_timeout, module)
     if error:
         return False, error
     booted = time.monotonic()

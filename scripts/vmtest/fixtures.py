@@ -388,6 +388,7 @@ def pbkdfs(raw):
 
 
 BOOT_HOSTNAME = "xenboot"
+BOOT_PASSWORD = "vmtest-password"
 BOOT_TARGET = "/mnt/target"
 BOOT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "boot_config.yaml")
 XERO_MNT = "/run/xen-xeroiso"
@@ -429,7 +430,7 @@ def boot_selections(disk, mode, filesystem, has_internet, **extra):
         "keyboard_variant": "",
         "username": "xen",
         "fullname": "Xen Boot",
-        "password": "vmtest-password",
+        "password": BOOT_PASSWORD,
         "hostname": BOOT_HOSTNAME,
         "root_same_as_user": True,
         "root_password": "",

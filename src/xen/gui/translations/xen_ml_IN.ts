@@ -9,32 +9,32 @@
         <translation>നിലവിൽ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>ശേഷം:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>പുതിയ പാർട്ടീഷന്റെ വലുപ്പം</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>%1 %2 ആയി ചുരുക്കും, %4-നായി ഒരു പുതിയ %3 പാർട്ടീഷൻ ഉണ്ടാക്കും.</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>%1-ലെ EFI സിസ്റ്റം പാർട്ടീഷൻ വീണ്ടും ഉപയോഗിക്കും (ഫോർമാറ്റ് ചെയ്യില്ല).</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>EFI സിസ്റ്റം പാർട്ടീഷൻ:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>ഇൻസ്റ്റലേഷൻ പൂർത്തിയായി!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>ഇൻസ്റ്റലേഷൻ പരാജയപ്പെട്ടു</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>സിസ്റ്റം നിങ്ങളുടെ കമ്പ്യൂട്ടറിൽ വിജയകരമായി ഇൻസ്റ്റാൾ ചെയ്തു</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>ഇൻസ്റ്റലേഷൻ സമയത്ത് ഒരു പിശക് സംഭവിച്ചു</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>ഇൻസ്റ്റലേഷൻ സംഗ്രഹം</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>ഡിസ്ട്രിബ്യൂഷൻ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>ഇൻസ്റ്റലേഷൻ ലക്ഷ്യം:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>അജ്ഞാതം</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>ഇൻസ്റ്റലേഷൻ സമയം:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>പിശകിന്റെ വിവരങ്ങൾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>ഇൻസ്റ്റലേഷൻ സമയത്ത് അജ്ഞാതമായ ഒരു പിശക് സംഭവിച്ചു</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>പൂർണ്ണ ലോഗുകൾ കാണുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>ലോഗുകൾ അയയ്ക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>ലോഗ് ഒരു പബ്ലിക് പേസ്റ്റ് സേവനത്തിലേക്ക് അയയ്ക്കും.</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>അയയ്ക്കുന്നു…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>പകർത്തുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>അയയ്ക്കൽ പരാജയപ്പെട്ടു: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>ഇപ്പോൾ റീബൂട്ട് ചെയ്യുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>ഷട്ട്ഡൗൺ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>തുടരുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>ഇൻസ്റ്റലേഷൻ വീണ്ടും ശ്രമിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>ഇൻസ്റ്റാളർ അടയ്ക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>റീബൂട്ട് ചെയ്യുന്നതിന് മുമ്പ് ഇൻസ്റ്റലേഷൻ മീഡിയ നീക്കം ചെയ്യുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>പിശകിനെക്കുറിച്ച് കൂടുതലറിയാൻ ലോഗുകൾ പരിശോധിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen ഇൻസ്റ്റാളർ നൽകുന്നത്</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>ലേഔട്ട്</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>തിരഞ്ഞെടുക്കുക...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>ലേഔട്ടുകൾ തിരയുക...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>വേരിയന്റ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>വേരിയന്റുകൾ തിരയുക...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>മാപ്പിൽ നിങ്ങളുടെ ടൈംസോൺ തിരഞ്ഞെടുക്കുക, അല്ലെങ്കിൽ ചുവടെ തിരയുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>കൂടുതൽ സ്ഥലങ്ങൾ കാണാൻ മാപ്പ് സൂം ചെയ്യുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>ടൈംസോൺ തിരഞ്ഞെടുക്കുക...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>ടൈംസോണുകൾ തിരയുക...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>പൂർത്തിയായി</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen ഇൻസ്റ്റാളർ നൽകുന്നത്</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>പിന്നോട്ട്</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>ഇൻസ്റ്റാൾ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>അടുത്തത്</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>ഇൻസ്റ്റലേഷൻ ലോഗുകൾ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>അയയ്ക്കുന്നു…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>പകർത്തുക</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>അയയ്ക്കൽ പരാജയപ്പെട്ടു: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>ലോഗുകൾ അയയ്ക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>അടയ്ക്കുക</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(മൗണ്ട് പോയിന്റ് ഇല്ല)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(റൂട്ട്)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>FS ലേബൽ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>ഓപ്ഷണൽ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>എൻക്രിപ്റ്റ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>പാസ്ഫ്രെയ്സ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>പാസ്ഫ്രെയ്സ് സ്ഥിരീകരിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>കുറഞ്ഞത് 8 അക്ഷരങ്ങൾ. ഇത് മറ്റ് എൻക്രിപ്റ്റ് ചെയ്ത പാർട്ടീഷനുകളും തുറക്കും.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>പാസ്ഫ്രെയ്സുകൾ പൊരുത്തപ്പെടുന്നില്ല.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>റദ്ദാക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(ആവശ്യമാണ്)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>ഒറ്റ പാക്കേജ് - ഇടതുവശത്തെ പട്ടികയിൽ നിന്ന് ഇത് ഓൺ/ഓഫ് ചെയ്യുക.</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>ഇൻസ്റ്റാൾ ചെയ്യുന്നു...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>സിസ്റ്റം ഇൻസ്റ്റാൾ ചെയ്യുന്നതുവരെ ദയവായി കാത്തിരിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>മാട്രിക്സ് ഇൻസ്റ്റാൾ ചെയ്ത് ബൂട്ട് ചെയ്യുന്നു...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>മൂർച്ചയുള്ള അരികുകളെല്ലാം മിനുക്കി, ഞാൻ നിങ്ങൾക്കായി Arch നിർമ്മിക്കുകയാണ്.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>Arch-ന് മുകളിൽ പൂർണ്ണമായി ക്രമീകരിച്ച KDE Plasma 6 ഡെസ്ക്ടോപ്പ് ഞാൻ സജ്ജമാക്കുന്നു, ഉപയോഗിക്കാൻ തയ്യാർ.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>ഞാൻ പൂർത്തിയാകുമ്പോൾ, pacman-ഉം AUR-ഉം നിങ്ങളുടെ വിരൽത്തുമ്പിൽ ഉണ്ടാകും - മുഴുവൻ Arch ഇക്കോസിസ്റ്റവും, അധിക സജ്ജീകരണം ഇല്ലാതെ.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>ഞാൻ ഒരു Kernel Manager ഉൾപ്പെടുത്തുന്നു, അതിനാൽ ഇഷ്ടമുള്ളപ്പോൾ CachyOS അല്ലെങ്കിൽ മറ്റ് ട്യൂൺ ചെയ്ത കെർണലുകളിലേക്ക് മാറാം.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>ഗെയിമിംഗിനും ലേറ്റൻസി പ്രധാനമായ ജോലികൾക്കും അളക്കാവുന്ന യഥാർത്ഥ മെച്ചമുള്ള ഒരു പെർഫോമൻസ് പ്രൊഫൈൽ ഞാൻ ഒരുക്കുന്നു.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>ഇന്ന് മികച്ച ഡിഫോൾട്ടുകൾ, പിന്നീട് പൂർണ്ണ ട്യൂണിംഗ് ശേഷി - രണ്ടും ഞാൻ നിങ്ങൾക്ക് തരുന്നു.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>ഞാൻ XeroLinux Toolkit-ഉം ഇൻസ്റ്റാൾ ചെയ്യുന്നു, അതിനാൽ നിങ്ങൾ ആഗ്രഹിക്കുന്നില്ലെങ്കിൽ ഇൻസ്റ്റലേഷന് ശേഷമുള്ള സജ്ജീകരണം ടെർമിനലിന് പുറത്തുതന്നെ നടത്താം.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>ഇതൊരു റോളിംഗ് റിലീസ് ആണ് - ഞാൻ പൂർത്തിയാക്കിയ ശേഷം, അപ്ഡേറ്റുകൾ നേരിട്ട് അപ്സ്ട്രീം Arch-ൽ നിന്ന് വന്നുകൊണ്ടിരിക്കും.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Btrfs തിരഞ്ഞെടുത്തോ? ഞാൻ Snapper സ്നാപ്പ്ഷോട്ടുകൾ സജ്ജമാക്കുന്നു, പഴയതൊന്ന് GRUB മെനുവിൽ നിന്ന് നേരിട്ട് ബൂട്ട് ചെയ്യാം.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Windows നിലനിർത്തിയോ? ഓരോ തവണ തുടങ്ങുമ്പോഴും അത് GRUB ബൂട്ട് മെനുവിൽ ഒരു തിരഞ്ഞെടുപ്പ് അകലെയുണ്ടാകും.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>ഡിസ്ക് എൻക്രിപ്റ്റ് ചെയ്തോ? ബൂട്ടിൽ പാസ്ഫ്രെയ്സ് ഒരു തവണ മാത്രം ടൈപ്പ് ചെയ്താൽ മതി, ബാക്കിയെല്ലാം തനിയെ തുറക്കുന്നത് ഞാൻ ഉറപ്പാക്കും.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>ഒരൊറ്റ കമാൻഡ് എല്ലാം പുതുതായി നിലനിർത്തും: pacman -Syu സിസ്റ്റം, ആപ്പുകൾ, കേർണൽ എന്നിവ ഒന്നിച്ച് അപ്ഡേറ്റ് ചെയ്യും.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>AUR-ൽ കമ്മ്യൂണിറ്റിയുടെ പതിനായിരക്കണക്കിന് പാക്കേജുകളുണ്ട്, അപൂർവ ടൂളുകൾ മുതൽ ഏറ്റവും പുതിയ ആപ്പുകൾ വരെ.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>പിന്നീട് എവിടെയെങ്കിലും കുടുങ്ങിയോ? Arch Wiki ഏറ്റവും മികച്ച Linux മാനുവലുകളിൽ ഒന്നാണ്, അതെല്ലാം നിങ്ങളുടെ പുതിയ സിസ്റ്റത്തിനും ബാധകമാണ്.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>ഞാൻ പൂർത്തിയായാൽ ഡെസ്ക്ടോപ്പിൽ റൈറ്റ്-ക്ലിക്ക് ചെയ്യൂ: നിങ്ങൾ കാണുന്ന മിക്കവാറും എല്ലാം മാറ്റിയെടുക്കാൻ Plasma അനുവദിക്കുന്നു.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>ഓരോ ഘട്ടത്തിന്റെയും പൂർണ്ണമായ ലോഗ് ഞാൻ സൂക്ഷിക്കുന്നു. എന്തെങ്കിലും തെറ്റിയാൽ ഒറ്റ ക്ലിക്കിൽ അയച്ച് വേഗം സഹായം നേടാം.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>ഞാൻ പണിയെടുക്കുമ്പോൾ മുഷിഞ്ഞോ? ഒരു ഗെയിം കളിക്കുക അമർത്തി, ഗീക്കി ആക്രമണകാരികളുടെ തിരമാലയിൽ നിന്ന് നിങ്ങളുടെ ഡെസ്ക്ടോപ്പിനെ രക്ഷിക്കൂ.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>ഞാൻ പൂർത്തിയായി എന്ന് പറയുന്നതുവരെ പവറും USB സ്റ്റിക്കും കണക്റ്റ് ചെയ്തിടുക.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>നിങ്ങൾക്കറിയാമോ?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>തയ്യാറെടുക്കുന്നു</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>പ്രവർത്തിക്കുന്നു...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>ഇതിന് കുറച്ച് മിനിറ്റുകൾ എടുത്തേക്കാം; ഇന്റർഫേസ് മന്ദഗതിയിലായി തോന്നാം.</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>പുരോഗതി ഔട്ട്പുട്ട് കാണിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 ഒരു ഗെയിം കളിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>ഇൻസ്റ്റലേഷൻ സമയത്ത് കമ്പ്യൂട്ടർ ഓഫ് ചെയ്യരുത്</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>ഇൻസ്റ്റലേഷൻ ലോഗ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>അടയ്ക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>സ്പേസ് ഇൻവേഡേഴ്സ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>റീസ്റ്റാർട്ട്</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>ലെവൽ %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>ഗെയിം ഓവർ</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>ലെവൽ %1 വരെ എത്തി · സ്കോർ %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>വീണ്ടും കളിക്കാൻ R അമർത്തുക അല്ലെങ്കിൽ ചുവടെയുള്ള ബട്ടൺ ഉപയോഗിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>സ്കോർ: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>ലെവൽ %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → നീങ്ങുക · സ്പേസ് വെടിവെക്കുക</translation>
     </message>
@@ -4679,125 +4734,125 @@
         <translation>നിങ്ങളുടെ ഉപയോക്തൃ അക്കൗണ്ടും സിസ്റ്റം ഹോസ്റ്റ്നെയിമും സജ്ജമാക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>ഉപയോക്തൃനാമം</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>ഉപയോക്തൃനാമം (ചെറിയ അക്ഷരങ്ങൾ, സ്പേസ് പാടില്ല)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>ഈ ഉപയോക്തൃനാമം സിസ്റ്റം റിസർവ് ചെയ്തതാണ്, മറ്റൊന്ന് തിരഞ്ഞെടുക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>ഉപയോക്തൃനാമം ചെറിയ അക്ഷരത്തിലോ അണ്ടർസ്കോറിലോ തുടങ്ങണം, ചെറിയ അക്ഷരങ്ങൾ, അക്കങ്ങൾ, ഹൈഫനുകൾ, അണ്ടർസ്കോറുകൾ എന്നിവ മാത്രം അടങ്ങിയിരിക്കണം, പരമാവധി 32 അക്ഷരങ്ങൾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>ഇത് നിങ്ങളുടെ ലോഗിൻ പേര് ആയിരിക്കും</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>പൂർണ്ണനാമം</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>നിങ്ങളുടെ പൂർണ്ണനാമം</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>ഓപ്ഷണൽ: നിങ്ങളുടെ അക്കൗണ്ടിന്റെ പ്രദർശന നാമം</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>പൂർണ്ണനാമത്തിൽ &apos;:&apos; അല്ലെങ്കിൽ ലൈൻ ബ്രേക്കുകൾ പാടില്ല</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>കമ്പ്യൂട്ടറിന്റെ പേര്</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>ഹോസ്റ്റ്നെയിം (ചെറിയ അക്ഷരങ്ങൾ, സ്പേസ് പാടില്ല)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>ഹോസ്റ്റ്നെയിമിൽ ചെറിയ അക്ഷരങ്ങൾ, അക്കങ്ങൾ, ഹൈഫനുകൾ, ഡോട്ടുകൾ എന്നിവ മാത്രമേ പാടുള്ളൂ; ഓരോ ഭാഗവും ഹൈഫനിൽ തുടങ്ങുകയോ അവസാനിക്കുകയോ ചെയ്യരുത്, പരമാവധി 63 അക്ഷരങ്ങൾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>നിങ്ങളുടെ കമ്പ്യൂട്ടറിന്റെ നെറ്റ്‌വർക്ക് പേര്</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>പാസ്‌വേഡ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>പാസ്‌വേഡ് നൽകുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>പാസ്‌വേഡുകളിൽ ലൈൻ ബ്രേക്കുകൾ പാടില്ല</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>പാസ്‌വേഡ് സ്ഥിരീകരിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നു</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നില്ല</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>കൂടുതൽ ശക്തമായ പാസ്‌വേഡ് ശുപാർശ ചെയ്യുന്നു</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>പാസ്‌വേഡ് കാണിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>റൂട്ട് അക്കൗണ്ടിനും അതേ പാസ്‌വേഡ് ഉപയോഗിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>റൂട്ട് പാസ്‌വേഡ്</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>റൂട്ട് പാസ്‌വേഡ് സ്ഥിരീകരിക്കുക</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>സിസ്റ്റം ആവശ്യകതകൾ പരിശോധിക്കുന്നു...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>ഭാഷ തിരഞ്ഞെടുക്കുക...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>ഭാഷകൾ തിരയുക...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>ഇൻസ്റ്റാളറിന്റെ ഭാഷ മാത്രം മാറ്റുന്നു. സിസ്റ്റം ഭാഷയും കീബോർഡും അടുത്തതായി വരും.</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>ഇൻസ്റ്റാൾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>ഇൻസ്റ്റാൾ ചെയ്യുന്നതിന് മുമ്പ് സിസ്റ്റം ആവശ്യകതകൾ പരിഹരിക്കുക</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>ഇന്റർനെറ്റ് കണക്ഷൻ കണ്ടെത്തിയില്ല: ഓഫ്‌ലൈനായി ഇൻസ്റ്റാൾ ചെയ്യുന്നു (ഓപ്ഷണൽ സോഫ്റ്റ്‌വെയർ ഇല്ല, സിസ്റ്റം അപ്ഡേറ്റ് ഇല്ല)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen ഇൻസ്റ്റാളർ നൽകുന്നത്</translation>
     </message>

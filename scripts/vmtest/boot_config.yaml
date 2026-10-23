@@ -24,6 +24,7 @@ jobs:
         - {name: "@tmp", mountpoint: "/var/tmp"}
         - {name: "@log", mountpoint: "/var/log"}
         - {name: "@swap", mountpoint: "/swap"}
+        - {name: "@snapshots", mountpoint: "/.snapshots"}
 
   - name: install
 

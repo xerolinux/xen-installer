@@ -23,10 +23,30 @@ Item {
     property real uiScale: 1.0
 
     readonly property var rowColors: ["#ff5f56", "#ffb454", "#39ff8f", "#5bc0ff", "#c77dff"]
-    // Each row is a different Linux-flavored "invader": terminal window,
-    // package box, Tux, systemd-style gear - drawn as small vector icons
-    // in paint(), not literal image assets.
-    readonly property var rowIcons: ["terminal", "package", "tux", "gear"]
+    // Geeky invaders drawn as small vector icons in paint(), ordered from
+    // friendly to creepy: each of the first five levels brings four new ones.
+    readonly property var invaderTypes: [
+        "package", "gear", "terminal", "tux",
+        "floppy", "mouse", "gamepad", "coffee",
+        "paperclip", "harddrive", "cdrom", "ram",
+        "cpu", "pacman", "ghost", "bug",
+        "usb", "wifi", "database", "bsod"
+    ]
+
+    function waveTypes(lvl) {
+        var n = invaderTypes.length
+        if (lvl * 4 <= n)
+            return invaderTypes.slice((lvl - 1) * 4, lvl * 4)
+        var wave = []
+        for (var r = 0; r < 4; r++)
+            wave.push(invaderTypes[(lvl * 3 + r * 5) % n])
+        return wave
+    }
+
+    // 0 at level 1, up to 5: angry eyes, then fangs, red glow, spikes, blood-red tint
+    function menaceFor(lvl) {
+        return Math.min(5, lvl - 1)
+    }
     readonly property color shipColor: "#39ff8f"
     readonly property color bulletColor: "#fffd6b"
 
@@ -88,11 +108,12 @@ Item {
         var spacingY = 28
         var alienW = 22
         var alienH = 16
+        var types = waveTypes(level)
         var arr = []
         for (var r = 0; r < rows; r++) {
             for (var c = 0; c < cols; c++) {
                 arr.push({ x: marginX + c * spacingX, y: startY + r * spacingY, w: alienW, h: alienH,
-                           alive: true, color: rowColors[r % rowColors.length], type: rowIcons[r % rowIcons.length] })
+                           alive: true, color: rowColors[r % rowColors.length], type: types[r % types.length] })
             }
         }
         aliens = arr
@@ -225,54 +246,195 @@ Item {
             return "rgba(" + r + "," + g + "," + bl + "," + a + ")"
         }
 
-        function drawAlien(ctx, a) {
-            var x = a.x, y = a.y, w = a.w, h = a.h, c = a.color
+        function box(ctx, x, y, w, h, r) {
+            ctx.beginPath()
+            if (ctx.roundedRect) ctx.roundedRect(x, y, w, h, r, r)
+            else ctx.rect(x, y, w, h)
+        }
+
+        function dot(ctx, x, y, r) {
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
+        }
+
+        // Blend a #rrggbb color toward blood red as menace rises
+        function tint(hex, menace) {
+            var k = menace * 0.12
+            var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16)
+            return "rgb(" + Math.round(r + (230 - r) * k) + "," + Math.round(g * (1 - k)) + "," + Math.round(b * (1 - k)) + ")"
+        }
+
+        function drawShape(ctx, a, c) {
+            var x = a.x, y = a.y, w = a.w, h = a.h, cx = x + w / 2, cy = y + h / 2
+            var ink = "#05070a"
             ctx.fillStyle = c
-            if (a.type === "tux") {
-                // Simplified Tux: round head + oval body, same silhouette
-                // reads at this size better than a literal invader block.
-                ctx.beginPath(); ctx.ellipse ? ctx.ellipse(x + w / 2, y + h * 0.62, w * 0.42, h * 0.46, 0, 0, 7)
-                    : ctx.arc(x + w / 2, y + h * 0.6, w * 0.4, 0, 7)
-                ctx.fill()
-                ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.28, w * 0.26, 0, 7); ctx.fill()
-                ctx.fillStyle = "#05070a"
-                ctx.beginPath(); ctx.arc(x + w / 2 - 3, y + h * 0.26, 1.4, 0, 7); ctx.fill()
-                ctx.beginPath(); ctx.arc(x + w / 2 + 3, y + h * 0.26, 1.4, 0, 7); ctx.fill()
+            ctx.strokeStyle = c
+            switch (a.type) {
+            case "tux":
+                dot(ctx, cx, y + h * 0.64, w * 0.38)
+                dot(ctx, cx, y + h * 0.28, w * 0.26)
+                ctx.fillStyle = ink; dot(ctx, cx - 3, y + h * 0.26, 1.4); dot(ctx, cx + 3, y + h * 0.26, 1.4)
                 ctx.fillStyle = "#ffb454"
-                ctx.beginPath(); ctx.moveTo(x + w / 2 - 3, y + h * 0.34); ctx.lineTo(x + w / 2 + 3, y + h * 0.34)
-                ctx.lineTo(x + w / 2, y + h * 0.42); ctx.closePath(); ctx.fill()
-            } else if (a.type === "gear") {
-                var cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) * 0.38
+                ctx.beginPath(); ctx.moveTo(cx - 3, y + h * 0.34); ctx.lineTo(cx + 3, y + h * 0.34)
+                ctx.lineTo(cx, y + h * 0.42); ctx.closePath(); ctx.fill()
+                break
+            case "gear":
+                var r = Math.min(w, h) * 0.46
                 ctx.beginPath()
-                for (var t = 0; t < 8; t++) {
-                    var ang = (t / 8) * Math.PI * 2
-                    var rr = (t % 2 === 0) ? r : r * 0.7
-                    var px = cx + Math.cos(ang) * rr, py = cy + Math.sin(ang) * rr
-                    if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+                for (var t = 0; t < 12; t++) {
+                    var ang = (t / 12) * Math.PI * 2, rr = (t % 2 === 0) ? r : r * 0.72
+                    if (t === 0) ctx.moveTo(cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr)
+                    else ctx.lineTo(cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr)
                 }
                 ctx.closePath(); ctx.fill()
-                ctx.fillStyle = "#05070a"
-                ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, 7); ctx.fill()
-            } else if (a.type === "package") {
-                ctx.beginPath()
-                ctx.roundRect ? ctx.roundRect(x, y, w, h, 3) : ctx.rect(x, y, w, h)
-                ctx.fill()
-                ctx.strokeStyle = "rgba(5,7,10,0.55)"
-                ctx.lineWidth = 1.5
-                ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h); ctx.stroke()
-                ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke()
-            } else {
-                // terminal window: a dark "screen" with a bright prompt
-                ctx.beginPath()
-                ctx.roundRect ? ctx.roundRect(x, y, w, h, 3) : ctx.rect(x, y, w, h)
-                ctx.fill()
-                ctx.fillStyle = "#05070a"
-                ctx.fillRect(x + 2, y + 5, w - 4, h - 7)
-                ctx.fillStyle = c
-                ctx.font = "700 9px monospace"
-                ctx.textAlign = "left"; ctx.textBaseline = "middle"
-                ctx.fillText(">_", x + 3, y + h / 2 + 2)
+                ctx.fillStyle = ink; dot(ctx, cx, cy, r * 0.32)
+                break
+            case "package":
+                box(ctx, x, y, w, h, 3); ctx.fill()
+                ctx.strokeStyle = "rgba(5,7,10,0.55)"; ctx.lineWidth = 1.5
+                ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx, y + h); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke()
+                break
+            case "terminal":
+                box(ctx, x, y, w, h, 3); ctx.fill()
+                ctx.fillStyle = ink; ctx.fillRect(x + 2, y + 5, w - 4, h - 7)
+                ctx.fillStyle = c; ctx.font = "700 9px monospace"; ctx.textAlign = "left"; ctx.textBaseline = "middle"
+                ctx.fillText(">_", x + 3, cy + 2)
+                break
+            case "floppy":
+                box(ctx, x + 2, y, w - 4, h, 2); ctx.fill()
+                ctx.fillStyle = ink; ctx.fillRect(x + 6, y + 1, w - 12, 5)
+                ctx.fillStyle = "#e8e8e8"; ctx.fillRect(x + 5, y + h - 7, w - 10, 6)
+                break
+            case "mouse":
+                box(ctx, x + 4, y, w - 8, h, 7); ctx.fill()
+                ctx.strokeStyle = ink; ctx.lineWidth = 1.2
+                ctx.beginPath(); ctx.moveTo(cx, y + 1); ctx.lineTo(cx, y + 7); ctx.moveTo(x + 4, y + 7); ctx.lineTo(x + w - 4, y + 7); ctx.stroke()
+                break
+            case "gamepad":
+                box(ctx, x, y + 3, w, h - 5, 6); ctx.fill()
+                ctx.fillStyle = ink
+                ctx.fillRect(x + 4, cy - 1, 6, 2); ctx.fillRect(x + 6, cy - 3, 2, 6)
+                dot(ctx, x + w - 6, cy - 2, 1.4); dot(ctx, x + w - 4, cy + 1, 1.4)
+                break
+            case "coffee":
+                box(ctx, x + 3, y + 3, w - 9, h - 3, 2); ctx.fill()
+                ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + w - 6, cy + 2, 3, -Math.PI / 2, Math.PI / 2); ctx.stroke()
+                ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1
+                ctx.beginPath(); ctx.moveTo(x + 7, y + 2); ctx.lineTo(x + 8, y - 2); ctx.moveTo(x + 11, y + 2); ctx.lineTo(x + 12, y - 2); ctx.stroke()
+                break
+            case "paperclip":
+                ctx.lineWidth = 2
+                box(ctx, x + 6, y, 10, h, 5); ctx.stroke()
+                box(ctx, x + 8, y + 3, 6, h - 6, 3); ctx.stroke()
+                ctx.fillStyle = "#ffffff"; dot(ctx, x + 9, y + 5, 1.8); dot(ctx, x + 14, y + 5, 1.8)
+                ctx.fillStyle = ink; dot(ctx, x + 9, y + 5, 0.8); dot(ctx, x + 14, y + 5, 0.8)
+                break
+            case "harddrive":
+                box(ctx, x, y, w, h, 2); ctx.fill()
+                ctx.fillStyle = "#cfd6dd"; dot(ctx, cx - 2, cy, 5.5)
+                ctx.fillStyle = ink; dot(ctx, cx - 2, cy, 1.2)
+                ctx.strokeStyle = ink; ctx.lineWidth = 1.4
+                ctx.beginPath(); ctx.moveTo(x + w - 3, y + 3); ctx.lineTo(cx, cy + 1); ctx.stroke()
+                break
+            case "cdrom":
+                dot(ctx, cx, cy, h * 0.55)
+                ctx.fillStyle = "rgba(255,255,255,0.35)"; dot(ctx, cx - 2, cy - 2, h * 0.3)
+                ctx.fillStyle = ink; dot(ctx, cx, cy, 2)
+                break
+            case "ram":
+                ctx.fillRect(x, y + 3, w, h - 7)
+                ctx.fillStyle = ink
+                for (var k = 0; k < 4; k++) ctx.fillRect(x + 2 + k * 5, y + 5, 3, h - 11)
+                ctx.fillStyle = "#ffd76b"
+                for (var p2 = 0; p2 < 6; p2++) ctx.fillRect(x + 1 + p2 * 3.6, y + h - 4, 2, 3)
+                break
+            case "cpu":
+                ctx.fillRect(x + 4, y + 2, w - 8, h - 4)
+                for (var q = 0; q < 4; q++) {
+                    ctx.fillRect(x + 6 + q * 3.5, y, 1.5, 2); ctx.fillRect(x + 6 + q * 3.5, y + h - 2, 1.5, 2)
+                    ctx.fillRect(x + 1, y + 4 + q * 2.5, 3, 1.2); ctx.fillRect(x + w - 4, y + 4 + q * 2.5, 3, 1.2)
+                }
+                ctx.fillStyle = ink; ctx.fillRect(cx - 3, cy - 3, 6, 6)
+                break
+            case "pacman":
+                ctx.fillStyle = "#ffd400"
+                ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, h * 0.55, 0.25 * Math.PI, 1.75 * Math.PI); ctx.closePath(); ctx.fill()
+                ctx.fillStyle = ink; dot(ctx, cx + 1, cy - 4, 1.3)
+                break
+            case "ghost":
+                ctx.beginPath(); ctx.arc(cx, cy, w * 0.36, Math.PI, 0)
+                ctx.lineTo(cx + w * 0.36, y + h)
+                for (var gx = 3; gx >= 0; gx--) ctx.lineTo(cx - w * 0.36 + gx * w * 0.24, y + h - (gx % 2 === 0 ? 0 : 3))
+                ctx.closePath(); ctx.fill()
+                ctx.fillStyle = "#ffffff"; dot(ctx, cx - 3, cy - 1, 2.2); dot(ctx, cx + 3, cy - 1, 2.2)
+                ctx.fillStyle = "#1d4ed8"; dot(ctx, cx - 2.4, cy - 1, 1); dot(ctx, cx + 3.6, cy - 1, 1)
+                break
+            case "bug":
+                dot(ctx, cx, cy + 1, h * 0.38); dot(ctx, cx, y + 3, 3)
+                ctx.lineWidth = 1.2; ctx.beginPath()
+                for (var l = -1; l <= 1; l++) {
+                    ctx.moveTo(cx - 5, cy + 1 + l * 4); ctx.lineTo(x + 1, cy + l * 5)
+                    ctx.moveTo(cx + 5, cy + 1 + l * 4); ctx.lineTo(x + w - 1, cy + l * 5)
+                }
+                ctx.moveTo(cx - 1, y + 1); ctx.lineTo(cx - 4, y - 2); ctx.moveTo(cx + 1, y + 1); ctx.lineTo(cx + 4, y - 2)
+                ctx.stroke()
+                ctx.strokeStyle = ink; ctx.beginPath(); ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 6); ctx.stroke()
+                break
+            case "usb":
+                ctx.fillRect(x + 2, y + 4, w - 9, h - 8)
+                ctx.fillStyle = "#cfd6dd"; ctx.fillRect(x + w - 7, y + 5, 6, h - 10)
+                ctx.fillStyle = ink; ctx.fillRect(x + w - 5, y + 6, 1.5, 1.5); ctx.fillRect(x + w - 5, y + h - 8, 1.5, 1.5)
+                break
+            case "wifi":
+                ctx.lineWidth = 2
+                for (var arcN = 1; arcN <= 3; arcN++) {
+                    ctx.beginPath(); ctx.arc(cx, y + h, arcN * 4.5, 1.25 * Math.PI, 1.75 * Math.PI); ctx.stroke()
+                }
+                dot(ctx, cx, y + h - 1, 1.8)
+                break
+            case "database":
+                ctx.fillRect(x + 4, y + 3, w - 8, h - 6)
+                ctx.fillStyle = "rgba(255,255,255,0.45)"
+                for (var dbk = 0; dbk < 3; dbk++) ctx.fillRect(x + 4, y + 3 + dbk * 4, w - 8, 1)
+                ctx.fillStyle = c; ctx.beginPath(); ctx.arc(cx, y + 3, (w - 8) / 2, Math.PI, 0); ctx.fill()
+                break
+            case "bsod":
+                ctx.fillStyle = "#1e40ff"; box(ctx, x, y, w, h, 2); ctx.fill()
+                ctx.fillStyle = "#ffffff"; ctx.font = "700 10px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle"
+                ctx.fillText(":(", cx, cy + 1)
+                break
             }
+        }
+
+        function drawMenace(ctx, a, menace) {
+            var x = a.x, y = a.y, w = a.w, h = a.h, cx = x + w / 2
+            if (menace >= 4) {
+                ctx.fillStyle = "#ff2030"
+                for (var s = 0; s < 3; s++) {
+                    var sy = y + 2 + s * 5
+                    ctx.beginPath(); ctx.moveTo(x, sy); ctx.lineTo(x - 4, sy + 2); ctx.lineTo(x, sy + 4); ctx.fill()
+                    ctx.beginPath(); ctx.moveTo(x + w, sy); ctx.lineTo(x + w + 4, sy + 2); ctx.lineTo(x + w, sy + 4); ctx.fill()
+                }
+            }
+            if (menace >= 1) {
+                ctx.fillStyle = "#ff1a1a"; dot(ctx, cx - 4, y + 4, 1.8); dot(ctx, cx + 4, y + 4, 1.8)
+                ctx.strokeStyle = "#05070a"; ctx.lineWidth = 1.6
+                ctx.beginPath(); ctx.moveTo(cx - 7, y + 1); ctx.lineTo(cx - 2, y + 3); ctx.moveTo(cx + 7, y + 1); ctx.lineTo(cx + 2, y + 3); ctx.stroke()
+            }
+            if (menace >= 2) {
+                ctx.fillStyle = "#ffffff"
+                for (var f = -1; f <= 1; f += 2) {
+                    ctx.beginPath(); ctx.moveTo(cx + f * 4, y + h - 1); ctx.lineTo(cx + f * 2, y + h - 1); ctx.lineTo(cx + f * 3, y + h + 3); ctx.closePath(); ctx.fill()
+                }
+            }
+        }
+
+        function drawAlien(ctx, a) {
+            var menace = root.menaceFor(root.level)
+            ctx.save()
+            if (menace >= 3) { ctx.shadowColor = "#ff2030"; ctx.shadowBlur = 4 + menace * 2 }
+            drawShape(ctx, a, tint(a.color, menace))
+            ctx.restore()
+            drawMenace(ctx, a, menace)
         }
 
         onPaint: {

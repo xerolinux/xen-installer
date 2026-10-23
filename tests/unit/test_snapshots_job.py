@@ -104,6 +104,44 @@ class TestRun:
 
 
 class TestCreateSnapperConfig:
+    def test_separate_snapshots_subvolume_follows_the_archwiki_steps(self, tmp_path: Path) -> None:
+        # ArchWiki Snapper "Configuration of snapper and mount point": create-config fails
+        # when .snapshots exists, so unmount it, let snapper create its own, delete that,
+        # then re-mount @snapshots and chmod 750.
+        target = tmp_path / "mnt"
+        (target / ".snapshots").mkdir(parents=True)
+        calls: list[list[str]] = []
+
+        def run(cmd, **_kwargs):
+            calls.append(cmd)
+            if cmd[0] == "findmnt":
+                return Mock(returncode=0, stdout="/dev/vda2[/@snapshots] rw,noatime,subvol=/@snapshots\n", stderr="")
+            return Mock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("xen.jobs.snapshots.os.path.ismount", return_value=True),
+            patch("subprocess.run", side_effect=run),
+        ):
+            result = SnapshotsJob()._create_snapper_config(str(target))
+
+        assert result.success is True
+        snap = str(target / ".snapshots")
+        names = [c[0] if c[0] != "arch-chroot" else c[2] for c in calls]
+        assert names == ["findmnt", "umount", "snapper", "btrfs", "mount"]
+        assert calls[1] == ["umount", snap]
+        assert calls[3] == ["btrfs", "subvolume", "delete", snap]
+        assert calls[4] == ["mount", "-o", "rw,noatime,subvol=/@snapshots", "/dev/vda2", snap]
+        assert (target / ".snapshots").is_dir()
+        assert (target / ".snapshots").stat().st_mode & 0o777 == 0o750
+
+    @patch("subprocess.run")
+    def test_plain_snapshots_folder_keeps_snapper_default(self, mock_run: Mock, tmp_path: Path) -> None:
+        mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+        with patch("xen.jobs.snapshots.os.path.ismount", return_value=False):
+            result = SnapshotsJob()._create_snapper_config(str(tmp_path))
+        assert result.success is True
+        assert [c.args[0][2] for c in mock_run.call_args_list] == ["snapper"]
+
     @patch("subprocess.run")
     def test_failure_reported(self, mock_run: Mock) -> None:
         mock_run.return_value = Mock(returncode=1, stdout="", stderr="subvolume must exist")

@@ -4,24 +4,11 @@
 #   xen-app                    - the installer application (Python/PySide6)
 #   xen-cfg-xerolinux          - job pipeline config for the Intel/AMD ISO
 #   xen-cfg-xerolinux-nvidia   - job pipeline config for the nVidia ISO
-#
-# The two config packages are mutually exclusive (each installs to the same
-# /etc/xen/xerolinux.yaml filename, which xen auto-detects, so nothing needs
-# to know which GPU profile is installed) - only the file content differs:
-# services enabled and the finalize script list (nouveau vs nvramfs). Each
-# profile runs online or offline from that one file - see xerolinux.yaml's
-# own header comment for how the offline-skip works.
-#
-# Built locally from this repo checkout (../../ from this PKGBUILD's own
-# directory is the XeroInstaller repo root) - no separate git source until
-# these packages are split into their own repos, matching how the Calamares
-# equivalents (calamaresx-app / calamaresx-cfg / calamaresx-nv-cfg) each
-# live in their own repo.
 
 pkgbase=xen-installer
 pkgname=(xen-app xen-cfg-xerolinux xen-cfg-xerolinux-nvidia)
 pkgver=0.2.0
-pkgrel=4
+pkgrel=9
 arch=('any')
 url="https://xerolinux.xyz"
 license=('GPL-3.0-or-later')

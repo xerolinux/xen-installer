@@ -8,6 +8,7 @@ live squashfs) - this job just invokes them, in order, via arch-chroot.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -51,6 +52,9 @@ class FinalizeJob(BaseJob):
         timeout = self._config.get("timeout", 300)
         total = len(commands)
         failed: list[str] = []
+        # Scripts that run pacman would otherwise leave snap-pac pre/post pairs ahead of
+        # the "Fresh installation" snapshot. arch-chroot passes the environment through.
+        env = {**os.environ, "SNAP_PAC_SKIP": "y"}
 
         for index, command in enumerate(commands):
             context.report_progress(
@@ -58,7 +62,9 @@ class FinalizeJob(BaseJob):
             )
             cmd = ["arch-chroot", target_root, command]
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=timeout, env=env
+                )
                 if result.returncode != 0:
                     logger.warning(
                         f"{self._label} script {command} exited "

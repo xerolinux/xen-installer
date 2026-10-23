@@ -155,7 +155,9 @@ DEFAULT_ROWS = [
     ("@tmp", "/var/tmp"),
     ("@log", "/var/log"),
     ("@swap", "/swap"),
+    ("@snapshots", "/.snapshots"),
 ]
+N = len(DEFAULT_ROWS)
 
 
 def test_defaults_label(qapp, ui) -> None:
@@ -163,7 +165,7 @@ def test_defaults_label(qapp, ui) -> None:
     for mode in ("auto", "alongside"):
         bridge.setPartitionMode(mode)
         _settle(qapp)
-        assert _visible(window, "subvolumesSummary").property("text") == "Default (8)"
+        assert _visible(window, "subvolumesSummary").property("text") == f"Default ({N})"
         assert _visible(window, "subvolumesEditButton")
 
     custom = [{"name": "@", "mountpoint": "/"}, {"name": "@data", "mountpoint": "/data"}]
@@ -193,12 +195,12 @@ def test_edit_and_save_updates_engine(qapp, ui) -> None:
     _click(qapp, window, _visible(window, "subvolumesSaveButton"))
     assert dialog.property("visible") is False
     assert json.loads(bridge.btrfsSubvolumes)[1] == {"name": "@home", "mountpoint": "/home2"}
-    assert _visible(window, "subvolumesSummary").property("text") == "Custom (8)"
+    assert _visible(window, "subvolumesSummary").property("text") == f"Custom ({N})"
 
     _open(qapp, window)
     _click(qapp, window, _visible(window, "subvolumeRemove_7"))
     _click(qapp, window, _visible(window, "subvolumesCancelButton"))
-    assert len(json.loads(bridge.btrfsSubvolumes)) == 8
+    assert len(json.loads(bridge.btrfsSubvolumes)) == N
     assert not _qml_problems(messages), _qml_problems(messages)
 
 
@@ -207,7 +209,7 @@ def test_cannot_remove_root_subvolume(qapp, ui) -> None:
     _open(qapp, window)
     removable = {it.objectName() for it in _visible_names(window, "subvolumeRemove_")}
     assert "subvolumeRemove_0" not in removable
-    assert removable == {f"subvolumeRemove_{i}" for i in range(1, 8)}
+    assert removable == {f"subvolumeRemove_{i}" for i in range(1, N)}
 
     _click(qapp, window, _visible(window, "subvolumeRemove_1"))
     assert _rows(window) == [DEFAULT_ROWS[0], *DEFAULT_ROWS[2:]]
@@ -221,23 +223,23 @@ def test_invalid_disables_save(qapp, ui) -> None:
     assert not _visible_names(window, "subvolumesError")
 
     _click(qapp, window, _visible(window, "subvolumesAddButton"))
-    assert len(_rows(window)) == 9
+    assert len(_rows(window)) == N + 1
     assert save.property("enabled") is False
     assert not _visible_names(window, "subvolumesError")
 
-    _visible(window, "subvolumeName_8").setProperty("text", "@data")
+    _visible(window, f"subvolumeName_{N}").setProperty("text", "@data")
     _settle(qapp)
     assert save.property("enabled") is False
     assert _visible(window, "subvolumesError").property("text") == bridge.validateBtrfsSubvolumes(
         json.dumps([{"name": n, "mountpoint": m} for n, m in [*DEFAULT_ROWS, ("@data", "")]])
     )
 
-    _visible(window, "subvolumeMount_8").setProperty("text", "/home")
+    _visible(window, f"subvolumeMount_{N}").setProperty("text", "/home")
     _settle(qapp)
     assert save.property("enabled") is False
     assert "Duplicate subvolume mountpoint" in _visible(window, "subvolumesError").property("text")
 
-    _visible(window, "subvolumeMount_8").setProperty("text", "/data")
+    _visible(window, f"subvolumeMount_{N}").setProperty("text", "/data")
     _settle(qapp)
     assert save.property("enabled") is True
     assert not _visible_names(window, "subvolumesError")
@@ -258,7 +260,7 @@ def test_restore_defaults(qapp, ui) -> None:
     assert _rows(window) == DEFAULT_ROWS
     _click(qapp, window, _visible(window, "subvolumesSaveButton"))
     assert json.loads(bridge.btrfsSubvolumes) == json.loads(bridge.defaultBtrfsSubvolumes)
-    assert _visible(window, "subvolumesSummary").property("text") == "Default (8)"
+    assert _visible(window, "subvolumesSummary").property("text") == f"Default ({N})"
 
 
 def test_blank_row_error_shows_once_save_is_attempted(qapp, ui) -> None:
@@ -280,19 +282,19 @@ def test_failed_commit_keeps_dialog_open(qapp, ui) -> None:
     _click(qapp, window, _visible(window, "subvolumeRemove_7"))
     _click(qapp, window, _visible(window, "subvolumesSaveButton"))
     assert dialog.property("visible") is True
-    assert len(json.loads(bridge.btrfsSubvolumes)) == 8
+    assert len(json.loads(bridge.btrfsSubvolumes)) == N
 
 
 def test_root_row_follows_identity_not_text(qapp, ui) -> None:
     window, _bridge, _messages = ui
     _open(qapp, window)
     _click(qapp, window, _visible(window, "subvolumesAddButton"))
-    _visible(window, "subvolumeName_8").setProperty("text", "@")
-    _visible(window, "subvolumeMount_8").setProperty("text", "/")
+    _visible(window, f"subvolumeName_{N}").setProperty("text", "@")
+    _visible(window, f"subvolumeMount_{N}").setProperty("text", "/")
     _visible(window, "subvolumeMount_0").setProperty("text", "/old")
     _settle(qapp)
     removable = {it.objectName() for it in _visible_names(window, "subvolumeRemove_")}
-    assert "subvolumeRemove_8" in removable
+    assert f"subvolumeRemove_{N}" in removable
     assert "subvolumeRemove_0" not in removable
 
 

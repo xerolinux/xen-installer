@@ -35,6 +35,18 @@ class TestRun:
             assert commands[1] == ["arch-chroot", tmpdir, "/usr/local/bin/nouveau"]
 
     @patch("subprocess.run")
+    def test_scripts_run_without_snap_pac_snapshots(self, mock_run: Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+            job = FinalizeJob({"commands": ["/usr/local/bin/ucode"]})
+
+            job.run(JobContext(target_root=tmpdir))
+
+            env = mock_run.call_args_list[0].kwargs["env"]
+            assert env["SNAP_PAC_SKIP"] == "y"
+            assert env["PATH"]
+
+    @patch("subprocess.run")
     def test_failing_command_is_non_fatal(self, mock_run: Mock) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_run.return_value = Mock(returncode=1, stdout="", stderr="boom")

@@ -9,32 +9,32 @@
         <translation>ਮੌਜੂਦਾ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="98"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="97"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="107"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="106"/>
         <source>After:</source>
         <translation>ਬਾਅਦ ਵਿੱਚ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="142"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="141"/>
         <source>Size of the new partition</source>
         <translation>ਨਵੇਂ ਪਾਰਟੀਸ਼ਨ ਦਾ ਆਕਾਰ</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="198"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="197"/>
         <source>%1 will be shrunk to %2 and a new %3 partition will be created for %4.</source>
         <translation>%1 ਨੂੰ ਘਟਾ ਕੇ %2 ਕੀਤਾ ਜਾਵੇਗਾ ਅਤੇ %4 ਲਈ ਇੱਕ ਨਵਾਂ %3 ਪਾਰਟੀਸ਼ਨ ਬਣਾਇਆ ਜਾਵੇਗਾ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="219"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="218"/>
         <source>The EFI system partition at %1 will be reused (not formatted).</source>
         <translation>%1 ਉੱਤੇ ਮੌਜੂਦ EFI ਸਿਸਟਮ ਪਾਰਟੀਸ਼ਨ ਮੁੜ ਵਰਤਿਆ ਜਾਵੇਗਾ (ਫਾਰਮੈਟ ਨਹੀਂ ਹੋਵੇਗਾ)।</translation>
     </message>
     <message>
-        <location filename="../qml/components/AlongsidePanel.qml" line="233"/>
+        <location filename="../qml/components/AlongsidePanel.qml" line="232"/>
         <source>EFI system partition:</source>
         <translation>EFI ਸਿਸਟਮ ਪਾਰਟੀਸ਼ਨ:</translation>
     </message>
@@ -90,128 +90,128 @@
 <context>
     <name>FinishedView</name>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Complete!</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਪੂਰੀ ਹੋ ਗਈ!</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="191"/>
+        <location filename="../qml/components/FinishedView.qml" line="190"/>
         <source>Installation Failed</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਅਸਫਲ ਰਹੀ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="200"/>
+        <location filename="../qml/components/FinishedView.qml" line="199"/>
         <source>The system has been successfully installed on your computer</source>
         <translation>ਸਿਸਟਮ ਤੁਹਾਡੇ ਕੰਪਿਊਟਰ ਉੱਤੇ ਸਫਲਤਾ ਨਾਲ ਇੰਸਟਾਲ ਹੋ ਗਿਆ ਹੈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="201"/>
+        <location filename="../qml/components/FinishedView.qml" line="200"/>
         <source>An error occurred during installation</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦੌਰਾਨ ਇੱਕ ਗਲਤੀ ਆਈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="244"/>
+        <location filename="../qml/components/FinishedView.qml" line="243"/>
         <source>Installation Summary</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦਾ ਸਾਰ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="262"/>
+        <location filename="../qml/components/FinishedView.qml" line="261"/>
         <source>Distribution:</source>
         <translation>ਡਿਸਟ੍ਰੀਬਿਊਸ਼ਨ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="281"/>
+        <location filename="../qml/components/FinishedView.qml" line="280"/>
         <source>Installation Target:</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦਾ ਟਿਕਾਣਾ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="288"/>
-        <location filename="../qml/components/FinishedView.qml" line="307"/>
+        <location filename="../qml/components/FinishedView.qml" line="287"/>
+        <location filename="../qml/components/FinishedView.qml" line="306"/>
         <source>Unknown</source>
         <translation>ਅਣਜਾਣ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="300"/>
+        <location filename="../qml/components/FinishedView.qml" line="299"/>
         <source>Installation Time:</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦਾ ਸਮਾਂ:</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="332"/>
+        <location filename="../qml/components/FinishedView.qml" line="331"/>
         <source>Error Details</source>
         <translation>ਗਲਤੀ ਦਾ ਵੇਰਵਾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="352"/>
+        <location filename="../qml/components/FinishedView.qml" line="351"/>
         <source>An unknown error occurred during installation</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦੌਰਾਨ ਇੱਕ ਅਣਜਾਣ ਗਲਤੀ ਆਈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="365"/>
+        <location filename="../qml/components/FinishedView.qml" line="364"/>
         <source>View Full Logs</source>
         <translation>ਪੂਰੇ ਲੌਗ ਵੇਖੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="387"/>
+        <location filename="../qml/components/FinishedView.qml" line="386"/>
         <source>Send Logs</source>
         <translation>ਲੌਗ ਭੇਜੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="424"/>
+        <location filename="../qml/components/FinishedView.qml" line="423"/>
         <source>The log will be sent to a public paste service.</source>
         <translation>ਲੌਗ ਇੱਕ ਜਨਤਕ ਪੇਸਟ ਸੇਵਾ ਨੂੰ ਭੇਜਿਆ ਜਾਵੇਗਾ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="441"/>
+        <location filename="../qml/components/FinishedView.qml" line="440"/>
         <source>Sending…</source>
         <translation>ਭੇਜਿਆ ਜਾ ਰਿਹਾ ਹੈ…</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="473"/>
+        <location filename="../qml/components/FinishedView.qml" line="472"/>
         <source>Copy</source>
         <translation>ਕਾਪੀ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="501"/>
+        <location filename="../qml/components/FinishedView.qml" line="500"/>
         <source>Sending failed: </source>
         <translation>ਭੇਜਣਾ ਅਸਫਲ ਰਿਹਾ: </translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="528"/>
+        <location filename="../qml/components/FinishedView.qml" line="527"/>
         <source>Reboot Now</source>
         <translation>ਹੁਣੇ ਰੀਬੂਟ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="597"/>
+        <location filename="../qml/components/FinishedView.qml" line="596"/>
         <source>Shutdown</source>
         <translation>ਸ਼ਟਡਾਊਨ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="649"/>
+        <location filename="../qml/components/FinishedView.qml" line="648"/>
         <source>Continue</source>
         <translation>ਜਾਰੀ ਰੱਖੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="709"/>
+        <location filename="../qml/components/FinishedView.qml" line="708"/>
         <source>Retry Installation</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦੁਬਾਰਾ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="759"/>
+        <location filename="../qml/components/FinishedView.qml" line="758"/>
         <source>Exit Installer</source>
         <translation>ਇੰਸਟਾਲਰ ਤੋਂ ਬਾਹਰ ਜਾਓ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="802"/>
+        <location filename="../qml/components/FinishedView.qml" line="801"/>
         <source>Please remove the installation media before rebooting</source>
         <translation>ਰੀਬੂਟ ਕਰਨ ਤੋਂ ਪਹਿਲਾਂ ਕਿਰਪਾ ਕਰਕੇ ਇੰਸਟਾਲੇਸ਼ਨ ਮੀਡੀਆ ਹਟਾ ਦਿਓ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="803"/>
+        <location filename="../qml/components/FinishedView.qml" line="802"/>
         <source>Check the logs for more details about the error</source>
         <translation>ਗਲਤੀ ਬਾਰੇ ਹੋਰ ਜਾਣਕਾਰੀ ਲਈ ਲੌਗ ਵੇਖੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/FinishedView.qml" line="840"/>
+        <location filename="../qml/components/FinishedView.qml" line="839"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen Installer ਦੁਆਰਾ ਸੰਚਾਲਿਤ</translation>
     </message>
@@ -471,22 +471,22 @@
         <translation>ਲੇਆਉਟ</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="186"/>
+        <location filename="../qml/components/KeyboardView.qml" line="185"/>
         <source>Select...</source>
         <translation>ਚੁਣੋ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="187"/>
+        <location filename="../qml/components/KeyboardView.qml" line="186"/>
         <source>Search layouts...</source>
         <translation>ਲੇਆਉਟ ਖੋਜੋ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="212"/>
+        <location filename="../qml/components/KeyboardView.qml" line="211"/>
         <source>Variant</source>
         <translation>ਰੂਪ</translation>
     </message>
     <message>
-        <location filename="../qml/components/KeyboardView.qml" line="226"/>
+        <location filename="../qml/components/KeyboardView.qml" line="224"/>
         <source>Search variants...</source>
         <translation>ਰੂਪ ਖੋਜੋ...</translation>
     </message>
@@ -504,17 +504,17 @@
         <translation>ਨਕਸ਼ੇ ਉੱਤੇ ਆਪਣਾ ਸਮਾਂ ਖੇਤਰ ਚੁਣੋ ਜਾਂ ਹੇਠਾਂ ਖੋਜੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="153"/>
+        <location filename="../qml/components/LocaleView.qml" line="152"/>
         <source>Zoom in on the map to see more locations</source>
         <translation>ਹੋਰ ਟਿਕਾਣੇ ਵੇਖਣ ਲਈ ਨਕਸ਼ੇ ਨੂੰ ਜ਼ੂਮ ਇਨ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="169"/>
+        <location filename="../qml/components/LocaleView.qml" line="168"/>
         <source>Select timezone...</source>
         <translation>ਸਮਾਂ ਖੇਤਰ ਚੁਣੋ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/LocaleView.qml" line="170"/>
+        <location filename="../qml/components/LocaleView.qml" line="169"/>
         <source>Search timezones...</source>
         <translation>ਸਮਾਂ ਖੇਤਰ ਖੋਜੋ...</translation>
     </message>
@@ -573,53 +573,53 @@
         <translation>ਮੁਕੰਮਲ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="563"/>
+        <location filename="../qml/Main.qml" line="558"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen Installer ਦੁਆਰਾ ਸੰਚਾਲਿਤ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="605"/>
+        <location filename="../qml/Main.qml" line="600"/>
         <source>Back</source>
         <translation>ਪਿੱਛੇ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Install</source>
         <translation>ਇੰਸਟਾਲ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="631"/>
+        <location filename="../qml/Main.qml" line="626"/>
         <source>Next</source>
         <translation>ਅੱਗੇ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="806"/>
+        <location filename="../qml/Main.qml" line="804"/>
         <source>Installation Logs</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਲੌਗ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="889"/>
+        <location filename="../qml/Main.qml" line="887"/>
         <source>Sending…</source>
         <translation>ਭੇਜਿਆ ਜਾ ਰਿਹਾ ਹੈ…</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="918"/>
-        <location filename="../qml/Main.qml" line="965"/>
+        <location filename="../qml/Main.qml" line="916"/>
+        <location filename="../qml/Main.qml" line="963"/>
         <source>Copy</source>
         <translation>ਕਾਪੀ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="946"/>
+        <location filename="../qml/Main.qml" line="944"/>
         <source>Sending failed: </source>
         <translation>ਭੇਜਣਾ ਅਸਫਲ ਰਿਹਾ: </translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="974"/>
+        <location filename="../qml/Main.qml" line="972"/>
         <source>Send Logs</source>
         <translation>ਲੌਗ ਭੇਜੋ</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="987"/>
+        <location filename="../qml/Main.qml" line="985"/>
         <source>Close</source>
         <translation>ਬੰਦ ਕਰੋ</translation>
     </message>
@@ -732,48 +732,53 @@
         <translation>(ਕੋਈ ਮਾਊਂਟ ਪੁਆਇੰਟ ਨਹੀਂ)</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="577"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="578"/>
+        <source>(root)</source>
+        <translation>(ਰੂਟ)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="584"/>
         <source>FS Label</source>
         <translation>FS ਲੇਬਲ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="582"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="589"/>
         <source>optional</source>
         <translation>ਵਿਕਲਪਿਕ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="590"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="597"/>
         <source>Encrypt</source>
         <translation>ਏਨਕ੍ਰਿਪਟ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="619"/>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="629"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="626"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
         <source>Passphrase</source>
         <translation>ਪਾਸਫ਼੍ਰੇਜ਼</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="636"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="643"/>
         <source>Confirm passphrase</source>
         <translation>ਪਾਸਫ਼੍ਰੇਜ਼ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="641"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="648"/>
         <source>At least 8 characters. It also unlocks the other encrypted partitions.</source>
         <translation>ਘੱਟੋ-ਘੱਟ 8 ਅੱਖਰ। ਇਹ ਹੋਰ ਏਨਕ੍ਰਿਪਟ ਕੀਤੇ ਪਾਰਟੀਸ਼ਨ ਵੀ ਖੋਲ੍ਹਦਾ ਹੈ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="646"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="653"/>
         <source>Passphrases do not match.</source>
         <translation>ਪਾਸਫ਼੍ਰੇਜ਼ ਮੇਲ ਨਹੀਂ ਖਾਂਦੇ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="658"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
         <source>Cancel</source>
         <translation>ਰੱਦ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ManualPartitionDialog.qml" line="665"/>
+        <location filename="../qml/components/ManualPartitionDialog.qml" line="672"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -3973,7 +3978,7 @@
         <translation>(ਲੋੜੀਂਦਾ)</translation>
     </message>
     <message>
-        <location filename="../qml/components/PackageChooserView.qml" line="386"/>
+        <location filename="../qml/components/PackageChooserView.qml" line="385"/>
         <source>Single package - toggle it from the list on the left.</source>
         <translation>ਇੱਕੋ ਪੈਕੇਜ - ਇਸਨੂੰ ਖੱਬੇ ਪਾਸੇ ਦੀ ਸੂਚੀ ਤੋਂ ਚੁਣੋ ਜਾਂ ਹਟਾਓ।</translation>
     </message>
@@ -4250,118 +4255,168 @@
 <context>
     <name>ProgressView</name>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="97"/>
+        <location filename="../qml/components/ProgressView.qml" line="95"/>
         <source>Installing...</source>
         <translation>ਇੰਸਟਾਲ ਹੋ ਰਿਹਾ ਹੈ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="105"/>
+        <location filename="../qml/components/ProgressView.qml" line="103"/>
         <source>Please wait while the system is being installed</source>
         <translation>ਕਿਰਪਾ ਕਰਕੇ ਉਡੀਕ ਕਰੋ, ਸਿਸਟਮ ਇੰਸਟਾਲ ਹੋ ਰਿਹਾ ਹੈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="150"/>
+        <location filename="../qml/components/ProgressView.qml" line="148"/>
         <source>Installing And Booting The Matrix...</source>
         <translation>ਮੈਟ੍ਰਿਕਸ ਇੰਸਟਾਲ ਅਤੇ ਬੂਟ ਹੋ ਰਿਹਾ ਹੈ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="235"/>
+        <location filename="../qml/components/ProgressView.qml" line="233"/>
         <source>I&apos;m building you Arch, with the sharp edges filed off.</source>
         <translation>ਮੈਂ ਤੁਹਾਡੇ ਲਈ Arch ਬਣਾ ਰਿਹਾ ਹਾਂ, ਤਿੱਖੇ ਕਿਨਾਰੇ ਘਸਾ ਕੇ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="236"/>
+        <location filename="../qml/components/ProgressView.qml" line="234"/>
         <source>I&apos;m setting up a fully configured KDE Plasma 6 desktop on top of Arch, ready to go.</source>
         <translation>ਮੈਂ Arch ਦੇ ਉੱਪਰ ਪੂਰੀ ਤਰ੍ਹਾਂ ਸੰਰਚਿਤ KDE Plasma 6 ਡੈਸਕਟਾਪ ਤਿਆਰ ਕਰ ਰਿਹਾ ਹਾਂ, ਵਰਤਣ ਲਈ ਤਿਆਰ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="237"/>
+        <location filename="../qml/components/ProgressView.qml" line="235"/>
         <source>Once I&apos;m done, you&apos;ll have full pacman and the AUR at your fingertips - the whole Arch ecosystem, no extra setup.</source>
         <translation>ਮੇਰੇ ਪੂਰਾ ਹੋਣ ਤੋਂ ਬਾਅਦ, ਪੂਰਾ pacman ਅਤੇ AUR ਤੁਹਾਡੇ ਹੱਥ ਵਿੱਚ ਹੋਵੇਗਾ - ਪੂਰਾ Arch ਈਕੋਸਿਸਟਮ, ਬਿਨਾਂ ਕਿਸੇ ਵਾਧੂ ਸੈੱਟਅੱਪ ਦੇ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="238"/>
+        <location filename="../qml/components/ProgressView.qml" line="236"/>
         <source>I include a Kernel Manager, so you can swap in CachyOS or other tuned kernels whenever you like.</source>
         <translation>ਮੇਰੇ ਵਿੱਚ ਇੱਕ Kernel Manager ਸ਼ਾਮਲ ਹੈ, ਤਾਂ ਜੋ ਤੁਸੀਂ ਜਦੋਂ ਚਾਹੋ CachyOS ਜਾਂ ਹੋਰ ਟਿਊਨ ਕੀਤੇ ਕਰਨਲ ਵਰਤ ਸਕੋ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="239"/>
+        <location filename="../qml/components/ProgressView.qml" line="237"/>
         <source>I&apos;m laying down a performance profile with real, measurable gains for gaming and latency-sensitive work.</source>
         <translation>ਮੈਂ ਗੇਮਿੰਗ ਅਤੇ ਘੱਟ ਲੇਟੈਂਸੀ ਵਾਲੇ ਕੰਮਾਂ ਲਈ ਅਸਲ, ਮਾਪਣਯੋਗ ਫ਼ਾਇਦਿਆਂ ਵਾਲਾ ਪਰਫਾਰਮੈਂਸ ਪ੍ਰੋਫ਼ਾਈਲ ਲਗਾ ਰਿਹਾ ਹਾਂ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="240"/>
+        <location filename="../qml/components/ProgressView.qml" line="238"/>
         <source>Sane defaults today, full tuning power later - I&apos;m giving you both.</source>
         <translation>ਅੱਜ ਸਮਝਦਾਰ ਮੂਲ ਸੈਟਿੰਗਾਂ, ਬਾਅਦ ਵਿੱਚ ਪੂਰੀ ਟਿਊਨਿੰਗ ਦੀ ਤਾਕਤ - ਮੈਂ ਤੁਹਾਨੂੰ ਦੋਵੇਂ ਦੇ ਰਿਹਾ ਹਾਂ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <location filename="../qml/components/ProgressView.qml" line="239"/>
         <source>I&apos;m installing the XeroLinux Toolkit too, so post-install setup stays out of the terminal unless you want it there.</source>
         <translation>ਮੈਂ XeroLinux Toolkit ਵੀ ਇੰਸਟਾਲ ਕਰ ਰਿਹਾ ਹਾਂ, ਤਾਂ ਜੋ ਇੰਸਟਾਲ ਤੋਂ ਬਾਅਦ ਦਾ ਸੈੱਟਅੱਪ ਟਰਮੀਨਲ ਤੋਂ ਬਾਹਰ ਰਹੇ, ਜਦੋਂ ਤੱਕ ਤੁਸੀਂ ਖ਼ੁਦ ਉੱਥੇ ਨਾ ਚਾਹੋ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <location filename="../qml/components/ProgressView.qml" line="240"/>
         <source>This is a rolling release - once I finish, updates just keep flowing straight from upstream Arch.</source>
         <translation>ਇਹ ਰੋਲਿੰਗ ਰਿਲੀਜ਼ ਹੈ - ਮੇਰੇ ਪੂਰਾ ਹੋਣ ਤੋਂ ਬਾਅਦ, ਅੱਪਡੇਟ ਸਿੱਧੇ ਅੱਪਸਟ੍ਰੀਮ Arch ਤੋਂ ਆਉਂਦੇ ਰਹਿਣਗੇ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="271"/>
+        <location filename="../qml/components/ProgressView.qml" line="241"/>
+        <source>Picked Btrfs? I&apos;m setting up Snapper snapshots, and you can boot an older one straight from the GRUB menu.</source>
+        <translation>Btrfs ਚੁਣਿਆ ਹੈ? ਮੈਂ Snapper ਸਨੈਪਸ਼ਾਟ ਸੈੱਟ ਕਰ ਰਿਹਾ ਹਾਂ, ਅਤੇ ਤੁਸੀਂ GRUB ਮੀਨੂ ਤੋਂ ਹੀ ਪੁਰਾਣਾ ਸਨੈਪਸ਼ਾਟ ਬੂਟ ਕਰ ਸਕਦੇ ਹੋ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="242"/>
+        <source>Kept Windows? It stays one pick away in the GRUB boot menu every time you start up.</source>
+        <translation>Windows ਰੱਖਿਆ ਹੈ? ਹਰ ਵਾਰ ਚਾਲੂ ਕਰਨ ਵੇਲੇ ਇਹ GRUB ਬੂਟ ਮੀਨੂ ਵਿੱਚ ਇੱਕ ਚੋਣ ਦੂਰ ਹੀ ਰਹੇਗਾ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="243"/>
+        <source>Encrypted your disk? You&apos;ll type the passphrase once at boot, and I make sure everything else unlocks on its own.</source>
+        <translation>ਡਿਸਕ ਏਨਕ੍ਰਿਪਟ ਕੀਤੀ ਹੈ? ਤੁਸੀਂ ਬੂਟ ਵੇਲੇ ਪਾਸਫ਼੍ਰੇਜ਼ ਇੱਕ ਵਾਰ ਲਿਖੋਗੇ, ਅਤੇ ਬਾਕੀ ਸਭ ਕੁਝ ਆਪਣੇ-ਆਪ ਅਨਲਾਕ ਹੋ ਜਾਵੇ, ਇਹ ਮੈਂ ਯਕੀਨੀ ਬਣਾਉਂਦਾ ਹਾਂ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="244"/>
+        <source>One command keeps it all fresh: pacman -Syu updates the system, the apps and the kernel together.</source>
+        <translation>ਇੱਕ ਕਮਾਂਡ ਸਭ ਕੁਝ ਤਾਜ਼ਾ ਰੱਖਦੀ ਹੈ: pacman -Syu ਸਿਸਟਮ, ਐਪਾਂ ਅਤੇ ਕਰਨਲ ਨੂੰ ਇਕੱਠੇ ਅੱਪਡੇਟ ਕਰਦੀ ਹੈ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="245"/>
+        <source>The AUR holds tens of thousands of community packages, from niche tools to the newest apps.</source>
+        <translation>AUR ਵਿੱਚ ਕਮਿਊਨਿਟੀ ਦੇ ਦਸਾਂ ਹਜ਼ਾਰਾਂ ਪੈਕੇਜ ਹਨ, ਖ਼ਾਸ ਟੂਲਾਂ ਤੋਂ ਲੈ ਕੇ ਨਵੀਨਤਮ ਐਪਾਂ ਤੱਕ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="246"/>
+        <source>Stuck on something later? The Arch Wiki is one of the best Linux manuals around, and it all applies to your new system.</source>
+        <translation>ਬਾਅਦ ਵਿੱਚ ਕਿਤੇ ਅਟਕ ਗਏ? Arch Wiki ਸਭ ਤੋਂ ਵਧੀਆ Linux ਮੈਨੁਅਲਾਂ ਵਿੱਚੋਂ ਇੱਕ ਹੈ, ਅਤੇ ਇਹ ਸਭ ਤੁਹਾਡੇ ਨਵੇਂ ਸਿਸਟਮ ਉੱਤੇ ਲਾਗੂ ਹੁੰਦਾ ਹੈ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="247"/>
+        <source>Right-click the desktop once I&apos;m done: Plasma lets you reshape almost everything you see.</source>
+        <translation>ਮੇਰੇ ਪੂਰਾ ਹੋਣ ਤੋਂ ਬਾਅਦ ਡੈਸਕਟਾਪ ਉੱਤੇ ਰਾਈਟ-ਕਲਿੱਕ ਕਰੋ: Plasma ਤੁਹਾਨੂੰ ਦਿਸਦੀ ਲਗਭਗ ਹਰ ਚੀਜ਼ ਦਾ ਰੂਪ ਬਦਲਣ ਦਿੰਦਾ ਹੈ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="248"/>
+        <source>I keep a full log of every step. If anything goes wrong, one click sends it so you can get help fast.</source>
+        <translation>ਮੈਂ ਹਰ ਕਦਮ ਦਾ ਪੂਰਾ ਲੌਗ ਰੱਖਦਾ ਹਾਂ। ਕੁਝ ਗਲਤ ਹੋ ਜਾਵੇ ਤਾਂ ਇੱਕ ਕਲਿੱਕ ਨਾਲ ਇਹ ਭੇਜ ਦਿਓ, ਤਾਂ ਜੋ ਜਲਦੀ ਮਦਦ ਮਿਲੇ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="249"/>
+        <source>Bored while I work? Hit Play a Game and defend your desktop from a wave of geeky invaders.</source>
+        <translation>ਜਦੋਂ ਮੈਂ ਕੰਮ ਕਰ ਰਿਹਾ ਹਾਂ ਤਾਂ ਬੋਰ ਹੋ ਰਹੇ ਹੋ? ਗੇਮ ਖੇਡੋ ਦਬਾਓ ਅਤੇ ਗੀਕੀ ਹਮਲਾਵਰਾਂ ਦੀ ਲਹਿਰ ਤੋਂ ਆਪਣੇ ਡੈਸਕਟਾਪ ਨੂੰ ਬਚਾਓ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="250"/>
+        <source>Keep the power and the USB stick connected until I tell you I&apos;m done.</source>
+        <translation>ਜਦੋਂ ਤੱਕ ਮੈਂ ਨਾ ਦੱਸਾਂ ਕਿ ਮੈਂ ਪੂਰਾ ਹੋ ਗਿਆ ਹਾਂ, ਪਾਵਰ ਅਤੇ USB ਸਟਿੱਕ ਜੁੜੇ ਰੱਖੋ।</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/ProgressView.qml" line="279"/>
         <source>Did you know?</source>
         <translation>ਕੀ ਤੁਸੀਂ ਜਾਣਦੇ ਹੋ?</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>Preparing</source>
         <translation>ਤਿਆਰੀ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="309"/>
+        <location filename="../qml/components/ProgressView.qml" line="317"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="331"/>
+        <location filename="../qml/components/ProgressView.qml" line="339"/>
         <source>Working...</source>
         <translation>ਕੰਮ ਚੱਲ ਰਿਹਾ ਹੈ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="340"/>
+        <location filename="../qml/components/ProgressView.qml" line="348"/>
         <source>This can take several minutes; the interface may seem slow.</source>
         <translation>ਇਸ ਵਿੱਚ ਕਈ ਮਿੰਟ ਲੱਗ ਸਕਦੇ ਹਨ; ਇੰਟਰਫ਼ੇਸ ਹੌਲੀ ਲੱਗ ਸਕਦਾ ਹੈ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="442"/>
+        <location filename="../qml/components/ProgressView.qml" line="450"/>
         <source>Show Progress Output</source>
         <translation>ਪ੍ਰਗਤੀ ਦਾ ਆਊਟਪੁੱਟ ਵੇਖੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="454"/>
+        <location filename="../qml/components/ProgressView.qml" line="462"/>
         <source>👾 Play a Game</source>
         <translation>👾 ਗੇਮ ਖੇਡੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="467"/>
+        <location filename="../qml/components/ProgressView.qml" line="475"/>
         <source>Do not turn off your computer during installation</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਦੌਰਾਨ ਆਪਣਾ ਕੰਪਿਊਟਰ ਬੰਦ ਨਾ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="513"/>
+        <location filename="../qml/components/ProgressView.qml" line="521"/>
         <source>Installation Log</source>
         <translation>ਇੰਸਟਾਲੇਸ਼ਨ ਲੌਗ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="520"/>
-        <location filename="../qml/components/ProgressView.qml" line="635"/>
+        <location filename="../qml/components/ProgressView.qml" line="528"/>
+        <location filename="../qml/components/ProgressView.qml" line="642"/>
         <source>Close</source>
         <translation>ਬੰਦ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="603"/>
+        <location filename="../qml/components/ProgressView.qml" line="610"/>
         <source>Space Invaders</source>
         <translation>Space Invaders</translation>
     </message>
     <message>
-        <location filename="../qml/components/ProgressView.qml" line="624"/>
+        <location filename="../qml/components/ProgressView.qml" line="631"/>
         <source>Restart</source>
         <translation>ਮੁੜ ਸ਼ੁਰੂ ਕਰੋ</translation>
     </message>
@@ -4405,37 +4460,37 @@
 <context>
     <name>SpaceInvadersGame</name>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="320"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="482"/>
         <source>LEVEL %1</source>
         <translation>ਲੈਵਲ %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="328"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="490"/>
         <source>GAME OVER</source>
         <translation>ਗੇਮ ਖ਼ਤਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="331"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="493"/>
         <source>Reached level %1 · score %2</source>
         <translation>ਲੈਵਲ %1 ਤੱਕ ਪਹੁੰਚੇ · ਸਕੋਰ %2</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="332"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="494"/>
         <source>Press R or the button below to play again</source>
         <translation>ਦੁਬਾਰਾ ਖੇਡਣ ਲਈ R ਜਾਂ ਹੇਠਾਂ ਦਿੱਤਾ ਬਟਨ ਦਬਾਓ</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="347"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="509"/>
         <source>Score: %1</source>
         <translation>ਸਕੋਰ: %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="353"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="515"/>
         <source>Level %1</source>
         <translation>ਲੈਵਲ %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/SpaceInvadersGame.qml" line="360"/>
+        <location filename="../qml/components/SpaceInvadersGame.qml" line="522"/>
         <source>← → move · space to fire</source>
         <translation>← → ਹਿਲਾਓ · ਸਪੇਸ ਨਾਲ ਫਾਇਰ</translation>
     </message>
@@ -4679,125 +4734,125 @@
         <translation>ਆਪਣਾ ਯੂਜ਼ਰ ਖਾਤਾ ਅਤੇ ਸਿਸਟਮ ਹੋਸਟਨੇਮ ਸੈੱਟ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="261"/>
+        <location filename="../qml/components/UsersView.qml" line="260"/>
         <source>Username</source>
         <translation>ਯੂਜ਼ਰਨੇਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="283"/>
+        <location filename="../qml/components/UsersView.qml" line="282"/>
         <source>username (lowercase, no spaces)</source>
         <translation>ਯੂਜ਼ਰਨੇਮ (ਛੋਟੇ ਅੱਖਰ, ਖਾਲੀ ਥਾਂ ਨਹੀਂ)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="323"/>
+        <location filename="../qml/components/UsersView.qml" line="322"/>
         <source>This username is reserved by the system, please choose another</source>
         <translation>ਇਹ ਯੂਜ਼ਰਨੇਮ ਸਿਸਟਮ ਲਈ ਰਾਖਵਾਂ ਹੈ, ਕਿਰਪਾ ਕਰਕੇ ਕੋਈ ਹੋਰ ਚੁਣੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="325"/>
+        <location filename="../qml/components/UsersView.qml" line="324"/>
         <source>Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters</source>
         <translation>ਯੂਜ਼ਰਨੇਮ ਛੋਟੇ ਅੱਖਰ (ਅੰਗਰੇਜ਼ੀ) ਜਾਂ ਅੰਡਰਸਕੋਰ ਨਾਲ ਸ਼ੁਰੂ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ, ਇਸ ਵਿੱਚ ਸਿਰਫ਼ ਛੋਟੇ ਅੱਖਰ, ਅੰਕ, ਹਾਈਫ਼ਨ ਜਾਂ ਅੰਡਰਸਕੋਰ ਹੋ ਸਕਦੇ ਹਨ, ਅਤੇ ਵੱਧ ਤੋਂ ਵੱਧ 32 ਅੱਖਰਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="326"/>
+        <location filename="../qml/components/UsersView.qml" line="325"/>
         <source>This will be your login name</source>
         <translation>ਇਹ ਤੁਹਾਡਾ ਲੌਗਇਨ ਨਾਮ ਹੋਵੇਗਾ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="351"/>
+        <location filename="../qml/components/UsersView.qml" line="349"/>
         <source>Full Name</source>
         <translation>ਪੂਰਾ ਨਾਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="366"/>
+        <location filename="../qml/components/UsersView.qml" line="364"/>
         <source>Your full name</source>
         <translation>ਤੁਹਾਡਾ ਪੂਰਾ ਨਾਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="397"/>
+        <location filename="../qml/components/UsersView.qml" line="395"/>
         <source>Optional: Display name for your account</source>
         <translation>ਵਿਕਲਪਿਕ: ਤੁਹਾਡੇ ਖਾਤੇ ਦਾ ਦਿਖਾਇਆ ਜਾਣ ਵਾਲਾ ਨਾਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="398"/>
+        <location filename="../qml/components/UsersView.qml" line="396"/>
         <source>Full name cannot contain &apos;:&apos; or line breaks</source>
         <translation>ਪੂਰੇ ਨਾਮ ਵਿੱਚ &apos;:&apos; ਜਾਂ ਲਾਈਨ ਬ੍ਰੇਕ ਨਹੀਂ ਹੋ ਸਕਦੇ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="426"/>
+        <location filename="../qml/components/UsersView.qml" line="423"/>
         <source>Computer Name</source>
         <translation>ਕੰਪਿਊਟਰ ਦਾ ਨਾਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="448"/>
+        <location filename="../qml/components/UsersView.qml" line="445"/>
         <source>hostname (lowercase, no spaces)</source>
         <translation>ਹੋਸਟਨੇਮ (ਛੋਟੇ ਅੱਖਰ, ਖਾਲੀ ਥਾਂ ਨਹੀਂ)</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="483"/>
+        <location filename="../qml/components/UsersView.qml" line="480"/>
         <source>Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters</source>
         <translation>ਹੋਸਟਨੇਮ ਵਿੱਚ ਸਿਰਫ਼ ਛੋਟੇ ਅੱਖਰ, ਅੰਕ, ਹਾਈਫ਼ਨ ਅਤੇ ਬਿੰਦੀਆਂ ਹੋ ਸਕਦੀਆਂ ਹਨ; ਹਰ ਹਿੱਸਾ ਹਾਈਫ਼ਨ ਨਾਲ ਸ਼ੁਰੂ ਜਾਂ ਖ਼ਤਮ ਨਹੀਂ ਹੋਣਾ ਚਾਹੀਦਾ ਅਤੇ ਵੱਧ ਤੋਂ ਵੱਧ 63 ਅੱਖਰਾਂ ਦਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="484"/>
+        <location filename="../qml/components/UsersView.qml" line="481"/>
         <source>Your computer&apos;s network name</source>
         <translation>ਤੁਹਾਡੇ ਕੰਪਿਊਟਰ ਦਾ ਨੈੱਟਵਰਕ ਨਾਮ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="509"/>
+        <location filename="../qml/components/UsersView.qml" line="505"/>
         <source>Password</source>
         <translation>ਪਾਸਵਰਡ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="542"/>
+        <location filename="../qml/components/UsersView.qml" line="538"/>
         <source>Enter password</source>
         <translation>ਪਾਸਵਰਡ ਦਰਜ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="577"/>
-        <location filename="../qml/components/UsersView.qml" line="814"/>
+        <location filename="../qml/components/UsersView.qml" line="573"/>
+        <location filename="../qml/components/UsersView.qml" line="810"/>
         <source>Passwords cannot contain line breaks</source>
         <translation>ਪਾਸਵਰਡ ਵਿੱਚ ਲਾਈਨ ਬ੍ਰੇਕ ਨਹੀਂ ਹੋ ਸਕਦੇ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="598"/>
+        <location filename="../qml/components/UsersView.qml" line="594"/>
         <source>Confirm password</source>
         <translation>ਪਾਸਵਰਡ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords match</source>
         <translation>ਪਾਸਵਰਡ ਮੇਲ ਖਾਂਦੇ ਹਨ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="643"/>
-        <location filename="../qml/components/UsersView.qml" line="879"/>
+        <location filename="../qml/components/UsersView.qml" line="639"/>
+        <location filename="../qml/components/UsersView.qml" line="875"/>
         <source>Passwords do not match</source>
         <translation>ਪਾਸਵਰਡ ਮੇਲ ਨਹੀਂ ਖਾਂਦੇ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="656"/>
+        <location filename="../qml/components/UsersView.qml" line="652"/>
         <source>We Recommend a Stronger Password</source>
         <translation>ਅਸੀਂ ਵਧੇਰੇ ਮਜ਼ਬੂਤ ਪਾਸਵਰਡ ਦੀ ਸਿਫ਼ਾਰਸ਼ ਕਰਦੇ ਹਾਂ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="664"/>
+        <location filename="../qml/components/UsersView.qml" line="660"/>
         <source>Show password</source>
         <translation>ਪਾਸਵਰਡ ਵਿਖਾਓ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="720"/>
+        <location filename="../qml/components/UsersView.qml" line="716"/>
         <source>Use the same password for the root account</source>
         <translation>ਰੂਟ ਖਾਤੇ ਲਈ ਵੀ ਇਹੀ ਪਾਸਵਰਡ ਵਰਤੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="782"/>
+        <location filename="../qml/components/UsersView.qml" line="778"/>
         <source>Root password</source>
         <translation>ਰੂਟ ਪਾਸਵਰਡ</translation>
     </message>
     <message>
-        <location filename="../qml/components/UsersView.qml" line="834"/>
+        <location filename="../qml/components/UsersView.qml" line="830"/>
         <source>Confirm root password</source>
         <translation>ਰੂਟ ਪਾਸਵਰਡ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ</translation>
     </message>
@@ -4815,37 +4870,37 @@
         <translation>ਸਿਸਟਮ ਦੀਆਂ ਲੋੜਾਂ ਦੀ ਜਾਂਚ ਹੋ ਰਹੀ ਹੈ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="372"/>
+        <location filename="../qml/components/WelcomeView.qml" line="371"/>
         <source>Select language...</source>
         <translation>ਭਾਸ਼ਾ ਚੁਣੋ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="373"/>
+        <location filename="../qml/components/WelcomeView.qml" line="372"/>
         <source>Search languages...</source>
         <translation>ਭਾਸ਼ਾਵਾਂ ਖੋਜੋ...</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="403"/>
+        <location filename="../qml/components/WelcomeView.qml" line="402"/>
         <source>Only changes the installer&apos;s language. System language and keyboard come next.</source>
         <translation>ਸਿਰਫ਼ ਇੰਸਟਾਲਰ ਦੀ ਭਾਸ਼ਾ ਬਦਲਦਾ ਹੈ। ਸਿਸਟਮ ਭਾਸ਼ਾ ਅਤੇ ਕੀਬੋਰਡ ਅੱਗੇ ਆਉਣਗੇ।</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="420"/>
+        <location filename="../qml/components/WelcomeView.qml" line="419"/>
         <source>Install</source>
         <translation>ਇੰਸਟਾਲ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="481"/>
+        <location filename="../qml/components/WelcomeView.qml" line="480"/>
         <source>Please resolve system requirements before installing</source>
         <translation>ਇੰਸਟਾਲ ਕਰਨ ਤੋਂ ਪਹਿਲਾਂ ਕਿਰਪਾ ਕਰਕੇ ਸਿਸਟਮ ਦੀਆਂ ਲੋੜਾਂ ਪੂਰੀਆਂ ਕਰੋ</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="501"/>
+        <location filename="../qml/components/WelcomeView.qml" line="500"/>
         <source>No internet connection detected: installing offline (no optional software, no system update)</source>
         <translation>ਇੰਟਰਨੈੱਟ ਕਨੈਕਸ਼ਨ ਨਹੀਂ ਮਿਲਿਆ: ਆਫ਼ਲਾਈਨ ਇੰਸਟਾਲ ਹੋਵੇਗਾ (ਕੋਈ ਵਿਕਲਪਿਕ ਸਾਫ਼ਟਵੇਅਰ ਨਹੀਂ, ਕੋਈ ਸਿਸਟਮ ਅੱਪਡੇਟ ਨਹੀਂ)</translation>
     </message>
     <message>
-        <location filename="../qml/components/WelcomeView.qml" line="526"/>
+        <location filename="../qml/components/WelcomeView.qml" line="525"/>
         <source>Powered by Xen Installer</source>
         <translation>Xen Installer ਦੁਆਰਾ ਸੰਚਾਲਿਤ</translation>
     </message>

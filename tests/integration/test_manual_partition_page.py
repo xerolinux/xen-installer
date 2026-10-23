@@ -26,7 +26,7 @@ from PySide6.QtCore import (  # noqa: E402
     QUrl,
     qInstallMessageHandler,
 )
-from PySide6.QtQml import QQmlApplicationEngine  # noqa: E402
+from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression  # noqa: E402
 from PySide6.QtQuick import QQuickItem  # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
@@ -416,6 +416,68 @@ def test_create_root_row(ui, qapp) -> None:
     assert not _clean(messages), messages
 
 
+def test_mount_point_list_labels_root(ui, qapp) -> None:
+    window, bridge, _messages = ui
+    _enter_manual(qapp, window, bridge, disk="nvme0n1")
+    _select(qapp, window, _free_key(window))
+    _open_dialog(qapp, window, "manualCreateButton")
+    combo = _visible(window, "dialogMountCombo")
+    QQmlExpression(QQmlEngine.contextForObject(combo), combo, "popup.open()").evaluate()
+    _settle(qapp)
+    popup = window.findChild(QObject, "dialogMountPopup")
+    assert popup is not None and popup.property("visible") is True
+    view = next(o for o in popup.findChildren(QObject) if o.metaObject().className().startswith("QQuickListView"))
+    texts = [
+        it.property("text")
+        for it in _walk(view)
+        if it.property("text") and it.isVisible() and it.mapToItem(view, 0, 0).y() >= 0
+    ]
+    # A lone "/" reads as an empty row, so root carries a hint
+    assert texts[:2] == ["/", "(root)"], texts
+    # Every choice fits, so hovering the last one never scrolls "/" out of view
+    assert view.property("contentHeight") <= view.property("height")
+    assert view.property("interactive") is False
+    QQmlExpression(QQmlEngine.contextForObject(combo), combo, "popup.close()").evaluate()
+
+
+def test_picking_a_mount_point_row_sets_it(ui, qapp) -> None:
+    window, bridge, _messages = ui
+    _enter_manual(qapp, window, bridge, disk="nvme0n1")
+    _select(qapp, window, _free_key(window))
+    _open_dialog(qapp, window, "manualCreateButton")
+    combo = _visible(window, "dialogMountCombo")
+    QQmlExpression(QQmlEngine.contextForObject(combo), combo, "popup.open()").evaluate()
+    _settle(qapp)
+    popup = window.findChild(QObject, "dialogMountPopup")
+    view = next(o for o in popup.findChildren(QObject) if o.metaObject().className().startswith("QQuickListView"))
+    # The popup owns its rows: the combo's delegate model destroys rows it highlights
+    assert view.property("model") == ["/", "/boot", "/boot/efi", "/home", "/opt", "/srv", "/var"]
+    row = next(it for it in _walk(view) if it.objectName() == "mountChoice_3")
+    _click(qapp, window, row)
+    assert combo.property("editText") == "/home"
+    assert _dialog(window).property("mount") == "/home"
+    assert popup.property("visible") is False
+
+
+def test_option_combo_rows_belong_to_the_popup(ui, qapp) -> None:
+    window, bridge, _messages = ui
+    _enter_manual(qapp, window, bridge, disk="nvme0n1")
+    _select(qapp, window, _free_key(window))
+    _open_dialog(qapp, window, "manualCreateButton")
+    combo = _visible(window, "dialogFsCombo")
+    QQmlExpression(QQmlEngine.contextForObject(combo), combo, "popup.open()").evaluate()
+    _settle(qapp)
+    popup = next(o for o in window.findChildren(QObject) if o.objectName() == "optionComboPopup" and o.property("visible"))
+    view = next(o for o in popup.findChildren(QObject) if o.metaObject().className().startswith("QQuickListView"))
+    choices = list(combo.property("model"))
+    assert view.property("model") == choices
+    target = choices.index("xfs")
+    _click(qapp, window, next(it for it in _walk(view) if it.objectName() == f"optionChoice_{target}"))
+    assert _dialog(window).property("fsName") == "xfs"
+    assert combo.property("displayText") == "xfs"
+    assert popup.property("visible") is False
+
+
 def test_create_btrfs_root_gets_default_subvolumes(ui, qapp) -> None:
     window, bridge, _messages = ui
     _enter_manual(qapp, window, bridge, disk="nvme0n1")
@@ -428,7 +490,7 @@ def test_create_btrfs_root_gets_default_subvolumes(ui, qapp) -> None:
     _click(qapp, window, _visible(window, "dialogOkButton"))
     [row] = bridge.manualRows
     names = [sv["name"] for sv in row["subvolumes"]]
-    assert names[0] == "@" and "@home" in names
+    assert names[0] == "@" and "@home" in names and "@snapshots" in names
 
 
 def test_create_esp_defaults_to_2000_mib(ui, qapp) -> None:
