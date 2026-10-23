@@ -62,24 +62,6 @@ jobs:
 
         assert names == ["welcome", "install"]
 
-    def test_get_job_descriptions(self, tmp_path: Path) -> None:
-        """Human-readable labels for the progress-screen job list."""
-        config_file = tmp_path / "test.yaml"
-        config_file.write_text("""
-version: "1.0"
-branding:
-  name: "Test OS"
-jobs:
-  - welcome
-  - install
-""")
-
-        engine = Engine.from_config_file(config_file)
-        descriptions = engine.get_job_descriptions()
-
-        assert len(descriptions) == 2
-        assert all(isinstance(d, str) and d for d in descriptions)
-
     def test_branding_loaded(self, tmp_path: Path) -> None:
         """Test branding configuration loading."""
         config_file = tmp_path / "test.yaml"
@@ -198,8 +180,8 @@ jobs: []
         assert branding.name == "Inline OS"
 
     def test_status_colors_from_theme(self, tmp_path: Path) -> None:
-        # success/warning/error + background_light/text_on_primary must now be
-        # first-class branding colors, sourced from theme.yaml.
+        # success/warning/error are first-class branding colors, sourced from
+        # theme.yaml.
         self._write_theme(
             tmp_path,
             """
@@ -207,8 +189,6 @@ colors:
   success: "#010203"
   warning: "#040506"
   error: "#070809"
-  background_light: "#0A0B0C"
-  text_on_primary: "#0D0E0F"
 """,
         )
         config_file = tmp_path / "xen.yaml"
@@ -223,12 +203,10 @@ jobs: []
         assert colors.success == "#010203"
         assert colors.warning == "#040506"
         assert colors.error == "#070809"
-        assert colors.background_light == "#0A0B0C"
-        assert colors.text_on_primary == "#0D0E0F"
 
 
 class TestLayoutPropagation:
-    """A job's computed layout is forwarded into the shared selections."""
+    """A job's selection writes reach the jobs after it."""
 
     def test_partition_layout_reaches_later_jobs(self, tmp_path: Path) -> None:
         from xen.jobs.base import BaseJob, JobContext, JobResult
@@ -237,10 +215,9 @@ class TestLayoutPropagation:
             name = "part"
             description = "part"
 
-            def run(self, _context: JobContext) -> JobResult:
-                return JobResult.ok(
-                    "ok", data={"layout": {"root": "/dev/sda2", "efi": "/dev/sda1"}}
-                )
+            def run(self, context: JobContext) -> JobResult:
+                context.selections.update(root_partition="/dev/sda2", efi_partition="/dev/sda1")
+                return JobResult.ok("ok", data={"layout": {"root": "/dev/stale"}})
 
             def estimate_duration(self) -> int:
                 return 1
@@ -371,7 +348,6 @@ class TestBootloaderSelectionSeeding:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from xen.jobs.base import BaseJob, JobContext, JobResult
-        from xen.jobs.partition import _luks_kdf_args
 
         seen: dict[str, Any] = {}
 
@@ -394,10 +370,6 @@ class TestBootloaderSelectionSeeding:
 
         assert engine.run_all() is True
         assert seen.get("bootloader") == "grub"
-        assert _luks_kdf_args(seen["bootloader"], has_separate_boot=False) == [
-            "--pbkdf",
-            "pbkdf2",
-        ]
 
     def test_job_config_wins_over_selections(self) -> None:
         engine = Engine.from_config_file(self.XEROLINUX_CONFIG)
@@ -407,11 +379,11 @@ class TestBootloaderSelectionSeeding:
         assert engine.bootloader_type() == "grub"
         assert bootloader_job.config["type"] == "grub"
 
-    def test_falls_back_to_selections_then_systemd_boot(self) -> None:
+    def test_falls_back_to_selections_then_grub(self) -> None:
         engine = Engine.from_config_file(self.XEROLINUX_CONFIG)
         bootloader_job = next(j for j in engine.jobs if j.name == "bootloader")
         bootloader_job.config.pop("type")
 
-        assert engine.bootloader_type() == "systemd-boot"
-        engine.set_selections({"bootloader": "grub"})
         assert engine.bootloader_type() == "grub"
+        engine.set_selections({"bootloader": "systemd-boot"})
+        assert engine.bootloader_type() == "systemd-boot"

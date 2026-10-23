@@ -21,6 +21,7 @@ Rectangle {
     property string requiredValue: ""
     property string details: ""
 
+    property real uiScale: 1.0
     property color surfaceColor: "#32373c"
     property color textColor: "#fffded"
     property color textMutedColor: "#9CA3AF"
@@ -65,8 +66,8 @@ Rectangle {
     // Fixed size for every chip, regardless of label length, so the row
     // reads as a uniform grid rather than pills of different widths. Wide
     // enough for the longest label ("Internet Connection") without eliding.
-    implicitWidth: 210
-    implicitHeight: 68
+    implicitWidth: 210 * uiScale
+    implicitHeight: 68 * uiScale
     radius: 14
     color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
     border.color: Qt.rgba(statusColor.r, statusColor.g, statusColor.b, 0.4)
@@ -74,12 +75,12 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
+        anchors.margins: 12 * root.uiScale
+        spacing: 10 * root.uiScale
 
         Text {
             text: root.categoryEmoji
-            font.pixelSize: 20
+            font.pixelSize: 20 * root.uiScale
             Layout.alignment: Qt.AlignVCenter
         }
 
@@ -91,7 +92,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: root.description || root.name
-                font.pixelSize: 13
+                font.pixelSize: 13 * root.uiScale
                 font.bold: true
                 color: root.textColor
                 elide: Text.ElideRight
@@ -100,7 +101,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: root.currentValue
-                font.pixelSize: 11
+                font.pixelSize: 11 * root.uiScale
                 color: root.textMutedColor
                 elide: Text.ElideRight
                 visible: root.currentValue !== ""
@@ -108,16 +109,16 @@ Rectangle {
         }
 
         Rectangle {
-            Layout.preferredWidth: 20
-            Layout.preferredHeight: 20
+            Layout.preferredWidth: 20 * root.uiScale
+            Layout.preferredHeight: 20 * root.uiScale
             Layout.alignment: Qt.AlignVCenter
-            radius: 10
+            radius: width / 2
             color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.2)
 
             Text {
                 anchors.centerIn: parent
                 text: root.statusGlyph
-                font.pixelSize: 11
+                font.pixelSize: 11 * root.uiScale
                 font.bold: true
                 color: root.statusColor
             }
@@ -129,12 +130,12 @@ Rectangle {
     readonly property string tooltipText: {
         var parts = []
         if (currentValue !== "") {
-            parts.push(requiredValue !== "" ? currentValue + " / required " + requiredValue : currentValue)
+            parts.push(requiredValue !== "" ? qsTr("%1 / required %2").arg(currentValue).arg(requiredValue) : currentValue)
         }
         if (details !== "") {
             parts.push(details)
         }
-        return parts.join(" — ")
+        return parts.join(" · ")
     }
 
     MouseArea {

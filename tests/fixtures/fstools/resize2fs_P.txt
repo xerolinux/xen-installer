@@ -1,0 +1,2 @@
+resize2fs 1.47.4 (6-Mar-2025)
+Estimated minimum size of the filesystem: 431036

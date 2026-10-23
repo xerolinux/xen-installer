@@ -2,7 +2,7 @@
 Unit tests for the EngineBridge logs/diagnostics surface.
 
 Covers:
-- ``installationLog`` / ``logChanged`` / ``logMessageAppended`` reflecting
+- ``installationLog`` / ``logChanged`` reflecting
   what is captured by the ``BridgeLogHandler`` installed on the ``xen`` and
   root loggers.
 - Secrets registered via ``setPassword`` / ``setRootPassword`` /

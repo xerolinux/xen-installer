@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 TIMEZONE_TO_LOCALE: dict[str, tuple[str, str]] = {
     # Europe
     "Europe/Paris": ("fr_FR.UTF-8", "fr"),
-    "Europe/London": ("en_GB.UTF-8", "uk"),
+    "Europe/London": ("en_GB.UTF-8", "gb"),
     "Europe/Berlin": ("de_DE.UTF-8", "de"),
     "Europe/Madrid": ("es_ES.UTF-8", "es"),
     "Europe/Rome": ("it_IT.UTF-8", "it"),
     "Europe/Lisbon": ("pt_PT.UTF-8", "pt"),
     "Europe/Amsterdam": ("nl_NL.UTF-8", "nl"),
     "Europe/Brussels": ("nl_BE.UTF-8", "be"),
-    "Europe/Stockholm": ("sv_SE.UTF-8", "sv"),
+    "Europe/Stockholm": ("sv_SE.UTF-8", "se"),
     "Europe/Oslo": ("nb_NO.UTF-8", "no"),
     "Europe/Copenhagen": ("da_DK.UTF-8", "dk"),
     "Europe/Helsinki": ("fi_FI.UTF-8", "fi"),
@@ -52,7 +52,7 @@ TIMEZONE_TO_LOCALE: dict[str, tuple[str, str]] = {
     "America/Los_Angeles": ("en_US.UTF-8", "us"),
     "America/Toronto": ("en_CA.UTF-8", "us"),
     "America/Vancouver": ("en_CA.UTF-8", "us"),
-    "America/Montreal": ("fr_CA.UTF-8", "cf"),
+    "America/Montreal": ("fr_CA.UTF-8", "ca"),
     "America/Mexico_City": ("es_MX.UTF-8", "latam"),
     "America/Sao_Paulo": ("pt_BR.UTF-8", "br"),
     "America/Buenos_Aires": ("es_AR.UTF-8", "latam"),
@@ -171,16 +171,6 @@ class LocaleDetectionResult:
     keymap: str  # e.g., "fr"
     source: str  # "geoip", "cmdline", "efi", "default"
     confidence: float  # 0.0-1.0
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "language": self.language,
-            "timezone": self.timezone,
-            "keymap": self.keymap,
-            "source": self.source,
-            "confidence": self.confidence,
-        }
 
 
 @dataclass

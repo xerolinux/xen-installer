@@ -39,18 +39,20 @@ branding:
 # -----------------------------------------------------------------------------
 jobs:
   - name: welcome
-  - name: locale
   - name: partition
+    config:
+      min_install_gib: 25
+      btrfs_subvolumes:
+        - {name: "@", mountpoint: "/"}
+        - {name: "@home", mountpoint: "/home"}
+        - {name: "@root", mountpoint: "/root"}
+        - {name: "@srv", mountpoint: "/srv"}
+        - {name: "@cache", mountpoint: "/var/cache"}
+        - {name: "@tmp", mountpoint: "/var/tmp"}
+        - {name: "@log", mountpoint: "/var/log"}
+        - {name: "@swap", mountpoint: "/swap"}
   - name: install
+  - name: locale
+  - name: users
   - name: bootloader
   - name: finished
-
-# -----------------------------------------------------------------------------
-# Options avancées
-# -----------------------------------------------------------------------------
-advanced:
-  log_level: info
-  log_file: "/var/log/xen-install.log"
-  ipc_socket: "/run/xen/ipc.sock"
-  job_timeout: 3600
-  debug_mode: false

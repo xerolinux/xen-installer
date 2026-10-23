@@ -9,10 +9,18 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from xen.utils.keyboard_layout import (
     apply_keyboard_layout_live,
     build_xkb_layout_string,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_kwin():
+    with patch("xen.utils.keyboard_layout._kwin_running", return_value=False):
+        yield
 
 
 class TestBuildXkbLayoutString:
@@ -184,3 +192,38 @@ class TestApplyKeyboardLayoutNoTooling:
             result = apply_keyboard_layout_live("fr")
 
         assert result is False
+
+
+class TestApplyViaKWin:
+    def _run(self, euid: int, env: dict[str, str]) -> tuple[bool, list[list[str]]]:
+        pw = MagicMock(pw_name="liveuser", pw_dir="/home/liveuser")
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("xen.utils.keyboard_layout._kwin_running", return_value=True),
+            patch("xen.utils.keyboard_layout.os.geteuid", return_value=euid),
+            patch("xen.utils.keyboard_layout.pwd.getpwuid", return_value=pw),
+            patch("xen.utils.keyboard_layout.shutil.which", return_value="/usr/bin/tool"),
+            patch("xen.utils.keyboard_layout.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            result = apply_keyboard_layout_live("de", "nodeadkeys")
+        return result, [c.args[0] for c in mock_run.call_args_list]
+
+    def test_plasma_session_writes_kxkbrc_with_change_notifications(self) -> None:
+        result, calls = self._run(1000, {"XDG_SESSION_TYPE": "wayland"})
+        assert result is True
+        # KWin's KConfigWatcher reloads the layout only on --notify writes
+        write = ["kwriteconfig6", "--notify", "--file", "kxkbrc", "--group", "Layout", "--key"]
+        assert calls == [
+            [*write, "Use", "true"],
+            [*write, "LayoutList", "de"],
+            [*write, "VariantList", "nodeadkeys"],
+        ]
+
+    def test_pkexec_root_writes_the_desktop_users_config(self) -> None:
+        result, calls = self._run(0, {"PKEXEC_UID": "1000", "XDG_RUNTIME_DIR": "/run/user/1000"})
+        assert result is True
+        for call in calls:
+            assert call[:5] == ["runuser", "-u", "liveuser", "--", "env"]
+            assert "HOME=/home/liveuser" in call
+            assert "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus" in call

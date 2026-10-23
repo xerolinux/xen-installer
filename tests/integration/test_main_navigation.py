@@ -30,7 +30,6 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from xen.core.engine import Engine  # noqa: E402
 from xen.gui.bridge import EngineBridge  # noqa: E402
-from xen.gui.theme_bridge import SystemThemeBridge  # noqa: E402
 from xen.gui.translator_proxy import TranslatorProxy  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -75,25 +74,23 @@ class TestMainQmlOffscreen:
 
     def _load(
         self, bridge: EngineBridge
-    ) -> tuple[QQmlApplicationEngine, Any, _QmlMessageCollector, TranslatorProxy, SystemThemeBridge]:
+    ) -> tuple[QQmlApplicationEngine, Any, _QmlMessageCollector, TranslatorProxy]:
         collector = _QmlMessageCollector()
         qInstallMessageHandler(collector.handler)
 
         qml_engine = QQmlApplicationEngine()
         translator_proxy = TranslatorProxy(engine=qml_engine)
-        system_theme = SystemThemeBridge()
         qml_engine.rootContext().setContextProperty("engine", bridge)
         qml_engine.rootContext().setContextProperty("branding", bridge.branding_proxy)
         qml_engine.rootContext().setContextProperty("translator", translator_proxy)
-        qml_engine.rootContext().setContextProperty("systemTheme", system_theme)
 
         qml_engine.load(QUrl.fromLocalFile(str(MAIN_QML)))
         roots = qml_engine.rootObjects()
         assert roots, "Main.qml n'a pas pu être chargé"
-        return qml_engine, roots[0], collector, translator_proxy, system_theme
+        return qml_engine, roots[0], collector, translator_proxy
 
     def test_no_binding_loops_on_load(self, bridge: EngineBridge, qapp: QApplication) -> None:
-        qml_engine, root, collector, _tp, _st = self._load(bridge)
+        qml_engine, root, collector, _tp = self._load(bridge)
         try:
             qapp.processEvents()
             binding_loops = [w for w in collector.warnings if "Binding loop" in w]
@@ -103,12 +100,12 @@ class TestMainQmlOffscreen:
             qInstallMessageHandler(None)
             del qml_engine
 
-    def test_navigation_traverses_eight_steps(
+    def test_navigation_traverses_nine_steps(
         self, bridge: EngineBridge, qapp: QApplication
     ) -> None:
-        qml_engine, root, collector, _tp, _st = self._load(bridge)
+        qml_engine, root, collector, _tp = self._load(bridge)
         try:
-            assert root.property("totalSteps") == 8
+            assert root.property("totalSteps") == 9
             step_names_raw = root.property("stepNames")
             # stepNames est un tableau JS (QJSValue) : convertir en liste Python.
             step_names = (
@@ -119,6 +116,7 @@ class TestMainQmlOffscreen:
             assert step_names == [
                 "Welcome",
                 "Locale",
+                "Keyboard",
                 "Packages",
                 "Users",
                 "Partition",
@@ -127,9 +125,9 @@ class TestMainQmlOffscreen:
                 "Finished",
             ]
 
-            # Parcours 0..7 en écrivant currentStep (skipValidation=True via
+            # Parcours 0..8 en écrivant currentStep (skipValidation=True via
             # skip_requirements côté bridge => canProceedToNext ne bloque pas).
-            for step in range(0, 8):
+            for step in range(0, 9):
                 root.setProperty("currentStep", step)
                 qapp.processEvents()
                 assert root.property("currentStep") == step

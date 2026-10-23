@@ -12,10 +12,17 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from xen.jobs.base import BaseJob, JobContext, JobResult
-from xen.jobs.partition import resolve_root_encryption
+from xen.i18n.messages import msg
+from xen.jobs.base import BaseJob, JobContext, JobResult, blkid_uuid
+from xen.jobs.partition import resolve_root_encryption, resume_swap_partition
 
 logger = logging.getLogger(__name__)
+
+_GRUB_INSTALL_TIMEOUT = 300
+# os-prober (run by grub-mkconfig) probes every partition and can stall on
+# a flaky disk.
+_GRUB_MKCONFIG_TIMEOUT = 600
+_PROBE_TIMEOUT = 30
 
 
 class BootloaderJob(BaseJob):
@@ -60,7 +67,7 @@ class BootloaderJob(BaseJob):
         if not efivars_path.exists():
             logger.warning("EFI variables not available - system may not be booted in UEFI mode")
             return JobResult.fail(
-                "System not booted in UEFI mode (efivars not available)",
+                msg("System not booted in UEFI mode (efivars not available)"),
                 error_code=50,
             )
 
@@ -80,7 +87,7 @@ class BootloaderJob(BaseJob):
 
         if not self._efi_mount:
             return JobResult.fail(
-                "EFI partition not mounted. Expected at /boot/efi or /efi",
+                msg("EFI partition not mounted. Expected at /boot/efi or /efi"),
                 error_code=51,
                 data={"efi_partition": efi_partition},
             )
@@ -88,12 +95,12 @@ class BootloaderJob(BaseJob):
         # Validate EFI partition is writable
         if not self._efi_mount.exists():
             return JobResult.fail(
-                f"EFI mount point does not exist: {self._efi_mount}",
+                msg("EFI mount point does not exist: {path}", path=self._efi_mount),
                 error_code=52,
             )
 
         return JobResult.ok(
-            "EFI system validated",
+            msg("EFI system validated"),
             data={"efi_mount": str(self._efi_mount)},
         )
 
@@ -112,7 +119,7 @@ class BootloaderJob(BaseJob):
 
         if not boot_dir.exists():
             return JobResult.fail(
-                f"Boot directory not found: {boot_dir}",
+                msg("Boot directory not found: {path}", path=boot_dir),
                 error_code=53,
             )
 
@@ -120,7 +127,7 @@ class BootloaderJob(BaseJob):
         kernels = list(boot_dir.glob("vmlinuz-*"))
         if not kernels:
             return JobResult.fail(
-                "No kernel images found in /boot",
+                msg("No kernel images found in /boot"),
                 error_code=54,
                 data={"boot_dir": str(boot_dir)},
             )
@@ -149,7 +156,7 @@ class BootloaderJob(BaseJob):
             # This is a warning, not a failure - initramfs might be generated differently
 
         return JobResult.ok(
-            f"Detected {len(self._kernels)} kernel(s)",
+            msg("Detected {count} kernel(s)", count=len(self._kernels)),
             data={"kernels": self._kernels},
         )
 
@@ -164,9 +171,9 @@ class BootloaderJob(BaseJob):
             JobResult indicating success or failure
         """
         if not self._efi_mount:
-            return JobResult.fail("EFI mount point not initialized", error_code=55)
+            return JobResult.fail(msg("EFI mount point not initialized"), error_code=55)
 
-        context.report_progress(30, "Installing systemd-boot...")
+        context.report_progress(30, msg("Installing systemd-boot..."))
 
         # Run bootctl install via arch-chroot
         try:
@@ -181,6 +188,7 @@ class BootloaderJob(BaseJob):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_GRUB_INSTALL_TIMEOUT,
             )
             logger.info("systemd-boot installed successfully")
             if result.stdout:
@@ -189,13 +197,18 @@ class BootloaderJob(BaseJob):
         except subprocess.CalledProcessError as e:
             logger.error(f"bootctl install failed: {e.stderr}")
             return JobResult.fail(
-                f"Failed to install systemd-boot: {e.stderr}",
+                msg("Failed to install systemd-boot: {error}", error=e.stderr),
                 error_code=56,
             )
         except FileNotFoundError:
             return JobResult.fail(
-                "Required tool not found: arch-chroot or bootctl",
+                msg("Required tool not found: arch-chroot or bootctl"),
                 error_code=57,
+            )
+        except subprocess.TimeoutExpired:
+            return JobResult.fail(
+                msg("bootctl install timed out after {seconds}s", seconds=_GRUB_INSTALL_TIMEOUT),
+                error_code=56,
             )
 
         # Configure loader
@@ -208,7 +221,7 @@ class BootloaderJob(BaseJob):
         if not entries_result.success:
             return entries_result
 
-        return JobResult.ok("systemd-boot installed and configured")
+        return JobResult.ok(msg("systemd-boot installed and configured"))
 
     def _configure_systemd_boot_loader(self, _context: JobContext) -> JobResult:
         """
@@ -221,7 +234,7 @@ class BootloaderJob(BaseJob):
             JobResult indicating success or failure
         """
         if not self._efi_mount:
-            return JobResult.fail("EFI mount point not initialized", error_code=58)
+            return JobResult.fail(msg("EFI mount point not initialized"), error_code=58)
 
         loader_dir = self._efi_mount / "loader"
         loader_conf = loader_dir / "loader.conf"
@@ -241,11 +254,11 @@ editor no
             loader_conf.write_text(loader_config, encoding="utf-8")
             logger.info(f"Created loader configuration: {loader_conf}")
 
-            return JobResult.ok("Loader configuration created")
+            return JobResult.ok(msg("Loader configuration created"))
 
         except OSError as e:
             return JobResult.fail(
-                f"Failed to create loader configuration: {e}",
+                msg("Failed to create loader configuration: {error}", error=e),
                 error_code=59,
             )
 
@@ -260,7 +273,7 @@ editor no
             JobResult indicating success or failure
         """
         if not self._efi_mount:
-            return JobResult.fail("EFI mount point not initialized", error_code=60)
+            return JobResult.fail(msg("EFI mount point not initialized"), error_code=60)
 
         entries_dir = self._efi_mount / "loader" / "entries"
 
@@ -273,7 +286,9 @@ editor no
             # Get root partition UUID
             root_partition = self._get_root_partition_uuid(context)
             if not root_partition:
-                return JobResult.fail("Could not determine root partition UUID", error_code=61)
+                return JobResult.fail(
+                    msg("Could not determine root partition UUID"), error_code=61
+                )
 
             # cryptdevice= tells mkinitcpio's "encrypt" hook which raw LUKS
             # partition to unlock before root=UUID=<mapper-fs-uuid> can mount.
@@ -338,11 +353,11 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
                 default_entry.symlink_to(default_target)
                 logger.info(f"Created default entry symlink: {default_entry}")
 
-            return JobResult.ok(f"Created {len(self._kernels)} boot entry(ies)")
+            return JobResult.ok(msg("Created {count} boot entry(ies)", count=len(self._kernels)))
 
         except OSError as e:
             return JobResult.fail(
-                f"Failed to create boot entries: {e}",
+                msg("Failed to create boot entries: {error}", error=e),
                 error_code=62,
             )
 
@@ -352,6 +367,8 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         "GRUB_DISABLE_SUBMENU": "false",
         "GRUB_DISABLE_RECOVERY": "true",
         "GRUB_EARLY_INITRD_LINUX_STOCK": "",
+        # Lists Windows and other installed systems in the boot menu.
+        "GRUB_DISABLE_OS_PROBER": "false",
     }
     _GRUB_KERNEL_PARAMS = ("quiet", "nowatchdog", "nvme_load=YES", "zswap.enabled=0")
 
@@ -365,6 +382,16 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         separator = "\n" if content and not content.endswith("\n") else ""
         return f"{content}{separator}{line}\n"
 
+    _EXTRA_PARAMS_ERROR = msg(
+        "Invalid bootloader config: extra_kernel_params must be a list of strings"
+    )
+
+    def _extra_kernel_params(self) -> list[str] | None:
+        params = self._config.get("extra_kernel_params", [])
+        if not isinstance(params, list) or not all(isinstance(p, str) for p in params):
+            return None
+        return params
+
     def _write_grub_defaults(self, target_root: str, context: JobContext) -> JobResult:
         """Write /etc/default/grub, run before grub-mkconfig so it picks
         these up. For an encrypted root, mkinitcpio's "encrypt" hook needs
@@ -374,7 +401,10 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         try:
             content = grub_default.read_text(encoding="utf-8") if grub_default.exists() else ""
         except OSError as e:
-            return JobResult.fail(f"Failed to read {grub_default}: {e}", error_code=70)
+            return JobResult.fail(
+                msg("Failed to read {path}: {error}", path=grub_default, error=e),
+                error_code=70,
+            )
 
         for key, value in self._GRUB_DEFAULTS.items():
             # GRUB_DEFAULT=saved needs to write grubenv, which GRUB cannot
@@ -392,7 +422,10 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         if context.selections.get("filesystem") == "btrfs":
             content = self._set_grub_default_key(content, "GRUB_SAVEDEFAULT", "false")
 
-        kernel_params = list(self._GRUB_KERNEL_PARAMS)
+        extra = self._extra_kernel_params()
+        if extra is None:
+            return JobResult.fail(self._EXTRA_PARAMS_ERROR, error_code=72)
+        kernel_params = [*self._GRUB_KERNEL_PARAMS, *extra]
         is_encrypted, raw_partition = resolve_root_encryption(context.selections)
         if is_encrypted:
             if raw_partition:
@@ -416,6 +449,14 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             if keyfile_path:
                 kernel_params.append(f"cryptkey=rootfs:{keyfile_path}")
 
+        swap_partition = resume_swap_partition(context.selections)
+        if swap_partition:
+            kernel_params += self._swap_partition_resume_params(swap_partition)
+        elif context.selections.get("swap_strategy") == "hibernate":
+            kernel_params += self._hibernate_resume_params(
+                target_root, str(context.selections.get("filesystem", ""))
+            )
+
         content = self._set_grub_default_key(
             content, "GRUB_CMDLINE_LINUX_DEFAULT", " ".join(kernel_params)
         )
@@ -424,10 +465,61 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             grub_default.parent.mkdir(parents=True, exist_ok=True)
             grub_default.write_text(content, encoding="utf-8")
         except OSError as e:
-            return JobResult.fail(f"Failed to write {grub_default}: {e}", error_code=71)
+            return JobResult.fail(
+                msg("Failed to write {path}: {error}", path=grub_default, error=e),
+                error_code=71,
+            )
 
         logger.info("Wrote /etc/default/grub (timeout, kernel params, recovery entries)")
-        return JobResult.ok("GRUB defaults written")
+        return JobResult.ok(msg("GRUB defaults written"))
+
+    def _swap_partition_resume_params(self, swap_partition: str) -> list[str]:
+        uuid = self._blkid_uuid(swap_partition)
+        if not uuid:
+            logger.warning(f"Could not determine the UUID of {swap_partition}; no resume=")
+            return []
+        return [f"resume=UUID={uuid}"]
+
+    def _hibernate_resume_params(self, target_root: str, filesystem: str) -> list[str]:
+        """``resume=UUID=<root fs> resume_offset=<swapfile offset>`` for the
+        swapfile the partition job created, or [] (with a warning) when it can't
+        be determined - hibernation then just won't resume, boot still works.
+        """
+        btrfs = filesystem == "btrfs"
+        swapfile = Path(target_root) / ("swap/swapfile" if btrfs else "swapfile")
+        if not swapfile.exists():
+            logger.warning(f"Hibernate selected but {swapfile} does not exist; no resume=")
+            return []
+
+        uuid = self._probe(["findmnt", "-no", "UUID", target_root]).strip()
+        if btrfs:
+            offset = self._probe(
+                ["btrfs", "inspect-internal", "map-swapfile", "-r", str(swapfile)]
+            ).strip()
+        else:
+            offset = self._first_physical_extent(self._probe(["filefrag", "-v", str(swapfile)]))
+
+        if not uuid or not offset.isdigit():
+            logger.warning("Could not determine hibernate resume device/offset; no resume=")
+            return []
+        return [f"resume=UUID={uuid}", f"resume_offset={offset}"]
+
+    @staticmethod
+    def _first_physical_extent(filefrag_output: str) -> str:
+        """Physical start block of extent 0 in ``filefrag -v`` output."""
+        match = re.search(r"^\s*0:\s+\d+\.\.\s*\d+:\s+(\d+)\.\.", filefrag_output, re.MULTILINE)
+        return match.group(1) if match else ""
+
+    @staticmethod
+    def _probe(cmd: list[str]) -> str:
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=_PROBE_TIMEOUT
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            logger.warning(f"{cmd[0]} failed: {e}")
+            return ""
+        return result.stdout if result.returncode == 0 else ""
 
     def _enable_grub_cryptodisk(self, target_root: str) -> JobResult:
         """
@@ -441,7 +533,10 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         try:
             content = grub_default.read_text(encoding="utf-8") if grub_default.exists() else ""
         except OSError as e:
-            return JobResult.fail(f"Failed to read {grub_default}: {e}", error_code=70)
+            return JobResult.fail(
+                msg("Failed to read {path}: {error}", path=grub_default, error=e),
+                error_code=70,
+            )
 
         new_content = self._set_grub_default_key(content, "GRUB_ENABLE_CRYPTODISK", "y")
         # GRUB_ENABLE_CRYPTODISK is conventionally unquoted (y, not "y") -
@@ -452,10 +547,13 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             grub_default.parent.mkdir(parents=True, exist_ok=True)
             grub_default.write_text(new_content, encoding="utf-8")
         except OSError as e:
-            return JobResult.fail(f"Failed to write {grub_default}: {e}", error_code=71)
+            return JobResult.fail(
+                msg("Failed to write {path}: {error}", path=grub_default, error=e),
+                error_code=71,
+            )
 
         logger.info("Set GRUB_ENABLE_CRYPTODISK=y for encrypted root")
-        return JobResult.ok("GRUB_ENABLE_CRYPTODISK enabled")
+        return JobResult.ok(msg("GRUB_ENABLE_CRYPTODISK enabled"))
 
     def _install_grub(self, context: JobContext) -> JobResult:
         """
@@ -468,7 +566,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             JobResult indicating success or failure
         """
         if not self._efi_mount:
-            return JobResult.fail("EFI mount point not initialized", error_code=63)
+            return JobResult.fail(msg("EFI mount point not initialized"), error_code=63)
 
         defaults_result = self._write_grub_defaults(context.target_root, context)
         if not defaults_result.success:
@@ -480,7 +578,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             if not cryptodisk_result.success:
                 return cryptodisk_result
 
-        context.report_progress(30, "Installing GRUB...")
+        context.report_progress(30, msg("Installing GRUB..."))
 
         try:
             result = subprocess.run(
@@ -495,6 +593,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_GRUB_INSTALL_TIMEOUT,
             )
             logger.info("GRUB installed successfully")
             if result.stdout:
@@ -503,36 +602,48 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         except subprocess.CalledProcessError as e:
             logger.error(f"grub-install failed: {e.stderr}")
             return JobResult.fail(
-                f"Failed to install GRUB: {e.stderr}",
+                msg("Failed to install GRUB: {error}", error=e.stderr),
                 error_code=64,
             )
         except FileNotFoundError:
             return JobResult.fail(
-                "Required tool not found: arch-chroot or grub-install",
+                msg("Required tool not found: arch-chroot or grub-install"),
                 error_code=65,
+            )
+        except subprocess.TimeoutExpired:
+            return JobResult.fail(
+                msg("grub-install timed out after {seconds}s", seconds=_GRUB_INSTALL_TIMEOUT),
+                error_code=64,
             )
 
         # Fallback EFI path (/EFI/BOOT/BOOTX64.EFI) for firmware that
-        # ignores NVRAM boot entries. Non-fatal: the named entry above
-        # already covers firmware that does honor them.
-        try:
-            fallback = subprocess.run(
-                [
-                    "arch-chroot",
-                    context.target_root,
-                    "grub-install",
-                    "--target=x86_64-efi",
-                    "--efi-directory=/boot/efi",
-                    "--bootloader-id=XeroLinux",
-                    "--removable",
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if fallback.returncode != 0:
-                logger.warning(f"EFI fallback grub-install failed: {fallback.stderr}")
-        except FileNotFoundError:
-            logger.warning("grub-install not found for EFI fallback install")
+        # ignores NVRAM boot entries. Only on an ESP this install formatted:
+        # on a shared ESP it would overwrite the other system's fallback loader.
+        # Non-fatal: the named entry above already covers firmware that honors them.
+        if context.selections.get("esp_formatted"):
+            try:
+                fallback = subprocess.run(
+                    [
+                        "arch-chroot",
+                        context.target_root,
+                        "grub-install",
+                        "--target=x86_64-efi",
+                        "--efi-directory=/boot/efi",
+                        "--bootloader-id=XeroLinux",
+                        "--removable",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=_GRUB_INSTALL_TIMEOUT,
+                )
+                if fallback.returncode != 0:
+                    logger.warning(f"EFI fallback grub-install failed: {fallback.stderr}")
+            except FileNotFoundError:
+                logger.warning("grub-install not found for EFI fallback install")
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    f"EFI fallback grub-install timed out after {_GRUB_INSTALL_TIMEOUT}s"
+                )
 
         if context.selections.get("filesystem") == "btrfs":
             self._disable_grubenv_loading(context.target_root)
@@ -540,7 +651,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         self._disable_efi_bootnext_script(context.target_root)
 
         # Generate GRUB configuration
-        context.report_progress(60, "Generating GRUB configuration...")
+        context.report_progress(60, msg("Generating GRUB configuration..."))
 
         try:
             result = subprocess.run(
@@ -554,6 +665,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_GRUB_MKCONFIG_TIMEOUT,
             )
             logger.info("GRUB configuration generated")
             if result.stdout:
@@ -562,11 +674,20 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         except subprocess.CalledProcessError as e:
             logger.error(f"grub-mkconfig failed: {e.stderr}")
             return JobResult.fail(
-                f"Failed to generate GRUB configuration: {e.stderr}",
+                msg("Failed to generate GRUB configuration: {error}", error=e.stderr),
+                error_code=66,
+            )
+        except subprocess.TimeoutExpired:
+            return JobResult.fail(
+                msg(
+                    "grub-mkconfig timed out after {seconds}s (os-prober may be "
+                    "stuck probing another disk)",
+                    seconds=_GRUB_MKCONFIG_TIMEOUT,
+                ),
                 error_code=66,
             )
 
-        return JobResult.ok("GRUB installed and configured")
+        return JobResult.ok(msg("GRUB installed and configured"))
 
     # The exact heredoc block /etc/grub.d/00_header emits unconditionally
     # (not gated by GRUB_DEFAULT/GRUB_SAVEDEFAULT) into every grub.cfg:
@@ -633,20 +754,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
 
         logger.info(f"Disabled {script_path} (chmod -x) ahead of grub-mkconfig")
 
-    def _blkid_uuid(self, device: str) -> str | None:
-        """Get the filesystem/LUKS UUID of a raw device, or None if unavailable."""
-        try:
-            result = subprocess.run(
-                ["blkid", "-s", "UUID", "-o", "value", device],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            uuid = result.stdout.strip()
-            return uuid or None
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logger.warning(f"blkid failed for {device}: {e}")
-            return None
+    _blkid_uuid = staticmethod(blkid_uuid)
 
     def _get_root_partition_uuid(self, context: JobContext) -> str | None:
         """
@@ -686,6 +794,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_PROBE_TIMEOUT,
             )
             root_device = result.stdout.strip()
 
@@ -695,12 +804,13 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_PROBE_TIMEOUT,
             )
             uuid = result.stdout.strip()
             logger.info(f"Found root UUID from blkid: {uuid}")
             return uuid
 
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.warning(f"Failed to get root UUID: {e}")
 
         return None
@@ -712,7 +822,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         configured = self._config.get("type")
         if configured:
             return str(configured)
-        return str(context.selections.get("bootloader", self.SYSTEMD_BOOT))
+        return str(context.selections.get("bootloader", self.GRUB))
 
     def validate(self, context: JobContext) -> JobResult:
         """
@@ -724,13 +834,21 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         Returns:
             JobResult indicating validation status
         """
-        context.report_progress(0, "Validating bootloader configuration...")
+        context.report_progress(0, msg("Validating bootloader configuration..."))
+
+        if self._extra_kernel_params() is None:
+            return JobResult.fail(self._EXTRA_PARAMS_ERROR, error_code=72)
 
         # Validate bootloader selection
         bootloader = self._get_bootloader_type(context)
         if bootloader not in [self.SYSTEMD_BOOT, self.GRUB]:
             return JobResult.fail(
-                f"Invalid bootloader: {bootloader}. Must be '{self.SYSTEMD_BOOT}' or '{self.GRUB}'",
+                msg(
+                    "Invalid bootloader: {bootloader}. Must be '{systemd_boot}' or '{grub}'",
+                    bootloader=bootloader,
+                    systemd_boot=self.SYSTEMD_BOOT,
+                    grub=self.GRUB,
+                ),
                 error_code=67,
             )
 
@@ -745,7 +863,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             return kernel_result
 
         return JobResult.ok(
-            "Bootloader configuration validated",
+            msg("Bootloader configuration validated"),
             data={
                 "bootloader": bootloader,
                 "efi_mount": str(self._efi_mount) if self._efi_mount else "",
@@ -763,11 +881,11 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(0, "Starting bootloader installation...")
+        context.report_progress(0, msg("Starting bootloader installation..."))
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: bootloader installation (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: bootloader installation (dry run)"))
 
         # Validate first
         validation = self.validate(context)
@@ -785,17 +903,17 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
             result = self._install_grub(context)
         else:
             return JobResult.fail(
-                f"Unsupported bootloader: {bootloader}",
+                msg("Unsupported bootloader: {bootloader}", bootloader=bootloader),
                 error_code=68,
             )
 
         if not result.success:
             return result
 
-        context.report_progress(100, "Bootloader installation complete")
+        context.report_progress(100, msg("Bootloader installation complete"))
 
         return JobResult.ok(
-            f"{bootloader} installed successfully",
+            msg("{bootloader} installed successfully", bootloader=bootloader),
             data={
                 "bootloader": bootloader,
                 "efi_mount": str(self._efi_mount) if self._efi_mount else "",

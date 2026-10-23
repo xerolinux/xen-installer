@@ -39,3 +39,24 @@ class TestRun:
 
     def test_name_is_before(self) -> None:
         assert BeforeJob().name == "before"
+
+
+class TestNoFinalizeOnlySteps:
+    """GRUB and snapper don't exist yet when BeforeJob runs."""
+
+    @patch("subprocess.run")
+    def test_skips_grub_dedupe_and_fresh_install_snapshot(self, mock_run: Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+            job = BeforeJob({"commands": []})
+            context = JobContext(target_root=tmpdir, selections={"filesystem": "btrfs"})
+
+            with (
+                patch.object(BeforeJob, "_dedupe_grub_cmdline") as dedupe,
+                patch.object(BeforeJob, "_take_fresh_install_snapshot") as snapshot,
+            ):
+                result = job.run(context)
+
+            assert result.success is True
+            dedupe.assert_not_called()
+            snapshot.assert_not_called()

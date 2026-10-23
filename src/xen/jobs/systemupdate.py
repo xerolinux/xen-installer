@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 from xen.utils.network_helper import NetworkHelper
 
@@ -75,17 +76,25 @@ class SystemUpdateJob(BaseJob):
             return JobResult.ok()
         except subprocess.CalledProcessError as e:
             return JobResult.fail(
-                f"Command failed: {' '.join(command)}: {e.stderr}",
+                msg(
+                    "Command failed: {command}: {error}",
+                    command=" ".join(command),
+                    error=e.stderr,
+                ),
                 error_code=error_code,
             )
         except subprocess.TimeoutExpired:
             return JobResult.fail(
-                f"Command timed out after {timeout}s: {' '.join(command)}",
+                msg(
+                    "Command timed out after {seconds}s: {command}",
+                    seconds=timeout,
+                    command=" ".join(command),
+                ),
                 error_code=error_code,
             )
         except FileNotFoundError:
             return JobResult.fail(
-                "arch-chroot not found. Cannot access target system.",
+                msg("arch-chroot not found. Cannot access target system."),
                 error_code=error_code,
             )
 
@@ -99,15 +108,15 @@ class SystemUpdateJob(BaseJob):
             has_internet = NetworkHelper.check_internet_connectivity()
 
         if not has_internet:
-            return JobResult.ok("Skipped (offline)")
+            return JobResult.ok(msg("Skipped (offline)"))
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: system update (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: system update (dry run)"))
 
         target_root = context.target_root
 
-        context.report_progress(5, "Ranking mirrors for fastest sync speed...")
+        context.report_progress(5, msg("Ranking mirrors for fastest sync speed..."))
         reflector_result = self._run_chroot(
             self.REFLECTOR_COMMAND,
             target_root,
@@ -117,7 +126,7 @@ class SystemUpdateJob(BaseJob):
         if not reflector_result.success:
             logger.warning(f"Mirror ranking failed (non-fatal): {reflector_result.message}")
 
-        context.report_progress(10, "Cleaning up live-ISO package database...")
+        context.report_progress(10, msg("Cleaning up live-ISO package database..."))
         result = self._run_chroot(
             ["sh", "-c", self.STRIP_INSTALLED_DB_SCRIPT],
             target_root,
@@ -127,7 +136,7 @@ class SystemUpdateJob(BaseJob):
         if not result.success:
             return result
 
-        context.report_progress(30, "Synchronizing package databases...")
+        context.report_progress(30, msg("Synchronizing package databases..."))
         result = self._run_chroot(
             ["pacman", "-Syy", "--noconfirm"],
             target_root,
@@ -139,7 +148,7 @@ class SystemUpdateJob(BaseJob):
 
         context.selections["repos_synced"] = True
 
-        context.report_progress(50, "Refreshing package keyring...")
+        context.report_progress(50, msg("Refreshing package keyring..."))
         result = self._run_chroot(
             ["pacman", "-S", "--noconfirm", "archlinux-keyring"],
             target_root,
@@ -149,7 +158,7 @@ class SystemUpdateJob(BaseJob):
         if not result.success:
             return result
 
-        context.report_progress(60, "Upgrading system packages...")
+        context.report_progress(60, msg("Upgrading system packages..."))
         result = self._run_chroot(
             ["pacman", "-Su", "--noconfirm", "--disable-download-timeout"],
             target_root,
@@ -159,8 +168,8 @@ class SystemUpdateJob(BaseJob):
         if not result.success:
             return result
 
-        context.report_progress(100, "System update complete")
-        return JobResult.ok("System fully updated")
+        context.report_progress(100, msg("System update complete"))
+        return JobResult.ok(msg("System fully updated"))
 
     def estimate_duration(self) -> int:
         return (

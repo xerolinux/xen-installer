@@ -15,6 +15,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +47,6 @@ class GPUInfo:
     gpu_type: GPUType
     pci_id: str = ""
     device_id: str = ""
-    driver: str = ""
 
     @property
     def is_dedicated(self) -> bool:
@@ -331,10 +332,6 @@ class GPUDetector:
         drm_gpus = self._detect_via_drm()
         gpus.extend(drm_gpus)
 
-        # Enhance with lspci info if available
-        if gpus:
-            self._enhance_with_lspci(gpus)
-
         logger.info(f"Detected {len(gpus)} GPU(s): {[str(g) for g in gpus]}")
         return gpus
 
@@ -502,23 +499,6 @@ class GPUDetector:
 
         return GPUType.UNKNOWN
 
-    def _enhance_with_lspci(self, gpus: list[GPUInfo]) -> None:
-        """Enhance GPU info with lspci data."""
-        # Already done in _identify_gpu
-        pass
-
-    def has_dedicated_gpu(self) -> bool:
-        """Check if system has a dedicated GPU."""
-        return any(gpu.is_dedicated for gpu in self.gpus)
-
-    def has_vendor(self, vendor: GPUVendor) -> bool:
-        """Check if system has a GPU from specific vendor."""
-        return any(gpu.vendor == vendor for gpu in self.gpus)
-
-    def get_gpus_by_vendor(self, vendor: GPUVendor) -> list[GPUInfo]:
-        """Get all GPUs from a specific vendor."""
-        return [gpu for gpu in self.gpus if gpu.vendor == vendor]
-
     def check_compatibility(
         self,
         availability: list[str] | None = None,
@@ -550,7 +530,7 @@ class GPUDetector:
         gpu_names = [str(gpu) for gpu in compatible_gpus]
 
         if not compatible_gpus:
-            return "fail", "No compatible GPU detected", []
+            return "fail", msg("No compatible GPU detected"), []
 
         # Check for dedicated GPU
         dedicated_gpus = [gpu for gpu in compatible_gpus if gpu.is_dedicated]
@@ -580,22 +560,25 @@ class GPUDetector:
         # If at least one GPU passed, don't fail (continue to other checks)
         # Only fail if ALL GPUs failed their minimums
         if failed_overrides and not passed_gpus:
-            msg = f"GPU below minimum: {', '.join(failed_overrides)}"
-            return "fail", msg, gpu_names
+            return (
+                "fail",
+                msg("GPU below minimum: {list}", list=", ".join(failed_overrides)),
+                gpu_names,
+            )
 
         # Check dedicated requirement
         if require_dedicated and not dedicated_gpus:
             if integrated_gpus:
-                return "warn", "Integrated graphics only", gpu_names
-            return "fail", "No dedicated GPU detected", gpu_names
+                return "warn", msg("Integrated graphics only"), gpu_names
+            return "fail", msg("No dedicated GPU detected"), gpu_names
 
         # All checks passed
         if dedicated_gpus:
-            return "pass", f"Compatible GPU: {dedicated_gpus[0]}", gpu_names
+            return "pass", msg("Compatible GPU: {gpu}", gpu=dedicated_gpus[0]), gpu_names
         elif integrated_gpus:
-            return "warn", "Integrated graphics (dedicated recommended)", gpu_names
+            return "warn", msg("Integrated graphics (dedicated recommended)"), gpu_names
 
-        return "pass", "Compatible GPU detected", gpu_names
+        return "pass", msg("Compatible GPU detected"), gpu_names
 
     def _get_model_list(self, vendor: GPUVendor, gpu_type: GPUType) -> list[str]:
         """Get the appropriate model list for comparison."""

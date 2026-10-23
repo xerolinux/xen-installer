@@ -29,6 +29,7 @@ from typing import Any
 
 import yaml
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
@@ -70,23 +71,27 @@ class PackageChooserJob(BaseJob):
     def _load_groups(self) -> JobResult:
         groups_file = self._config.get("groups_file")
         if not groups_file:
-            return JobResult.fail("packagechooser job requires a 'groups_file' config key")
+            return JobResult.fail(
+                msg("packagechooser job requires a 'groups_file' config key")
+            )
 
         path = Path(groups_file)
         if not path.exists():
-            return JobResult.fail(f"Package groups file not found: {path}")
+            return JobResult.fail(msg("Package groups file not found: {path}", path=path))
 
         try:
             with path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            return JobResult.fail(f"Invalid YAML in {path}: {e}")
+            return JobResult.fail(msg("Invalid YAML in {path}: {error}", path=path, error=e))
 
         if not isinstance(data, list):
-            return JobResult.fail(f"Package groups file must contain a list of groups: {path}")
+            return JobResult.fail(
+                msg("Package groups file must contain a list of groups: {path}", path=path)
+            )
 
         self._groups = data
-        return JobResult.ok(f"Loaded {len(data)} package groups")
+        return JobResult.ok(msg("Loaded {count} package groups", count=len(data)))
 
     def _locale_lang(self, context: JobContext) -> str:
         locale = str(context.selections.get("locale", "en_US.UTF-8"))
@@ -178,9 +183,9 @@ class PackageChooserJob(BaseJob):
         # rather than resolve a list nothing can actually install.
         if context.selections.get("has_internet") is False:
             context.selections["optional_packages"] = []
-            return JobResult.ok("Skipped (offline)")
+            return JobResult.ok(msg("Skipped (offline)"))
 
-        context.report_progress(0, "Loading optional package list...")
+        context.report_progress(0, msg("Loading optional package list..."))
 
         load_result = self._load_groups()
         if not load_result.success:
@@ -219,10 +224,13 @@ class PackageChooserJob(BaseJob):
                         selected_packages.append(package_name)
 
         context.selections["optional_packages"] = selected_packages
-        context.report_progress(100, f"{len(selected_packages)} optional packages selected")
+        context.report_progress(
+            100,
+            msg("{count} optional packages selected", count=len(selected_packages)),
+        )
 
         return JobResult.ok(
-            f"Resolved {len(selected_packages)} optional packages",
+            msg("Resolved {count} optional packages", count=len(selected_packages)),
             data={"packages_selected": selected_packages},
         )
 

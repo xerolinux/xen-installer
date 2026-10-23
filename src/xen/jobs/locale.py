@@ -7,14 +7,69 @@ Configures the target system's locale settings, timezone, and keyboard layout.
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
+
+_CHROOT_TIMEOUT = 120
+
+_LOCALE_RE = re.compile(r"^[a-z]{2,3}(_[A-Z]{2})?\.[A-Za-z0-9-]+(@[A-Za-z0-9]+)?$")
+_XKB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+# X11 layout -> kbd console keymap, from systemd's kbd-model-map (what
+# Calamares and localectl use). Layouts with no console equivalent fall back
+# to "us" (the console can't render their scripts anyway).
+_CONSOLE_KEYMAPS = {
+    "us": "us",
+    "gb": "uk",
+    "fr": "fr",
+    "de": "de",
+    "es": "es",
+    "it": "it",
+    "pt": "pt-latin1",
+    "br": "br-abnt2",
+    "ru": "ru",
+    "jp": "jp106",
+    "il": "il",
+    "tr": "trq",
+    "pl": "pl2",
+    "nl": "nl",
+    "se": "sv-latin1",
+    "no": "no",
+    "dk": "dk",
+    "fi": "fi",
+    "cz": "cz",
+    "sk": "sk-qwertz",
+    "hu": "hu",
+    "ro": "ro",
+    "gr": "gr",
+    "ua": "ua-utf",
+    "bg": "bg_bds-utf8",
+    "rs": "sr-cy",
+    "hr": "croat",
+    "si": "slovene",
+    "lt": "lt",
+    "lv": "lv",
+    "ee": "et",
+    "ch": "sg",
+    "be": "be-latin1",
+    "ca": "cf",
+    "ie": "ie",
+    "is": "is-latin1",
+    "latam": "la-latin1",
+}
+_CONSOLE_KEYMAP_VARIANTS = {
+    ("us", "dvorak"): "dvorak",
+    ("ch", "fr"): "fr_CH",
+    ("de", "nodeadkeys"): "de-latin1-nodeadkeys",
+}
 
 
 class LocaleJob(BaseJob):
@@ -196,7 +251,7 @@ class LocaleJob(BaseJob):
         "ara",
         "il",
         "tr",
-        "fa",
+        "ir",
         # European
         "pl",
         "nl",
@@ -229,7 +284,6 @@ class LocaleJob(BaseJob):
         "id",
         # Special layouts
         "latam",
-        "dvorak",
     ]
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
@@ -264,28 +318,18 @@ class LocaleJob(BaseJob):
         Validate locale format.
 
         Args:
-            locale: Locale string (e.g., "fr_FR.UTF-8")
+            locale: Locale string: lang[_CC].ENCODING[@modifier] ("fr_FR.UTF-8", "sr_RS.UTF-8@latin")
 
         Returns:
             True if locale format is valid
         """
-        if not locale:
+        if not locale or not _LOCALE_RE.match(locale):
             return False
 
-        # Basic format validation: xx_YY.UTF-8
-        parts = locale.split(".")
-        if len(parts) != 2:
-            return False
-
-        lang_country = parts[0]
-        encoding = parts[1]
-
-        # Check encoding
+        encoding = locale.split("@", 1)[0].rsplit(".", 1)[1]
         if encoding.upper() not in ["UTF-8", "UTF8"]:
             logger.warning(f"Non-UTF-8 encoding detected: {encoding}")
-
-        # Check language_COUNTRY format
-        return "_" in lang_country and len(lang_country) >= 5
+        return True
 
     def _validate_timezone(self, timezone: str) -> bool:
         """
@@ -326,6 +370,13 @@ class LocaleJob(BaseJob):
         # Accept common keymaps or any alphanumeric layout name
         return keymap in self.COMMON_KEYMAPS or keymap.isalnum()
 
+    @staticmethod
+    def _console_keymap(layout: str, variant: str) -> str:
+        """The kbd console keymap (vconsole.conf KEYMAP=) for an X11 layout/variant."""
+        return _CONSOLE_KEYMAP_VARIANTS.get(
+            (layout, variant), _CONSOLE_KEYMAPS.get(layout, "us")
+        )
+
     def _configure_locale(self, context: JobContext) -> JobResult:
         """
         Configure system locale.
@@ -339,9 +390,11 @@ class LocaleJob(BaseJob):
         locale = context.selections.get("locale", "en_US.UTF-8")
 
         if not self._validate_locale(locale):
-            return JobResult.fail(f"Invalid locale format: {locale}", error_code=20)
+            return JobResult.fail(
+                msg("Invalid locale format: {locale}", locale=locale), error_code=20
+            )
 
-        context.report_progress(10, f"Configuring locale: {locale}")
+        context.report_progress(10, msg("Configuring locale: {locale}", locale=locale))
 
         target_root = Path(context.target_root)
         locale_gen_path = target_root / "etc" / "locale.gen"
@@ -359,9 +412,12 @@ class LocaleJob(BaseJob):
             # If locale.gen exists, uncomment the selected locale
             if locale_gen_path.exists():
                 locale_gen_content = locale_gen_path.read_text(encoding="utf-8")
-                # Uncomment the locale line
-                updated_content = locale_gen_content.replace(f"#{locale}", locale).replace(
-                    f"# {locale}", locale
+                # locale.gen lists modifier locales without the encoding
+                # ("sr_RS@latin UTF-8" for LANG=sr_RS.UTF-8@latin).
+                name, _, modifier = locale.partition("@")
+                entry = f"{name.rsplit('.', 1)[0]}@{modifier}" if modifier else locale
+                updated_content = locale_gen_content.replace(f"#{entry}", entry).replace(
+                    f"# {entry}", entry
                 )
                 locale_gen_path.write_text(updated_content, encoding="utf-8")
                 logger.info(f"Updated {locale_gen_path}")
@@ -373,18 +429,23 @@ class LocaleJob(BaseJob):
                         check=True,
                         capture_output=True,
                         text=True,
+                        timeout=_CHROOT_TIMEOUT,
                     )
                     logger.info("locale-gen executed successfully")
                 except subprocess.CalledProcessError as e:
                     logger.warning(f"locale-gen failed: {e.stderr}")
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"locale-gen timed out after {_CHROOT_TIMEOUT}s")
                     # Non-critical: continue even if locale-gen fails
                 except FileNotFoundError:
                     logger.warning("arch-chroot not found, skipping locale-gen")
 
-            return JobResult.ok(f"Locale configured: {locale}")
+            return JobResult.ok(msg("Locale configured: {locale}", locale=locale))
 
         except OSError as e:
-            return JobResult.fail(f"Failed to configure locale: {e}", error_code=21)
+            return JobResult.fail(
+                msg("Failed to configure locale: {error}", error=e), error_code=21
+            )
 
     def _configure_timezone(self, context: JobContext) -> JobResult:
         """
@@ -399,9 +460,13 @@ class LocaleJob(BaseJob):
         timezone = context.selections.get("timezone", "UTC")
 
         if not self._validate_timezone(timezone):
-            return JobResult.fail(f"Invalid timezone: {timezone}", error_code=22)
+            return JobResult.fail(
+                msg("Invalid timezone: {timezone}", timezone=timezone), error_code=22
+            )
 
-        context.report_progress(40, f"Configuring timezone: {timezone}")
+        context.report_progress(
+            40, msg("Configuring timezone: {timezone}", timezone=timezone)
+        )
 
         target_root = Path(context.target_root)
         localtime_link = target_root / "etc" / "localtime"
@@ -431,18 +496,23 @@ class LocaleJob(BaseJob):
                     check=True,
                     capture_output=True,
                     text=True,
+                    timeout=_CHROOT_TIMEOUT,
                 )
                 logger.info("Hardware clock synchronized")
             except subprocess.CalledProcessError as e:
                 logger.warning(f"hwclock failed: {e.stderr}")
+            except subprocess.TimeoutExpired:
+                logger.warning(f"hwclock timed out after {_CHROOT_TIMEOUT}s")
                 # Non-critical: continue even if hwclock fails
             except FileNotFoundError:
                 logger.warning("arch-chroot not found, skipping hwclock")
 
-            return JobResult.ok(f"Timezone configured: {timezone}")
+            return JobResult.ok(msg("Timezone configured: {timezone}", timezone=timezone))
 
         except OSError as e:
-            return JobResult.fail(f"Failed to configure timezone: {e}", error_code=23)
+            return JobResult.fail(
+                msg("Failed to configure timezone: {error}", error=e), error_code=23
+            )
 
     def _configure_keyboard(self, context: JobContext) -> JobResult:
         """
@@ -455,11 +525,18 @@ class LocaleJob(BaseJob):
             JobResult indicating success or failure
         """
         keymap = context.selections.get("keymap", "us")
+        variant = str(context.selections.get("keyboard_variant") or "")
 
         if not self._validate_keymap(keymap):
-            return JobResult.fail(f"Invalid keyboard layout: {keymap}", error_code=24)
+            return JobResult.fail(
+                msg("Invalid keyboard layout: {keymap}", keymap=keymap), error_code=24
+            )
+        if variant and not _XKB_NAME_RE.match(variant):
+            return JobResult.fail(
+                msg("Invalid keyboard variant: {variant}", variant=variant), error_code=24
+            )
 
-        context.report_progress(70, f"Configuring keyboard: {keymap}")
+        context.report_progress(70, msg("Configuring keyboard: {keymap}", keymap=keymap))
 
         target_root = Path(context.target_root)
         vconsole_conf = target_root / "etc" / "vconsole.conf"
@@ -469,27 +546,29 @@ class LocaleJob(BaseJob):
             # Ensure /etc directory exists
             vconsole_conf.parent.mkdir(parents=True, exist_ok=True)
 
-            # Write vconsole.conf (for console)
-            vconsole_content = f"KEYMAP={keymap}\n"
+            vconsole_content = f"KEYMAP={self._console_keymap(keymap, variant)}\n"
             vconsole_conf.write_text(vconsole_content, encoding="utf-8")
             logger.info(f"Written {vconsole_conf}")
 
             # Write X11 keyboard config (for graphical environment)
             xorg_kbd_conf.parent.mkdir(parents=True, exist_ok=True)
+            variant_line = f'    Option "XkbVariant" "{variant}"\n' if variant else ""
             xorg_content = f"""# Keyboard configuration for X11
 Section "InputClass"
     Identifier "system-keyboard"
     MatchIsKeyboard "on"
     Option "XkbLayout" "{keymap}"
-EndSection
+{variant_line}EndSection
 """
             xorg_kbd_conf.write_text(xorg_content, encoding="utf-8")
             logger.info(f"Written {xorg_kbd_conf}")
 
-            return JobResult.ok(f"Keyboard configured: {keymap}")
+            return JobResult.ok(msg("Keyboard configured: {keymap}", keymap=keymap))
 
         except OSError as e:
-            return JobResult.fail(f"Failed to configure keyboard: {e}", error_code=25)
+            return JobResult.fail(
+                msg("Failed to configure keyboard: {error}", error=e), error_code=25
+            )
 
     def validate(self, context: JobContext) -> JobResult:
         """
@@ -506,26 +585,30 @@ EndSection
         # Validate locale
         locale = context.selections.get("locale")
         if locale and not self._validate_locale(locale):
-            errors.append(f"Invalid locale: {locale}")
+            errors.append(msg("Invalid locale: {locale}", locale=locale))
 
         # Validate timezone
         timezone = context.selections.get("timezone")
         if timezone and not self._validate_timezone(timezone):
-            errors.append(f"Invalid timezone: {timezone}")
+            errors.append(msg("Invalid timezone: {timezone}", timezone=timezone))
 
         # Validate keymap
         keymap = context.selections.get("keymap")
         if keymap and not self._validate_keymap(keymap):
-            errors.append(f"Invalid keyboard layout: {keymap}")
+            errors.append(msg("Invalid keyboard layout: {keymap}", keymap=keymap))
+
+        variant = context.selections.get("keyboard_variant")
+        if variant and not _XKB_NAME_RE.match(str(variant)):
+            errors.append(msg("Invalid keyboard variant: {variant}", variant=variant))
 
         if errors:
             return JobResult.fail(
-                message=f"Validation errors: {', '.join(errors)}",
+                message=msg("Validation errors: {errors}", errors=", ".join(errors)),
                 error_code=19,
                 data={"errors": errors},
             )
 
-        return JobResult.ok("Locale configuration validated")
+        return JobResult.ok(msg("Locale configuration validated"))
 
     def run(self, context: JobContext) -> JobResult:
         """
@@ -537,11 +620,11 @@ EndSection
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(0, "Starting locale configuration...")
+        context.report_progress(0, msg("Starting locale configuration..."))
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: locale configuration (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: locale configuration (dry run)"))
 
         # Validate first
         validation = self.validate(context)
@@ -563,10 +646,10 @@ EndSection
         if not keyboard_result.success:
             return keyboard_result
 
-        context.report_progress(100, "Locale configuration complete")
+        context.report_progress(100, msg("Locale configuration complete"))
 
         return JobResult.ok(
-            "Locale, timezone and keyboard configured successfully",
+            msg("Locale, timezone and keyboard configured successfully"),
             data={
                 "locale": context.selections.get("locale", "en_US.UTF-8"),
                 "timezone": context.selections.get("timezone", "UTC"),

@@ -70,7 +70,7 @@ class Translator:
 
         In a source checkout the files live at ``<repo>/config/i18n``. Packaged
         builds (e.g. Nix ``buildPythonApplication``) ship them under
-        ``<prefix>/share/xen/config/i18n`` — not next to the Python module —
+        ``<prefix>/share/xen/config/i18n`` - not next to the Python module -
         so probe several candidates and fall back to the dev path.
         """
         here = Path(__file__).resolve()
@@ -135,6 +135,9 @@ class Translator:
         if locale in available:
             return locale
 
+        # Hong Kong and Macau read Traditional Chinese, like Taiwan
+        if locale in ("zh_HK", "zh_MO") and "zh_TW" in available:
+            return "zh_TW"
         language = locale.split("_")[0]
         same_language = [code for code in available if code.split("_")[0] == language]
         if not same_language:
@@ -233,30 +236,6 @@ class Translator:
 
         return value
 
-    def t(self, key: str, section: str = "common", **kwargs: Any) -> str:
-        """Shorthand for get()."""
-        return self.get(key, section, **kwargs)
-
-    def section(self, section: str) -> dict[str, str]:
-        """
-        Get all translations for a section.
-
-        Args:
-            section: Section name
-
-        Returns:
-            Dict of key -> translated value
-        """
-        result = self._fallback_translations.get(section, {}).copy()
-        result.update(self._translations.get(section, {}))
-        return result
-
-    def has_key(self, key: str, section: str = "common") -> bool:
-        """Check if a translation key exists."""
-        return key in self._translations.get(section, {}) or key in self._fallback_translations.get(
-            section, {}
-        )
-
 
 def get_translator() -> Translator:
     """Get the global translator instance."""
@@ -264,13 +243,3 @@ def get_translator() -> Translator:
     if _translator is None:
         _translator = Translator()
     return _translator
-
-
-def set_locale(locale: str) -> bool:
-    """Set the global locale."""
-    return get_translator().set_locale(locale)
-
-
-def tr(key: str, section: str = "common", **kwargs: Any) -> str:
-    """Shorthand for global translation lookup."""
-    return get_translator().get(key, section, **kwargs)

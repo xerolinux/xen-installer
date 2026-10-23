@@ -16,6 +16,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.gpu import GPUDetector
 
 logger = logging.getLogger(__name__)
@@ -212,21 +213,25 @@ class SystemRequirementsChecker:
             # Determine status based on thresholds
             if current_gb < min_gb:
                 status = RequirementStatus.FAIL
-                details = (
-                    f"Insufficient RAM: {current_gb:.1f} GB detected, minimum {min_gb} GB required"
+                details = msg(
+                    "Insufficient RAM: {current} GB detected, minimum {min} GB required",
+                    current=f"{current_gb:.1f}",
+                    min=min_gb,
                 )
             elif current_gb < warn_gb:
                 status = RequirementStatus.WARN
-                details = (
-                    f"RAM below recommended: {current_gb:.1f} GB detected, {warn_gb} GB recommended"
+                details = msg(
+                    "RAM below recommended: {current} GB detected, {recommended} GB recommended",
+                    current=f"{current_gb:.1f}",
+                    recommended=warn_gb,
                 )
             else:
                 status = RequirementStatus.PASS
-                details = "Sufficient RAM for optimal performance"
+                details = msg("Sufficient RAM for optimal performance")
 
             return RequirementCheck(
                 name="ram",
-                description="Memory (RAM)",
+                description=msg("Memory (RAM)"),
                 status=status,
                 current_value=f"{current_gb:.1f} GB",
                 required_value=f"{min_gb} GB",
@@ -238,9 +243,9 @@ class SystemRequirementsChecker:
             logger.warning(f"Could not check RAM: {e}")
             return RequirementCheck(
                 name="ram",
-                description="Memory (RAM)",
+                description=msg("Memory (RAM)"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check RAM: {e}",
+                details=msg("Could not check RAM: {error}", error=e),
             )
 
     def _check_disk_space(self) -> RequirementCheck:
@@ -277,21 +282,30 @@ class SystemRequirementsChecker:
             # Determine status
             if max_space_gb < min_gb:
                 status = RequirementStatus.FAIL
-                details = f"Insufficient disk space: {max_space_gb:.0f} GB available, minimum {min_gb} GB required"
+                details = msg(
+                    "Insufficient disk space: {available} GB available, minimum {min} GB required",
+                    available=f"{max_space_gb:.0f}",
+                    min=min_gb,
+                )
             elif max_space_gb < recommended_gb:
                 status = RequirementStatus.WARN
-                details = f"Disk space below recommended: {max_space_gb:.0f} GB available, {recommended_gb} GB recommended"
+                details = msg(
+                    "Disk space below recommended: {available} GB available, {recommended} GB recommended",
+                    available=f"{max_space_gb:.0f}",
+                    recommended=recommended_gb,
+                )
             else:
                 status = RequirementStatus.PASS
-                details = "Sufficient storage space available"
+                details = msg("Sufficient storage space available")
 
-            rec_value = f"{recommended_gb} GB"
             if recommend_ssd:
-                rec_value += " (SSD recommended)"
+                rec_value = msg("{size} GB (SSD recommended)", size=recommended_gb)
+            else:
+                rec_value = f"{recommended_gb} GB"
 
             return RequirementCheck(
                 name="disk",
-                description="Storage Space",
+                description=msg("Storage Space"),
                 status=status,
                 current_value=f"{max_space_gb:.0f} GB",
                 required_value=f"{min_gb} GB",
@@ -303,9 +317,9 @@ class SystemRequirementsChecker:
             logger.warning(f"Could not check disk space: {e}")
             return RequirementCheck(
                 name="disk",
-                description="Storage Space",
+                description=msg("Storage Space"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check disk space: {e}",
+                details=msg("Could not check disk space: {error}", error=e),
             )
 
     def _check_cpu_architecture(self) -> RequirementCheck:
@@ -318,29 +332,29 @@ class SystemRequirementsChecker:
 
             if arch == "x86_64":
                 status = RequirementStatus.PASS
-                details = "64-bit processor detected"
+                details = msg("64-bit processor detected")
             elif require_x86_64:
                 status = RequirementStatus.FAIL
-                details = f"x86_64 architecture required, detected: {arch}"
+                details = msg("x86_64 architecture required, detected: {arch}", arch=arch)
             else:
                 status = RequirementStatus.WARN
-                details = f"Detected {arch}, x86_64 recommended"
+                details = msg("Detected {arch}, x86_64 recommended", arch=arch)
 
             return RequirementCheck(
                 name="cpu_arch",
-                description="CPU Architecture",
+                description=msg("CPU Architecture"),
                 status=status,
                 current_value=arch,
-                required_value="x86_64" if require_x86_64 else "Any",
+                required_value="x86_64" if require_x86_64 else msg("Any"),
                 details=details,
             )
 
         except Exception as e:
             return RequirementCheck(
                 name="cpu_arch",
-                description="CPU Architecture",
+                description=msg("CPU Architecture"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check architecture: {e}",
+                details=msg("Could not check architecture: {error}", error=e),
             )
 
     def _check_cpu_architecture_v2(self, cfg: dict[str, Any]) -> RequirementCheck:
@@ -357,14 +371,18 @@ class SystemRequirementsChecker:
 
             if arch == required_arch:
                 status = RequirementStatus.PASS
-                details = f"{arch} architecture detected"
+                details = msg("{arch} architecture detected", arch=arch)
             else:
                 status = RequirementStatus.FAIL
-                details = f"{required_arch} architecture required, detected: {arch}"
+                details = msg(
+                    "{required} architecture required, detected: {arch}",
+                    required=required_arch,
+                    arch=arch,
+                )
 
             return RequirementCheck(
                 name="cpu_arch",
-                description="CPU Architecture",
+                description=msg("CPU Architecture"),
                 status=status,
                 current_value=arch,
                 required_value=required_arch,
@@ -374,9 +392,9 @@ class SystemRequirementsChecker:
         except Exception as e:
             return RequirementCheck(
                 name="cpu_arch",
-                description="CPU Architecture",
+                description=msg("CPU Architecture"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check architecture: {e}",
+                details=msg("Could not check architecture: {error}", error=e),
             )
 
     def _check_cpu_cores(self, cfg: dict[str, Any]) -> RequirementCheck:
@@ -408,21 +426,29 @@ class SystemRequirementsChecker:
             # Determine status based on thresholds
             if current_cores < min_cores:
                 status = RequirementStatus.FAIL
-                details = f"Insufficient CPU cores: {current_cores} detected, minimum {min_cores} required"
+                details = msg(
+                    "Insufficient CPU cores: {current} detected, minimum {min} required",
+                    current=current_cores,
+                    min=min_cores,
+                )
             elif current_cores < warn_cores:
                 status = RequirementStatus.WARN
-                details = f"CPU cores below recommended: {current_cores} detected, {warn_cores} recommended"
+                details = msg(
+                    "CPU cores below recommended: {current} detected, {recommended} recommended",
+                    current=current_cores,
+                    recommended=warn_cores,
+                )
             else:
                 status = RequirementStatus.PASS
-                details = "Sufficient CPU cores for optimal performance"
+                details = msg("Sufficient CPU cores for optimal performance")
 
             return RequirementCheck(
                 name="cpu_cores",
-                description="CPU Cores",
+                description=msg("CPU Cores"),
                 status=status,
-                current_value=f"{current_cores} cores",
-                required_value=f"{min_cores} cores",
-                recommended_value=f"{recommended_cores} cores",
+                current_value=msg("{count} cores", count=current_cores),
+                required_value=msg("{count} cores", count=min_cores),
+                recommended_value=msg("{count} cores", count=recommended_cores),
                 details=details,
             )
 
@@ -430,9 +456,9 @@ class SystemRequirementsChecker:
             logger.warning(f"Could not check CPU cores: {e}")
             return RequirementCheck(
                 name="cpu_cores",
-                description="CPU Cores",
+                description=msg("CPU Cores"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check CPU cores: {e}",
+                details=msg("Could not check CPU cores: {error}", error=e),
             )
 
     def _check_efi_mode(self) -> RequirementCheck:
@@ -446,22 +472,22 @@ class SystemRequirementsChecker:
         if is_efi:
             status = RequirementStatus.PASS
             current = "UEFI"
-            details = "System booted in UEFI mode"
+            details = msg("System booted in UEFI mode")
         elif require_efi:
             status = RequirementStatus.FAIL
-            current = "Legacy BIOS"
-            details = "UEFI boot mode required, currently in Legacy BIOS mode"
+            current = msg("Legacy BIOS")
+            details = msg("UEFI boot mode required, currently in Legacy BIOS mode")
         else:
             status = RequirementStatus.WARN
-            current = "Legacy BIOS"
-            details = "Legacy BIOS detected, UEFI recommended for modern installations"
+            current = msg("Legacy BIOS")
+            details = msg("Legacy BIOS detected, UEFI recommended for modern installations")
 
         return RequirementCheck(
             name="efi",
-            description="Boot Mode",
+            description=msg("Boot Mode"),
             status=status,
             current_value=current,
-            required_value="UEFI" if require_efi else "UEFI (recommended)",
+            required_value="UEFI" if require_efi else msg("UEFI (recommended)"),
             details=details,
         )
 
@@ -496,31 +522,33 @@ class SystemRequirementsChecker:
             if is_enabled:
                 if require_disabled:
                     status = RequirementStatus.FAIL
-                    details = "Secure Boot is enabled but must be disabled for driver compatibility"
+                    details = msg(
+                        "Secure Boot is enabled but must be disabled for driver compatibility"
+                    )
                 else:
                     status = RequirementStatus.WARN
-                    details = "Secure Boot is enabled, may interfere with some drivers"
-                current = "Enabled"
+                    details = msg("Secure Boot is enabled, may interfere with some drivers")
+                current = msg("Enabled")
             else:
                 status = RequirementStatus.PASS
-                current = "Disabled"
-                details = "Secure Boot is disabled"
+                current = msg("Disabled")
+                details = msg("Secure Boot is disabled")
 
             return RequirementCheck(
                 name="secure_boot",
-                description="Secure Boot",
+                description=msg("Secure Boot"),
                 status=status,
                 current_value=current,
-                required_value="Disabled" if require_disabled else "Any",
+                required_value=msg("Disabled") if require_disabled else msg("Any"),
                 details=details,
             )
 
         except Exception as e:
             return RequirementCheck(
                 name="secure_boot",
-                description="Secure Boot",
+                description=msg("Secure Boot"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check Secure Boot: {e}",
+                details=msg("Could not check Secure Boot: {error}", error=e),
             )
 
     def _check_internet(self) -> RequirementCheck:
@@ -534,40 +562,40 @@ class SystemRequirementsChecker:
 
             if NetworkHelper.check_internet_connectivity():
                 status = RequirementStatus.PASS
-                current = "Connected"
-                details = "Internet connection available"
+                current = msg("Connected")
+                details = msg("Internet connection available")
             elif require_internet:
                 status = RequirementStatus.FAIL
-                current = "Not connected"
-                details = "Internet connection required for installation"
+                current = msg("Not connected")
+                details = msg("Internet connection required for installation")
             elif recommend_internet:
                 status = RequirementStatus.WARN
-                current = "Not connected"
-                details = "No internet connection, recommended for package updates"
+                current = msg("Not connected")
+                details = msg("No internet connection, recommended for package updates")
             else:
                 status = RequirementStatus.PASS
-                current = "Not connected"
-                details = "Offline installation mode"
+                current = msg("Not connected")
+                details = msg("Offline installation mode")
 
             return RequirementCheck(
                 name="internet",
-                description="Internet Connection",
+                description=msg("Internet Connection"),
                 status=status,
                 current_value=current,
-                required_value="Required"
+                required_value=msg("Required")
                 if require_internet
-                else "Recommended"
+                else msg("Recommended")
                 if recommend_internet
-                else "Optional",
+                else msg("Optional"),
                 details=details,
             )
 
         except Exception as e:
             return RequirementCheck(
                 name="internet",
-                description="Internet Connection",
+                description=msg("Internet Connection"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check internet: {e}",
+                details=msg("Could not check internet: {error}", error=e),
             )
 
     def _check_power(self) -> RequirementCheck:
@@ -590,9 +618,9 @@ class SystemRequirementsChecker:
                 # Desktop without battery subsystem - skip
                 return RequirementCheck(
                     name="power",
-                    description="Power Source",
+                    description=msg("Power Source"),
                     status=RequirementStatus.SKIP,
-                    details="Desktop system - no battery check needed",
+                    details=msg("Desktop system - no battery check needed"),
                 )
 
             # Look for AC adapter and laptop battery
@@ -630,40 +658,46 @@ class SystemRequirementsChecker:
             if not has_laptop_battery:
                 return RequirementCheck(
                     name="power",
-                    description="Power Source",
+                    description=msg("Power Source"),
                     status=RequirementStatus.SKIP,
-                    details="Desktop system - no battery check needed",
+                    details=msg("Desktop system - no battery check needed"),
                 )
 
             # Laptop with battery
             if on_ac:
                 status = RequirementStatus.PASS
-                current = f"AC Power ({battery_level}%)"
-                details = "System plugged into AC power"
+                current = msg("AC Power ({level}%)", level=battery_level)
+                details = msg("System plugged into AC power")
             elif battery_level >= min_battery_percent:
                 status = RequirementStatus.WARN
-                current = f"Battery ({battery_level}%)"
-                details = f"Running on battery at {battery_level}%, AC power recommended"
+                current = msg("Battery ({level}%)", level=battery_level)
+                details = msg(
+                    "Running on battery at {level}%, AC power recommended", level=battery_level
+                )
             else:
                 status = RequirementStatus.FAIL
-                current = f"Battery ({battery_level}%)"
-                details = f"Battery too low: {battery_level}% < {min_battery_percent}% minimum. Please plug in AC power."
+                current = msg("Battery ({level}%)", level=battery_level)
+                details = msg(
+                    "Battery too low: {level}% < {min}% minimum. Please plug in AC power.",
+                    level=battery_level,
+                    min=min_battery_percent,
+                )
 
             return RequirementCheck(
                 name="power",
-                description="Power Source",
+                description=msg("Power Source"),
                 status=status,
                 current_value=current,
-                required_value=f"AC Power or ≥{min_battery_percent}% battery",
+                required_value=msg("AC Power or ≥{min}% battery", min=min_battery_percent),
                 details=details,
             )
 
         except Exception as e:
             return RequirementCheck(
                 name="power",
-                description="Power Source",
+                description=msg("Power Source"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check power: {e}",
+                details=msg("Could not check power: {error}", error=e),
             )
 
     def _check_gpu(self) -> RequirementCheck:
@@ -700,29 +734,29 @@ class SystemRequirementsChecker:
             sorted_gpu_names = self._sort_gpus_dgpu_first(detector)
 
             # Show only primary GPU in current_value (dGPU if available)
-            primary_gpu = sorted_gpu_names[0] if sorted_gpu_names else "None detected"
+            primary_gpu = sorted_gpu_names[0] if sorted_gpu_names else msg("None detected")
 
             # Build details with full GPU list for tooltip
             if len(sorted_gpu_names) > 1:
                 full_list = ", ".join(sorted_gpu_names)
-                extra_info = f"All GPUs: {full_list}"
+                extra_info = msg("All GPUs: {list}", list=full_list)
             else:
                 extra_info = ""
 
             # Determine status based on result
             if status_str == "pass":
                 status = RequirementStatus.PASS
-                details = extra_info or "Compatible GPU detected"
+                details = extra_info or msg("Compatible GPU detected")
             elif status_str == "warn":
                 status = RequirementStatus.WARN
-                details = message or extra_info or "GPU compatibility warning"
+                details = message or extra_info or msg("GPU compatibility warning")
             else:  # fail
                 status = RequirementStatus.FAIL if require_gpu else RequirementStatus.WARN
-                details = message or "No compatible GPU detected"
+                details = message or msg("No compatible GPU detected")
 
             # Build recommended value string
             if require_dedicated:
-                rec_value = "Dedicated GPU required"
+                rec_value = msg("Dedicated GPU required")
             else:
                 rec_parts = []
                 if "NVIDIA" in availability:
@@ -734,11 +768,11 @@ class SystemRequirementsChecker:
                 if "INTEL" in availability:
                     intel_min = overrides.get("intel", "")
                     rec_parts.append(f"Intel{' >=' + intel_min if intel_min else ''}")
-                rec_value = " / ".join(rec_parts) if rec_parts else "Any GPU"
+                rec_value = " / ".join(rec_parts) if rec_parts else msg("Any GPU")
 
             return RequirementCheck(
                 name="gpu",
-                description="Graphics (GPU)",
+                description=msg("Graphics (GPU)"),
                 status=status,
                 current_value=primary_gpu,
                 recommended_value=rec_value,
@@ -749,9 +783,9 @@ class SystemRequirementsChecker:
             logger.warning(f"Could not check GPU: {e}")
             return RequirementCheck(
                 name="gpu",
-                description="Graphics (GPU)",
+                description=msg("Graphics (GPU)"),
                 status=RequirementStatus.SKIP,
-                details=f"Could not check GPU: {e}",
+                details=msg("Could not check GPU: {error}", error=e),
             )
 
     def _get_short_gpu_name(self, gpu: Any) -> str:

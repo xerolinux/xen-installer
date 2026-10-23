@@ -2,35 +2,29 @@
 
 ## Statut par langue
 
-| Langue | Chaînes QML | Origine | Relu par un natif |
-|---|---|---|---|
-| `fr_FR` | 229/229 | humaine | ✅ |
-| `en_US` | 229/229 | source | ✅ |
-| `de_DE` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `es_ES` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `it_IT` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `ja_JP` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `ko_KR` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `pt_BR` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `ru_RU` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
-| `zh_CN` | 229/229 | 110 humaines + **119 générées** | ❌ **à relire** |
+Toutes les langues proposées sur l'écran d'accueil ont une traduction complète :
+950 chaînes chacune (écrans QML + messages Python marqués `msg()`), plus les
+textes d'accueil et de fin dans `config/i18n/<locale>.conf`.
 
-Les autres locales présentes dans `src/xen/gui/translations/` (`nl_NL`, `pl_PL`,
-`pt_PT`, `en_GB`, `cs_CZ`, `sv_SE`, `tr_TR`, `ar_*`, …) sont des **coquilles vides**
-(0/229). Elles ne sont pas proposées à l'utilisateur : le sélecteur de langue est
-piloté par `config/i18n/*.conf`, et une locale sans traduction retombe sur l'anglais
-via `Translator.resolve_locale()`.
+| Langues | Origine | Relu par un natif |
+|---|---|---|
+| `en_US` | source | ✅ |
+| `fr_FR` | écrans : humaine ; messages Python : générés le 2026-10-23 | ⚠️ messages à relire |
+| les 65 autres (`af_ZA` … `zh_TW`) | générées le 2026-10-23 (en partie sur une base humaine pour de, es, it, ja, ko, pt_BR, ru, zh_CN) | ❌ **à relire** |
 
-## Ce qui a été généré
+Une variante régionale sans fichier propre (`fr_BE`, `en_GB`, `es_MX`, `ar_EG`…)
+utilise la langue de même famille via `Translator.resolve_locale()` ;
+`zh_HK` et `zh_MO` utilisent `zh_TW` (chinois traditionnel).
 
-Les 119 chaînes ajoutées aux 8 langues ci-dessus (116 manquantes + 3 dont
-l'attribut `type="unfinished"` empêchait `lrelease` de les publier — dont le bouton
-**Install** de l'écran d'accueil) ont été produites automatiquement, en s'alignant sur
-la terminologie des 110 chaînes déjà traduites de chaque langue, avec `fr_FR` comme
-référence d'intention.
+Contrôles automatiques (`tests/unit/test_translations.py`) : aucune chaîne
+`unfinished`, placeholders (`%1`, `{name}`), balises et espaces de début/fin
+identiques à la source, et chaque langue proposée a sa traduction.
 
-Contrôles automatiques passés : complétude 229/229, intégrité des placeholders
-(`%1`, `{var}`), noms propres préservés, `lrelease` sans `unfinished`.
+Arabe, persan et hébreu inversent toute la fenêtre (`LayoutMirroring`).
+Le sélecteur de l'écran d'accueil ne propose que les langues dont l'écriture a une
+police installée (`QFontDatabase`) : sans `noto-fonts-cjk` sur l'ISO, le chinois, le
+japonais et le coréen sont masqués. Ce choix ne change que la langue de l'installeur ;
+la langue du système et le clavier se choisissent sur les pages suivantes.
 
 ## Priorité de relecture
 

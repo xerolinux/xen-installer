@@ -6,33 +6,54 @@ Exposes engine functionality to QML via Qt properties and signals.
 
 from __future__ import annotations
 
+import copy
+import functools
 import json
 import logging
 import os
 import subprocess
+import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from PySide6.QtCore import Property, QObject, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import (
+    Property,
+    QCoreApplication,
+    QLocale,
+    QObject,
+    QThread,
+    QTimer,
+    QUrl,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QFontDatabase
 
+from xen.i18n.messages import Msg, localize, msg
 from xen.i18n.translator import get_translator
 from xen.jobs.base import JobStatus
 from xen.jobs.locale import LocaleJob
-from xen.jobs.partition import (
-    PartitionOperation,
-    manual_has_separate_boot,
-    manual_mapper_name_for,
-    simulate_operations,
-    validate_encryption_rules,
-    validate_manual_assignments,
-    validate_operations,
-    validate_operations_applicable,
+from xen.jobs.partition import DEFAULT_MIN_INSTALL_GIB, PartitionJob, default_btrfs_subvolumes
+from xen.partitioning.fscaps import caps_for, min_shrink_bytes
+from xen.partitioning.plan import (
+    PartitionPlan,
+    build_alongside_plan,
+    build_erase_plan,
+    build_manual_plan,
+    plan_checklist,
+    plan_warnings,
+    preview_segments,
+    validate_btrfs_subvolumes,
+    validate_plan,
 )
 from xen.jobs.requirements import SystemRequirementsChecker
 from xen.utils import disk_detector
+from xen.utils.keyboard_data import keyboard_rows_for_layout
 from xen.utils.keyboard_layout import apply_keyboard_layout_live
+from xen.utils.timezone_lookup import coordinate_for_timezone, timezone_at
 from xen.utils.locale_detector import LocaleDetectionResult, LocaleDetector
 from xen.utils.log_capture import BridgeLogHandler, SecretRedactor, resolve_log_path, upload_log
 from xen.utils.network_helper import NetworkHelper
@@ -44,6 +65,30 @@ logger = logging.getLogger(__name__)
 
 # Native names for locales (displayed in UI with proper Unicode characters)
 # Each language is shown in its native script/form
+_S, _W = QLocale.Script, QFontDatabase.WritingSystem
+_SCRIPT_WRITING_SYSTEMS = {
+    _S.LatinScript: _W.Latin,
+    _S.CyrillicScript: _W.Cyrillic,
+    _S.GreekScript: _W.Greek,
+    _S.ArabicScript: _W.Arabic,
+    _S.HebrewScript: _W.Hebrew,
+    _S.ArmenianScript: _W.Armenian,
+    _S.GeorgianScript: _W.Georgian,
+    _S.DevanagariScript: _W.Devanagari,
+    _S.BanglaScript: _W.Bengali,
+    _S.GurmukhiScript: _W.Gurmukhi,
+    _S.GujaratiScript: _W.Gujarati,
+    _S.TamilScript: _W.Tamil,
+    _S.TeluguScript: _W.Telugu,
+    _S.KannadaScript: _W.Kannada,
+    _S.MalayalamScript: _W.Malayalam,
+    _S.ThaiScript: _W.Thai,
+    _S.SimplifiedHanScript: _W.SimplifiedChinese,
+    _S.TraditionalHanScript: _W.TraditionalChinese,
+    _S.JapaneseScript: _W.Japanese,
+    _S.KoreanScript: _W.Korean,
+}
+
 LOCALE_NATIVE_NAMES: dict[str, str] = {
     # English variants
     "en_US.UTF-8": "English (United States)",
@@ -194,19 +239,19 @@ LOCALE_NATIVE_NAMES: dict[str, str] = {
 # are stable API used for step tracking and tests; only the display layer
 # needs a human-readable label.
 JOB_DISPLAY_NAMES: dict[str, str] = {
-    "welcome": "Preparing",
-    "locale": "Configuring Locale",
-    "packagechooser": "Selecting Packages",
-    "users": "Creating User Account",
-    "partition": "Partitioning Disk",
-    "install": "Installing",
-    "systemconfig": "Configuring System",
-    "packages": "Installing Packages",
-    "systemupdate": "Updating System",
-    "bootloader": "Installing Bootloader",
-    "services": "Configuring Services",
-    "finalize": "Finalizing Installation",
-    "finished": "Finishing Up",
+    "welcome": msg("Preparing"),
+    "locale": msg("Configuring Locale"),
+    "packagechooser": msg("Selecting Packages"),
+    "users": msg("Creating User Account"),
+    "partition": msg("Partitioning Disk"),
+    "install": msg("Installing"),
+    "systemconfig": msg("Configuring System"),
+    "packages": msg("Installing Packages"),
+    "systemupdate": msg("Updating System"),
+    "bootloader": msg("Installing Bootloader"),
+    "services": msg("Configuring Services"),
+    "finalize": msg("Finalizing Installation"),
+    "finished": msg("Finishing Up"),
 }
 
 
@@ -215,47 +260,82 @@ def _job_display_name(job_name: str) -> str:
     return JOB_DISPLAY_NAMES.get(job_name, job_name.replace("_", " ").title())
 
 
-class _CommandCollector:
-    """Collects joined command strings issued during a dry-run preview."""
-
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-
-    def record(self, cmd: list[str]) -> None:
-        """Append a command as a single joined string."""
-        self.lines.append(" ".join(cmd))
+def _detach_log_handler(handler: logging.Handler) -> None:
+    # Module-level (not a bound method): runs from QObject.destroyed, after
+    # the bridge's Python wrapper may already be gone.
+    logging.getLogger("xen").removeHandler(handler)
+    handler.close()
 
 
-def _build_preview_job(
-    disk: str, operations: list[dict[str, Any]], collector: _CommandCollector
-) -> Any:
-    """
-    Build a zero-argument callable that dry-runs the M2 operations.
+_MIB = 1024**2
+_GIB = 1024**3
+_PARTITION_MODES = ("auto", "alongside", "manual")
+_ESP_FILESYSTEMS = ("vfat", "fat", "fat32")
 
-    Runs :meth:`PartitionJob._apply_operations` in dry-run mode with the
-    command runner swapped for the ``collector`` so no subprocess is spawned
-    and every command line is captured for the UI preview.
-    """
-    from xen.jobs.base import JobContext, JobResult
-    from xen.jobs.partition import PartitionJob
 
-    job = PartitionJob()
+def _ceil_div(a: int, b: int) -> int:
+    return -(-a // b)
 
-    def _record(cmd: list[str], description: str, dry_run: bool) -> JobResult:  # noqa: ARG001
-        collector.record(cmd)
-        return JobResult.ok(description)
 
-    job._run_partitioning_command = _record  # type: ignore[method-assign]
+@dataclass(frozen=True)
+class _AlongsideBounds:
+    start: int
+    root_end: int
+    align: int
+    keep_min_mib: int
+    keep_max_mib: int
+    min_new_mb: int
+    max_new_mb: int
+    default_new_mb: int
 
-    def _run() -> None:
-        job._apply_operations(
-            JobContext(),
-            disk,
-            {"partition_operations": operations},
-            dry_run=True,
-        )
+    @property
+    def fits(self) -> bool:
+        return self.keep_min_mib <= self.keep_max_mib and self.min_new_mb <= self.max_new_mb
 
-    return _run
+    def new_mb_for_keep(self, keep_mib: int) -> int:
+        root_start = _ceil_div(self.start + keep_mib * self.align, self.align) * self.align
+        return (self.root_end + 1 - root_start) // self.align
+
+    def clamp_new_mb(self, new_mb: int) -> int:
+        return max(self.min_new_mb, min(self.max_new_mb, new_mb))
+
+    def keep_bytes(self, new_mb: int) -> int:
+        root_start = (self.root_end + 1 - new_mb * self.align) // self.align * self.align
+        keep_mib = (root_start - self.start) // self.align
+        return max(self.keep_min_mib, min(self.keep_max_mib, keep_mib)) * _MIB
+
+
+def _alongside_bounds(
+    disk: dict[str, Any], part: dict[str, Any], min_install_gib: int
+) -> _AlongsideBounds:
+    sector_size = int(disk["sectorSize"])
+    align = disk_detector.align_sectors(sector_size)
+    start, end = int(part["startSector"]), int(part["endSector"])
+    later = [int(p["startSector"]) for p in disk["partitions"] if int(p["startSector"]) > start]
+    last = disk_detector.last_usable_sector(int(disk["sizeSectors"]), sector_size)
+    root_end = min([s - 1 for s in later] + [last])
+    min_bytes = int(part.get("minSizeBytes") or 0)
+    keep_min = max(1, _ceil_div(max(min_bytes * 11, min_shrink_bytes(min_bytes) * 10), 10 * _GIB))
+    keep_min *= 1024
+    # the kept partition must really shrink, so its new end stays below the current one
+    keep_max = (end - start) // align
+    partial = _AlongsideBounds(start, root_end, align, keep_min, keep_max, 0, 0, 0)
+    min_new = max(min_install_gib * 1024, partial.new_mb_for_keep(keep_max))
+    max_new = partial.new_mb_for_keep(keep_min)
+    half = max(keep_min, min(keep_max, (end - start + 1) // align // 2))
+    default = max(min_new, min(max_new, partial.new_mb_for_keep(half)))
+    return _AlongsideBounds(start, root_end, align, keep_min, keep_max, min_new, max_new, default)
+
+
+def _alongside_candidate(
+    disk: dict[str, Any], part: dict[str, Any], min_install_gib: int
+) -> dict[str, Any]:
+    reason = str(part.get("resizeBlockedReason") or "")
+    if not reason and not part.get("canShrink"):
+        reason = caps_for(str(part.get("fstype") or "")).blocked_reason or msg("Can't be shrunk")
+    if not reason and not _alongside_bounds(disk, part, min_install_gib).fits:
+        reason = msg("Too small")
+    return {**part, "eligible": not reason, "reason": reason}
 
 
 class InstallationWorker(QObject):
@@ -296,58 +376,20 @@ class LogUploadWorker(QObject):
             self.finished.emit("", False, str(e))
 
 
-class PartitionApplyWorker(QObject):
-    """Worker that applies the manual (M2) partition operations off the UI thread."""
+class DiskScanWorker(QObject):
+    finished = Signal(object)
 
-    finished = Signal(bool, str, object)  # success, message, {raw_path: LUKS passphrase}
-
-    def __init__(
-        self,
-        disk: str,
-        operations: list[dict[str, Any]],
-        dry_run: bool,
-        bootloader: str,
-        has_separate_boot: bool,
-        parent: QObject | None = None,
-    ) -> None:
+    def __init__(self, probe: bool, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._disk = disk
-        self._operations = operations
-        self._dry_run = dry_run
-        self._bootloader = bootloader
-        self._has_separate_boot = has_separate_boot
+        self._probe = probe
 
     def run(self) -> None:
-        """Execute the queued operations (real sgdisk/mkfs) against the disk."""
         try:
-            from xen.jobs.base import JobContext
-            from xen.jobs.partition import PartitionJob
-
-            job = PartitionJob()
-            context = JobContext(
-                selections={
-                    "disk": self._disk,
-                    "partition_operations": self._operations,
-                    "bootloader": self._bootloader,
-                    "has_separate_boot": self._has_separate_boot,
-                }
-            )
-            try:
-                result = job._apply_operations(
-                    context, self._disk, context.selections, dry_run=self._dry_run
-                )
-            except Exception:
-                job.cleanup(context)
-                raise
-            if not result.success:
-                # Close any LUKS mapper this batch opened before failing, so
-                # a retry doesn't hit "device busy"/"already exists".
-                job.cleanup(context)
-                self.finished.emit(False, result.message, {})
-                return
-            self.finished.emit(True, result.message, dict(job._manual_luks_passphrases))
-        except Exception as e:  # noqa: BLE001 - never let the thread crash the UI
-            self.finished.emit(False, str(e), {})
+            disks = disk_detector.list_disks(probe=self._probe)
+        except Exception:  # noqa: BLE001 - never let the thread crash the UI
+            logger.exception("Disk scan failed")
+            disks = []
+        self.finished.emit(disks)
 
 
 class BrandingProxy(QObject):
@@ -411,16 +453,6 @@ class BrandingProxy(QObject):
         return self._branding.name
 
     @Property(str, constant=True)
-    def version(self) -> str:
-        """Distribution version."""
-        return self._branding.version
-
-    @Property(str, constant=True)
-    def edition(self) -> str:
-        """Distribution edition."""
-        return self._branding.edition
-
-    @Property(str, constant=True)
     def primaryColor(self) -> str:
         """Primary brand color / gradient start. Green for the nvidia
         profile, blue for Intel/AMD (paired with accentGradientEnd)."""
@@ -445,11 +477,6 @@ class BrandingProxy(QObject):
         """Full-page background gradient end - muted grey for nvidia, red
         for Intel/AMD (same as accentGradientEnd)."""
         return self._NVIDIA_BG_END if self._is_nvidia else self._INTEL_AMD_END
-
-    @Property(str, constant=True)
-    def secondaryColor(self) -> str:
-        """Secondary brand color."""
-        return self._branding.colors.secondary
 
     @Property(str, constant=True)
     def accentColor(self) -> str:
@@ -486,16 +513,6 @@ class BrandingProxy(QObject):
         return self._branding.colors.text_muted
 
     @Property(str, constant=True)
-    def backgroundLightColor(self) -> str:
-        """Lighter background shade."""
-        return self._branding.colors.background_light
-
-    @Property(str, constant=True)
-    def textOnPrimaryColor(self) -> str:
-        """Text color drawn on primary-colored surfaces."""
-        return self._branding.colors.text_on_primary
-
-    @Property(str, constant=True)
     def successColor(self) -> str:
         """Success / positive status color."""
         return self._branding.colors.success
@@ -515,23 +532,12 @@ class BrandingProxy(QObject):
         return self._branding.fonts.primary
 
     @Property(str, constant=True)
-    def fontDisplay(self) -> str:
-        return self._branding.fonts.display
-
-    @Property(str, constant=True)
     def fontMonospace(self) -> str:
         return self._branding.fonts.monospace
 
     @Slot(str, result=str)
     def themeIconUrl(self, relative_path: str) -> str:
         return self._resolve_asset(relative_path)
-
-    @Slot(str, result=str)
-    def requirementIconUrl(self, name: str) -> str:
-        if not name:
-            return ""
-        rel = self._branding.requirement_icons.get(name) or f"icons/requirements/cat-{name}.svg"
-        return self._resolve_asset(rel)
 
     @Property(str, notify=brandingChanged)
     def welcomeTitle(self) -> str:
@@ -600,21 +606,11 @@ class BrandingProxy(QObject):
             distro_name=self._branding.name,
         )
 
-    @Property(str, constant=True)
-    def logoPath(self) -> str:
-        """Path to logo asset."""
-        return self._branding.assets.logo
-
     # Asset URLs (resolved to absolute file:// URLs)
     @Property(str, constant=True)
     def logoUrl(self) -> str:
         """URL to main logo."""
         return self._resolve_asset(self._branding.assets.logo)
-
-    @Property(str, constant=True)
-    def logoLightUrl(self) -> str:
-        """URL to light variant logo."""
-        return self._resolve_asset(self._branding.assets.logo_light)
 
     @Property(str, constant=True)
     def logoSmallUrl(self) -> str:
@@ -625,11 +621,6 @@ class BrandingProxy(QObject):
     def backgroundUrl(self) -> str:
         """URL to background wallpaper."""
         return self._resolve_asset(self._branding.assets.background)
-
-    @Property(str, constant=True)
-    def iconUrl(self) -> str:
-        """URL to icon."""
-        return self._resolve_asset(self._branding.assets.icon)
 
     # Users view icons (configurable via theme)
     @Property(str, constant=True)
@@ -651,11 +642,6 @@ class BrandingProxy(QObject):
     def iconPasswordUrl(self) -> str:
         """URL to password/lock icon for UsersView."""
         return self._resolve_asset(self._branding.assets.icon_password)
-
-    @Property(str, constant=True)
-    def iconSettingsUrl(self) -> str:
-        """URL to settings/gear icon for UsersView."""
-        return self._resolve_asset(self._branding.assets.icon_settings)
 
     @Property(str, constant=True)
     def iconCheckUrl(self) -> str:
@@ -681,21 +667,6 @@ class BrandingProxy(QObject):
             # Use full URL as fallback, only remove trailing slash
             label = self._branding.links.website.rstrip("/")
         return label
-
-    @Property(str, constant=True)
-    def gitUrl(self) -> str:
-        """Git repository URL."""
-        return self._branding.links.git
-
-    @Property(str, constant=True)
-    def documentationUrl(self) -> str:
-        """Documentation URL."""
-        return self._branding.links.documentation
-
-    @Property(str, constant=True)
-    def supportUrl(self) -> str:
-        """Support/forum URL."""
-        return self._branding.links.support
 
     @Slot()
     def retranslate(self) -> None:
@@ -724,33 +695,25 @@ class EngineBridge(QObject):
     _STALL_THRESHOLD_S: float = 6.0
 
     # Signals for QML
-    installationStarted = Signal()
     installationFinished = Signal(bool)  # success: bool
-    jobStarted = Signal(str)  # job_name
-    jobProgress = Signal(str, int, str)  # job_name, percent, message
-    jobCompleted = Signal(str, bool)  # job_name, success
     errorOccurred = Signal(str, str)  # job_name, error_message
     requirementsChanged = Signal()  # emitted when requirements check completes
 
-    # Network settings signals
-    networkSettingsLaunched = Signal(str)  # command that was launched
-    networkSettingsError = Signal(str)  # error message
     internetStatusChanged = Signal(bool)  # connected: bool
+    _internetCheckFinished = Signal(bool)
 
     # Signals for user selections
     selectionsChanged = Signal()  # emitted when any selection changes
     localeDataChanged = Signal()  # emitted when locale data is loaded
     keyboardVariantsChanged = Signal()  # emitted when keyboard variants change
     disksChanged = Signal()  # emitted when disks are scanned
-    partitionPlanChanged = Signal()  # emitted when a manual partition assignment changes
-    partitionOperationsChanged = Signal()  # emitted when the M2 operation list/simulation changes
-    partitionApplyingChanged = Signal()  # emitted when the live-apply busy state flips
-    partitionApplyFinished = Signal(bool, str)  # success, message (live GParted-style apply)
+    disksScanningChanged = Signal()
+    packageSelectionChanged = Signal()
+    partitioningChanged = Signal()
     progressChanged = Signal()  # emitted when progress updates
     systemFontChanged = Signal()  # emitted when system font family changes
 
     # Logs/diagnostics signals
-    logMessageAppended = Signal(str)  # a single redacted log line (live streaming)
     logChanged = Signal()  # notify for the installationLog Property
     logUploadFinished = Signal(str, bool, str)  # url, ok, error_message
 
@@ -854,9 +817,10 @@ class EngineBridge(QObject):
         self._log_handler.setLevel(logging.DEBUG)
         # Attach ONLY to the "xen" logger. Adding it to the root logger as well
         # made every ``xen.*`` record fire the handler twice (it also
-        # propagates to root) — doubling both the file and the UI-refresh load.
+        # propagates to root) - doubling both the file and the UI-refresh load.
         logging.getLogger("xen").addHandler(self._log_handler)
         logging.getLogger("xen").setLevel(logging.DEBUG)
+        self.destroyed.connect(functools.partial(_detach_log_handler, self._log_handler))
 
         # Throttle live log refresh. Some install jobs emit thousands of lines; a
         # per-line Qt signal + full re-render floods the GUI thread and freezes
@@ -872,10 +836,14 @@ class EngineBridge(QObject):
         self._log_upload_thread: QThread | None = None
         self._log_upload_worker: LogUploadWorker | None = None
 
-        # Live (GParted-style) partition-apply thread state.
-        self._apply_worker: PartitionApplyWorker | None = None
-        self._apply_thread: QThread | None = None
-        self._partition_applying: bool = False
+        self._scan_thread: QThread | None = None
+        self._scan_worker: DiskScanWorker | None = None
+        self._disks_scanning: bool = False
+        self._rescan_pending: bool = False
+        self._quitting: bool = False
+        app = QCoreApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self._wait_for_disk_scan)
 
         # Requirements state
         self._requirements_checker: SystemRequirementsChecker | None = None
@@ -1405,7 +1373,7 @@ class EngineBridge(QObject):
             "locale": "en_US.UTF-8",
             "timezone": "UTC",
             "keymap": "us",
-            "keyboardVariant": "qwerty",
+            "keyboardVariant": "",
             "username": "",
             "fullName": "",
             "hostname": "",
@@ -1418,7 +1386,7 @@ class EngineBridge(QObject):
             "swapStrategy": "none",
             "encryption": False,
             "encryptionPassphrase": "",
-            "efiSizeMb": 2048,
+            "efiSizeMb": 2000,
             # SECURITY: final confirmation gate. Destructive jobs (e.g. partition)
             # refuse to run for real unless this is armed to True at the
             # summary step. Defaults to False so an accidental start stays in a
@@ -1426,37 +1394,29 @@ class EngineBridge(QObject):
             "confirmed": False,
         }
 
-        # Disk data
         self._disks_model: list[dict[str, Any]] = []
 
-        # Manual partitioning: per-partition assignment keyed by partition name.
-        # Each value: {"path": str, "mountpoint": str, "format": bool, "fstype": str}
-        self._partition_assignments: dict[str, dict[str, Any]] = {}
-
-        # Real partition name -> generated LUKS passphrase, populated after a
-        # live Apply encrypts a partition without an explicit user passphrase.
-        self._manual_luks_passphrases: dict[str, str] = {}
-
-        # M2 manual editor: ordered list of pending operation dicts (the strict
-        # QML<->Python contract) plus the last computed validity/error message.
-        self._partition_operations: list[dict[str, Any]] = []
-        self._manual_ops_valid: bool = False
-        self._manual_ops_error: str = ""
-        # Structural applicability (GParted-style), independent of a complete
-        # installable layout: gates the Apply button.
-        self._manual_ops_applicable: bool = False
-        self._manual_ops_applicable_error: str = ""
+        self._alongside_partition: int = 0
+        self._alongside_new_mb: int = 0
+        self._alongside_esp: dict[str, Any] = {}
+        self._alongside_candidates: list[dict[str, Any]] = []
+        self._esp_candidates: list[dict[str, Any]] = []
+        self._manual_rows: list[dict[str, Any]] = []
+        self._manual_new_table: bool = False
+        self._manual_root_passphrase: str = ""
+        self._plan: PartitionPlan | None = None
+        self._plan_errors: list[str] = []
+        self._plan_warnings: list[str] = []
+        self._plan_checklist: list[dict[str, Any]] = []
+        self._plan_preview: list[dict[str, Any]] = []
 
         # Progress tracking
         self._overall_progress: int = 0
         self._current_job_name: str = ""
         self._current_job_message: str = ""
-        self._jobs_list: list[dict[str, Any]] = []
-        self._installation_status: str = "idle"  # idle, running, success, failed
         self._error_message: str = ""
 
         self._is_stalled: bool = False
-        self._indeterminate: bool = False
         self._last_progress_ts: float | None = None
         self._stall_timer = QTimer(self)
         self._stall_timer.setInterval(1000)
@@ -1468,7 +1428,6 @@ class EngineBridge(QObject):
         self._engine.on_job_progress = self._on_job_progress
         self._engine.on_job_complete = self._on_job_complete
         self._engine.on_error = self._on_error
-        self._engine.on_job_indeterminate = self._on_job_indeterminate
 
         # Initialize requirements checker with config
         self._init_requirements_checker()
@@ -1478,21 +1437,56 @@ class EngineBridge(QObject):
         # read "has_internet" from selections and skip cleanly when False.
         self._has_internet = NetworkHelper.check_internet_connectivity()
         self._selections["has_internet"] = self._has_internet
+        self._internet_check_thread: threading.Thread | None = None
+        self._internetCheckFinished.connect(self._apply_internet_status)
         self._package_groups: list[dict[str, Any]] = self._load_package_groups()
+
+        partition_config = self._job_config("partition")
+        self._selections["filesystem"] = str(
+            partition_config.get("default_filesystem", self._selections["filesystem"])
+        )
+        self._allow_encryption = bool(partition_config.get("allow_encryption", True))
+        self._allow_manual_partitioning = bool(
+            partition_config.get("allow_manual_partitioning", True)
+        )
+        self._min_install_gib = int(
+            partition_config.get("min_install_gib", DEFAULT_MIN_INSTALL_GIB)
+        )
+        self._default_btrfs_subvolumes = default_btrfs_subvolumes(partition_config)
+        self._btrfs_subvolumes = [dict(sv) for sv in self._default_btrfs_subvolumes]
+        self._apply_locale_config_defaults()
+        self._refresh_partitioning()
 
     @property
     def branding_proxy(self) -> BrandingProxy:
         """Get branding proxy for QML context."""
         return self._branding_proxy
 
+    def _job_config(self, job_name: str) -> dict[str, Any]:
+        """The config dict of the first job named ``job_name`` ({} if absent)."""
+        for job_def in self._engine.config.normalize_jobs():
+            if job_def.name == job_name:
+                return job_def.config
+        return {}
+
+    def _apply_locale_config_defaults(self) -> None:
+        """Seed locale/timezone (and the derived keymap) from the locale job's
+        ``default_language`` / ``default_timezone``; auto-detection, when it
+        is confident, overrides these later in loadLocaleData."""
+        locale_config = self._job_config("locale")
+        language = str(locale_config.get("default_language") or "")
+        if language:
+            if "." not in language:
+                language = f"{language}.UTF-8"
+            self._selections["locale"] = language
+            self._selections["keymap"] = self._derive_keymap_from_locale(language)
+        timezone = str(locale_config.get("default_timezone") or "")
+        if timezone:
+            self._selections["timezone"] = timezone
+
     def _init_requirements_checker(self) -> None:
         """Initialize the requirements checker with config from engine."""
-        # Get requirements config from welcome job config if available
-        welcome_config = {}
-        for job_def in self._engine.config.normalize_jobs():
-            if job_def.name == "welcome":
-                welcome_config = job_def.config.get("requirements", {})
-                break
+        welcome_config = self._job_config("welcome").get("requirements", {})
 
         self._requirements_checker = SystemRequirementsChecker(welcome_config)
 
@@ -1506,12 +1500,7 @@ class EngineBridge(QObject):
         groups the job will act on - "hidden" groups (always applied, never
         offered as a choice) are filtered out here.
         """
-        groups_file = None
-        for job_def in self._engine.config.normalize_jobs():
-            if job_def.name == "packagechooser":
-                groups_file = job_def.config.get("groups_file")
-                break
-
+        groups_file = self._job_config("packagechooser").get("groups_file")
         if not groups_file:
             return []
 
@@ -1580,12 +1569,10 @@ class EngineBridge(QObject):
     def _on_job_start(self, job_name: str) -> None:
         """Handle job start event."""
         self._current_job_name = job_name
-        self._current_job_message = f"Starting: {_job_display_name(job_name)}..."
+        self._current_job_message = msg("Starting: {name}...", name=_job_display_name(job_name))
         self._overall_progress = self._weighted_overall_progress(self.getCurrentJobIndex(), 0)
         self._mark_progress_alive()
-        self._update_jobs_list()
         self.progressChanged.emit()
-        self.jobStarted.emit(job_name)
 
     def _on_job_progress(self, job_name: str, percent: int, message: str) -> None:
         """Handle job progress event."""
@@ -1597,14 +1584,13 @@ class EngineBridge(QObject):
 
         self._mark_progress_alive()
         self.progressChanged.emit()
-        self.jobProgress.emit(job_name, percent, message)
 
     def _mark_progress_alive(self) -> None:
         """Enregistre un « battement » de progression (peut venir du thread worker).
 
         N'écrit qu'un timestamp (thread-safe : écriture atomique d'un float) et
         sort d'un éventuel état figé. Le passage EN état figé est décidé par
-        ``_check_stall`` côté GUI — jamais ici — pour ne pas piloter le QTimer
+        ``_check_stall`` côté GUI - jamais ici - pour ne pas piloter le QTimer
         depuis le thread worker.
         """
         self._last_progress_ts = time.monotonic()
@@ -1627,17 +1613,9 @@ class EngineBridge(QObject):
             self._is_stalled = stalled
             self.progressChanged.emit()
 
-    def _on_job_complete(self, job_name: str, result: Any) -> None:
+    def _on_job_complete(self, _job_name: str, _result: Any) -> None:
         """Handle job completion event."""
-        self._update_jobs_list()
         self.progressChanged.emit()
-        self.jobCompleted.emit(job_name, result.success)
-
-    def _on_job_indeterminate(self, _job_name: str, active: bool) -> None:
-        """Reflète le mode indéterminé demandé par le job (barre en pulse)."""
-        if self._indeterminate != active:
-            self._indeterminate = active
-            self.progressChanged.emit()
 
     def _on_error(self, job_name: str, error: str) -> None:
         """Handle error event."""
@@ -1647,10 +1625,7 @@ class EngineBridge(QObject):
         # though it's the exact reason the install stopped.
         logger.error(f"Job '{job_name}' failed: {error}")
         self._error_message = error
-        self._installation_status = "failed"
         self._reset_stall_state()
-        if self._indeterminate:
-            self._indeterminate = False
         self.progressChanged.emit()
         self.errorOccurred.emit(job_name, error)
 
@@ -1664,7 +1639,7 @@ class EngineBridge(QObject):
     def _mark_log_dirty(self, _line: str) -> None:
         """Flag that new log line(s) arrived (called from the worker thread).
 
-        Intentionally cheap — NO Qt signal here. Emitting one signal per line
+        Intentionally cheap - NO Qt signal here. Emitting one signal per line
         (some install jobs produce >10k lines) floods the GUI thread's event queue
         and freezes the window. ``_flush_log`` (a GUI-thread timer) coalesces the
         refreshes into a few per second instead.
@@ -1737,17 +1712,6 @@ class EngineBridge(QObject):
         """Check if dry-run mode is enabled."""
         return self._dry_run
 
-    @Property(bool, constant=True)
-    def softwareRendering(self) -> bool:
-        """Whether Qt Quick uses the software backend (no GPU).
-
-        Under ``QT_QUICK_BACKEND=software`` (forced on the live ISO for
-        GPU-less VMs), shader-based ``layer.effect``/``MultiEffect`` do not
-        render, so QML guards ``layer.enabled`` with ``!engine.softwareRendering``
-        to keep content visible (effects apply only on accelerated backends).
-        """
-        return os.environ.get("QT_QUICK_BACKEND", "") == "software"
-
     @Property(str, constant=True)
     def bootloaderType(self) -> str:
         """Which bootloader this install profile configures ("grub" or
@@ -1806,7 +1770,7 @@ class EngineBridge(QObject):
     @Property(list, notify=requirementsChanged)
     def requirementsModel(self) -> list[dict[str, Any]]:
         """Get requirements list for QML ListView."""
-        return self._requirements_model
+        return localize(self._requirements_model)
 
     @Property(bool, notify=requirementsChanged)
     def canProceed(self) -> bool:
@@ -1875,10 +1839,20 @@ class EngineBridge(QObject):
 
         self.requirementsChanged.emit()
 
-    @Property(bool, constant=True)
+    @Property(bool, notify=internetStatusChanged)
     def hasInternet(self) -> bool:
-        """Whether internet connectivity was detected at startup."""
+        """Whether internet connectivity was detected (startup or last recheck)."""
         return self._has_internet
+
+    @Property(bool, constant=True)
+    def allowEncryption(self) -> bool:
+        """Partition job config ``allow_encryption`` (default True)."""
+        return self._allow_encryption
+
+    @Property(bool, constant=True)
+    def allowManualPartitioning(self) -> bool:
+        """Partition job config ``allow_manual_partitioning`` (default True)."""
+        return self._allow_manual_partitioning
 
     @Property(list, constant=True)
     def packageGroupsModel(self) -> list[dict[str, Any]]:
@@ -1902,16 +1876,12 @@ class EngineBridge(QObject):
         choices[f"{group_id}:{package}"] = selected
         self._selections["packagechooserPackages"] = choices
         self.selectionsChanged.emit()
+        self.packageSelectionChanged.emit()
 
-    @Property(list, constant=True)
-    def jobNames(self) -> list[str]:
-        """Get list of job names in order."""
-        return self._engine.get_job_names()
-
-    @Property(int, constant=True)
-    def totalJobs(self) -> int:
-        """Get total number of jobs."""
-        return len(self._engine.jobs)
+    @Property("QVariantMap", notify=packageSelectionChanged)  # type: ignore[arg-type]
+    def packageSelections(self) -> dict[str, bool]:
+        """Per-package choices keyed "groupId:packageName" (multi-choice groups)."""
+        return dict(self._selections.get("packagechooserPackages", {}))
 
     @Slot()
     def startInstallation(self) -> None:
@@ -1922,7 +1892,14 @@ class EngineBridge(QObject):
                 print("[Engine] Installation already in progress")
             return
 
-        self.installationStarted.emit()
+        if self._disks_scanning:
+            # the scan mounts and checks the partitions the install is about to change
+            self._on_error(
+                "partition", msg("The disk scan is still running. Go back and wait for it.")
+            )
+            self.installationFinished.emit(False)
+            return
+
         self._install_start_time = time.monotonic()
         self._install_end_time = None
 
@@ -1964,26 +1941,41 @@ class EngineBridge(QObject):
         self._worker = None
 
     @Slot()
+    def retranslate(self) -> None:
+        self.requirementsChanged.emit()
+        self.disksChanged.emit()
+        self.partitioningChanged.emit()
+        self.progressChanged.emit()
+
+    @Slot()
     def resetInstallation(self) -> None:
         """Reset installation state so the user can retry after a failure.
 
-        Clears the status/error, resets the engine and per-job state to a clean
-        slate, and empties the captured log so the retry starts fresh. No-op
-        while an installation is still running.
+        Releases what the failed attempt left mounted or open, clears the
+        status/error, resets the engine and per-job state, and empties the
+        captured log. No-op while an installation is still running.
         """
         if self._thread is not None and self._thread.isRunning():
             return
 
-        self._installation_status = "idle"
+        if not self._dry_run:
+            # the rescan of a Retry must not see the failed attempt's mounts as "in use"
+            for job in self._engine.jobs:
+                if isinstance(job, PartitionJob):
+                    error = job.release_previous()
+                    if error:
+                        logger.error("Releasing the previous attempt failed: %s", error)
         self._error_message = ""
         self._reset_stall_state()
         self._engine.state.last_error = None
-        self._engine.state.is_running = False
-        self._engine.state.is_finished = False
-        self._engine.state.current_job_index = 0
+        self._engine.state.current_job_index = -1
         for job in self._engine.jobs:
             job.status = JobStatus.PENDING
-        self._update_jobs_list()
+        self._overall_progress = 0
+        self._current_job_name = ""
+        self._current_job_message = ""
+        self._install_start_time = None
+        self._install_end_time = None
         self._log_handler.clear()
 
         self.progressChanged.emit()
@@ -1994,29 +1986,6 @@ class EngineBridge(QObject):
         """Get current job index (0-based)."""
         current, _ = self._engine.get_progress()
         return current - 1
-
-    @Slot(result=str)
-    def getCurrentJobName(self) -> str:
-        """Get current job name."""
-        idx = self.getCurrentJobIndex()
-        if 0 <= idx < len(self._engine.jobs):
-            return self._engine.jobs[idx].name
-        return ""
-
-    @Slot(result=bool)
-    def isRunning(self) -> bool:
-        """Check if installation is running."""
-        return self._engine.state.is_running
-
-    @Slot(result=bool)
-    def isFinished(self) -> bool:
-        """Check if installation is finished."""
-        return self._engine.state.is_finished
-
-    @Slot(result=str)
-    def getLastError(self) -> str:
-        """Get last error message."""
-        return self._engine.state.last_error or ""
 
     # =========================================================================
     # Locale Data Properties
@@ -2054,40 +2023,46 @@ class EngineBridge(QObject):
             return self._locale_detection_result.language
         return ""
 
-    @Property(str, notify=localeDataChanged)
-    def detectedTimezone(self) -> str:
-        """Get auto-detected timezone."""
-        if self._locale_detection_result:
-            return self._locale_detection_result.timezone
-        return ""
+    @Slot(float, float, result=str)
+    def timezoneForCoordinate(self, lat: float, lon: float) -> str:
+        """
+        IANA zone containing a point clicked on the interactive timezone
+        map (TimezoneMap.qml), from bundled zone boundaries - see
+        xen.utils.timezone_lookup. Offline; "" for open ocean.
+        """
+        return timezone_at(lat, lon)
 
-    @Property(str, notify=localeDataChanged)
-    def detectedKeymap(self) -> str:
-        """Get auto-detected keymap."""
-        if self._locale_detection_result:
-            return self._locale_detection_result.keymap
-        return ""
+    @Slot(str, result=str)
+    def coordinateForTimezone(self, timezone: str) -> str:
+        """
+        (lat, lon) for a known IANA zone name, as a JSON "[lat, lon]"
+        string (same list-via-JSON convention as keyboardLayoutRows), or
+        "null" if the zone isn't in zone1970.tab. Used to place
+        TimezoneMap's pin for the currently selected timezone.
+        """
+        coordinate = coordinate_for_timezone(timezone)
+        return json.dumps(list(coordinate) if coordinate else None)
 
-    @Property(str, notify=localeDataChanged)
-    def detectionSource(self) -> str:
-        """Get detection source (geoip, cmdline, efi, default)."""
-        if self._locale_detection_result:
-            return self._locale_detection_result.source
-        return ""
-
-    @Property(float, notify=localeDataChanged)
-    def detectionConfidence(self) -> float:
-        """Get detection confidence (0.0-1.0)."""
-        if self._locale_detection_result:
-            return self._locale_detection_result.confidence
-        return 0.0
+    @Property(str, constant=True)
+    def osmProvidersDirUrl(self) -> str:
+        """
+        file:// URL for the bundled tile-provider directory (see
+        gui/qml/components/map_data/osm_providers/) - points TimezoneMap's
+        QtLocation "osm" plugin at keyless Esri tiles (physical relief when
+        zoomed out, street map when zoomed in) via
+        osm.mapping.providersrepository.address, instead of Qt's own
+        maps-redirect.qt.io providers repository, whose styles all route
+        through Thunderforest and need a paid API key (shows an "API Key
+        Required" tile watermark without one).
+        """
+        providers_dir = (
+            Path(__file__).resolve().parent / "qml" / "components" / "map_data" / "osm_providers"
+        )
+        return QUrl.fromLocalFile(str(providers_dir)).toString()
 
     def _load_locale_auto_detection_config(self) -> None:
         """Load auto-detection configuration from locale job config."""
-        for job_def in self._engine.config.normalize_jobs():
-            if job_def.name == "locale":
-                self._locale_auto_detection_config = job_def.config.get("auto_detection", {})
-                break
+        self._locale_auto_detection_config = self._job_config("locale").get("auto_detection", {})
         if self._debug:
             print(f"[Engine] Locale auto-detection config: {self._locale_auto_detection_config}")
 
@@ -2111,8 +2086,7 @@ class EngineBridge(QObject):
             print(f"[Engine] Auto-detected keymap: {result.keymap}")
 
         # Apply detected values if confidence is high enough
-        threshold = self._locale_auto_detection_config.get("confidence_threshold", 0.8)
-        if self._locale_detection_result.confidence >= threshold:
+        if self._locale_detection_result.confidence >= detector.config.confidence_threshold:
             self._selections["locale"] = self._locale_detection_result.language
             self._selections["timezone"] = self._locale_detection_result.timezone
             self._selections["keymap"] = self._locale_detection_result.keymap
@@ -2135,11 +2109,13 @@ class EngineBridge(QObject):
         # Load locales from LocaleJob
         self._locales_model = list(LocaleJob.COMMON_LOCALES)
 
-        # Build native names model
-        self._locales_model_native = []
-        for locale_code in self._locales_model:
-            native_name = LOCALE_NATIVE_NAMES.get(locale_code, locale_code)
-            self._locales_model_native.append({"code": locale_code, "name": native_name})
+        # Native names model: the Welcome page's UI language picker, which only
+        # offers languages the system has a font for
+        self._locales_model_native = [
+            {"code": code, "name": LOCALE_NATIVE_NAMES.get(code, code)}
+            for code in self._locales_model
+            if self.isUiLanguageAvailable(code)
+        ]
 
         # Load timezones from system
         locale_job = LocaleJob()
@@ -2147,6 +2123,7 @@ class EngineBridge(QObject):
 
         # Load keymaps from LocaleJob
         self._keymaps_model = list(LocaleJob.COMMON_KEYMAPS)
+        self._update_keyboard_variants(str(self._selections["keymap"]))
 
         if self._debug:
             print(f"[Engine] Loaded {len(self._locales_model)} locales")
@@ -2158,6 +2135,11 @@ class EngineBridge(QObject):
     # =========================================================================
     # User Selections Properties
     # =========================================================================
+
+    @Slot(str, result=bool)
+    def isUiLanguageAvailable(self, locale_code: str) -> bool:
+        system = _SCRIPT_WRITING_SYSTEMS.get(QLocale(locale_code.split(".")[0]).script())
+        return system is None or system in QFontDatabase.writingSystems()
 
     @Property(str, notify=selectionsChanged)
     def selectedLocale(self) -> str:
@@ -2229,7 +2211,7 @@ class EngineBridge(QObject):
     @Property(str, notify=selectionsChanged)
     def selectedKeyboardVariant(self) -> str:
         """Get selected keyboard variant."""
-        return str(self._selections.get("keyboardVariant", "qwerty"))
+        return str(self._selections.get("keyboardVariant", ""))
 
     @Slot(str)
     def setSelectedKeyboardVariant(self, variant: str) -> None:
@@ -2245,8 +2227,7 @@ class EngineBridge(QObject):
         # Extract base layout code (e.g., "us" from "us" or "fr_CA" from "fr")
         base_layout = keymap.split("_")[0] if "_" in keymap else keymap
 
-        # Get variants for this layout (default to qwerty if unknown)
-        self._keyboard_variants_model = self._keyboard_variants.get(base_layout, ["qwerty"])
+        self._keyboard_variants_model = self._keyboard_variants.get(base_layout, [""])
 
         # Auto-select first variant if current one is not available
         current_variant = self._selections.get("keyboardVariant", "")
@@ -2266,10 +2247,25 @@ class EngineBridge(QObject):
         install config, which stays driven by setSelectedKeymap /
         setSelectedKeyboardVariant.
         """
+        # Dry runs happen on a developer's desktop: never change its real layout
+        if self._dry_run:
+            return False
         applied = apply_keyboard_layout_live(layout, variant)
         if self._debug:
             print(f"[Engine] Live keyboard apply ({layout}+{variant}): {applied}")
         return applied
+
+    @Slot(str, str, result=str)
+    def keyboardLayoutRows(self, xkbLayout: str, xkbVariant: str) -> str:
+        """
+        On-screen keyboard rows for the given XKB layout+variant, as a
+        JSON string (same convention as btrfsSubvolumes) - a list of
+        rows, each a list of {labels, ratio, checkable} key dicts. Prefers
+        the exact ckbcomp-generated mapping, falling back to the
+        approximate XML-group data if ckbcomp is unavailable - see
+        xen.utils.keyboard_data.keyboard_rows_for_layout().
+        """
+        return json.dumps(keyboard_rows_for_layout(xkbLayout, xkbVariant))
 
     @Property(str, notify=selectionsChanged)
     def username(self) -> str:
@@ -2307,11 +2303,6 @@ class EngineBridge(QObject):
             self._selections["hostname"] = hostname
             self.selectionsChanged.emit()
 
-    @Property(str, notify=selectionsChanged)
-    def password(self) -> str:
-        """Get password (for internal use, not displayed)."""
-        return str(self._selections.get("password", ""))
-
     @Slot(str)
     def setPassword(self, password: str) -> None:
         """Set password."""
@@ -2319,11 +2310,6 @@ class EngineBridge(QObject):
             self._selections["password"] = password
             self._redactor.add_secret(password)
             self.selectionsChanged.emit()
-
-    @Property(str, notify=selectionsChanged)
-    def rootPassword(self) -> str:
-        """Get root password (for internal use, not displayed)."""
-        return str(self._selections.get("rootPassword", ""))
 
     @Slot(str)
     def setRootPassword(self, rootPassword: str) -> None:
@@ -2352,7 +2338,11 @@ class EngineBridge(QObject):
     @Property(list, notify=disksChanged)
     def disksModel(self) -> list[dict[str, Any]]:
         """Get available disks for QML."""
-        return self._disks_model
+        return localize(self._disks_model)
+
+    @Property(bool, notify=disksScanningChanged)
+    def disksScanning(self) -> bool:
+        return self._disks_scanning
 
     @Property(str, notify=selectionsChanged)
     def selectedDisk(self) -> str:
@@ -2364,13 +2354,17 @@ class EngineBridge(QObject):
         """Set selected disk."""
         if self._selections.get("disk") != disk:
             self._selections["disk"] = disk
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] Disk set to: {disk}")
+            # The manual rows, root passphrase and alongside choice belong to the old disk.
+            self._manual_rows = []
+            self._manual_new_table = False
+            self._manual_root_passphrase = ""
+            self._alongside_partition = 0
+            self._alongside_esp = {}
             self.selectionsChanged.emit()
-            # The M2 simulation/validation is scoped to the selected disk, so a
-            # disk change invalidates the previous geometry and must re-notify.
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
+            self._partitioning_changed()
 
     @Property(str, notify=selectionsChanged)
     def selectedDiskSize(self) -> str:
@@ -2384,17 +2378,17 @@ class EngineBridge(QObject):
 
     @Property(str, notify=selectionsChanged)
     def partitionMode(self) -> str:
-        """Get partition mode (auto/manual)."""
         return str(self._selections.get("partitionMode", "auto"))
 
     @Slot(str)
     def setPartitionMode(self, mode: str) -> None:
-        """Set partition mode."""
-        if self._selections.get("partitionMode") != mode:
+        if mode in _PARTITION_MODES and self._selections.get("partitionMode") != mode:
             self._selections["partitionMode"] = mode
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] Partition mode set to: {mode}")
             self.selectionsChanged.emit()
+            self._partitioning_changed()
 
     @Property(str, notify=selectionsChanged)
     def filesystem(self) -> str:
@@ -2406,9 +2400,11 @@ class EngineBridge(QObject):
         """Set root filesystem type."""
         if self._selections.get("filesystem") != filesystem:
             self._selections["filesystem"] = filesystem
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] Filesystem set to: {filesystem}")
             self.selectionsChanged.emit()
+            self._partitioning_changed()
 
     @Property(str, notify=selectionsChanged)
     def swapStrategy(self) -> str:
@@ -2420,6 +2416,7 @@ class EngineBridge(QObject):
         """Set swap strategy."""
         if self._selections.get("swapStrategy") != strategy:
             self._selections["swapStrategy"] = strategy
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] Swap strategy set to: {strategy}")
             self.selectionsChanged.emit()
@@ -2434,20 +2431,18 @@ class EngineBridge(QObject):
         """Set whether root encryption is enabled."""
         if self._selections.get("encryption") != enabled:
             self._selections["encryption"] = enabled
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] Encryption set to: {enabled}")
             self.selectionsChanged.emit()
-
-    @Property(str, notify=selectionsChanged)
-    def encryptionPassphrase(self) -> str:
-        """Get LUKS passphrase (for internal use, never displayed)."""
-        return str(self._selections.get("encryptionPassphrase", ""))
+            self._partitioning_changed()
 
     @Slot(str)
     def setEncryptionPassphrase(self, passphrase: str) -> None:
         """Set LUKS passphrase (SECURITY: never logged, same posture as password)."""
         if self._selections.get("encryptionPassphrase") != passphrase:
             self._selections["encryptionPassphrase"] = passphrase
+            self._selections["confirmed"] = False
             self._redactor.add_secret(passphrase)
             if self._debug:
                 print("[Engine] Encryption passphrase set (hidden)")
@@ -2456,16 +2451,18 @@ class EngineBridge(QObject):
     @Property(int, notify=selectionsChanged)
     def efiSizeMb(self) -> int:
         """Get EFI System Partition size in MiB."""
-        return int(self._selections.get("efiSizeMb", 2048))
+        return int(self._selections.get("efiSizeMb", 2000))
 
     @Slot(int)
     def setEfiSizeMb(self, size: int) -> None:
         """Set EFI System Partition size in MiB."""
         if self._selections.get("efiSizeMb") != size:
             self._selections["efiSizeMb"] = size
+            self._selections["confirmed"] = False
             if self._debug:
                 print(f"[Engine] EFI size set to: {size} MB")
             self.selectionsChanged.emit()
+            self._partitioning_changed()
 
     # =========================================================================
     # Final installation confirmation (security gate)
@@ -2492,507 +2489,418 @@ class EngineBridge(QObject):
                 print(f"[Engine] Installation confirmed set to: {confirmed}")
             self.selectionsChanged.emit()
 
-    # =========================================================================
-    # Manual partitioning plan (assign existing partitions)
-    # =========================================================================
-
-    def _assignment(self, name: str) -> dict[str, Any]:
-        """Return (creating if needed) the assignment record for a partition."""
-        return self._partition_assignments.setdefault(
-            name,
-            {"path": f"/dev/{name}", "mountpoint": "", "format": False, "fstype": ""},
-        )
-
-    @Slot(str, str)
-    def setPartitionMount(self, name: str, mountpoint: str) -> None:
-        """Assign (or clear, with "") the mount point of an existing partition."""
-        entry = self._assignment(name)
-        if entry["mountpoint"] != mountpoint:
-            entry["mountpoint"] = mountpoint
-            if self._debug:
-                print(f"[Engine] Partition {name} mount -> {mountpoint or '(unused)'}")
-            self.partitionPlanChanged.emit()
-            # manualPlanValid/manualPlanError are declared with
-            # notify=partitionOperationsChanged (shared with the M2 operation
-            # editor); without this, QML's binding to them never re-reads
-            # after an M1 mount-point assignment and the validation banner
-            # stays stuck on stale state. Queued-op validity also depends on
-            # assignments (encryption rules see root's applied state).
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
-
-    @Slot(str, bool)
-    def setPartitionFormat(self, name: str, do_format: bool) -> None:
-        """Toggle whether an existing partition is reformatted."""
-        entry = self._assignment(name)
-        if entry["format"] != do_format:
-            entry["format"] = do_format
-            if self._debug:
-                print(f"[Engine] Partition {name} format -> {do_format}")
-            self.partitionPlanChanged.emit()
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
-
-    @Slot(str, str)
-    def setPartitionFsType(self, name: str, fstype: str) -> None:
-        """Set the target filesystem used when a partition is reformatted."""
-        entry = self._assignment(name)
-        if entry["fstype"] != fstype:
-            entry["fstype"] = fstype
-            if self._debug:
-                print(f"[Engine] Partition {name} fstype -> {fstype}")
-            self.partitionPlanChanged.emit()
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
-
-    @Slot(str, str)
-    def setPartitionSubvolumes(self, name: str, subvolumes_json: str) -> None:
-        """
-        Set (or clear, with ``"[]"``) the Btrfs subvolume layout for a
-        partition, mounted per-subvolume at install time instead of the
-        assignment's own bare mount point (see ``_mount_manual``).
-
-        Takes JSON (``JSON.stringify`` from QML) for the same PySide6
-        QVariant-marshalling reason as ``addPartitionOperation``.
-        """
-        try:
-            subvolumes = json.loads(subvolumes_json) if subvolumes_json else []
-        except (ValueError, TypeError) as exc:
-            if self._debug:
-                print(f"[Engine] REJECTED subvolumes payload ({exc}): {subvolumes_json!r}")
-            return
-        entry = self._assignment(name)
-        if entry.get("subvolumes") != subvolumes:
-            entry["subvolumes"] = subvolumes
-            if self._debug:
-                print(f"[Engine] Partition {name} subvolumes -> {subvolumes}")
-            self.partitionPlanChanged.emit()
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
-
-    @Slot(str, result=str)
-    def partitionSubvolumes(self, name: str) -> str:
-        """Current Btrfs subvolume layout for a partition, as a JSON string ('[]' if none)."""
-        return json.dumps(self._partition_assignments.get(name, {}).get("subvolumes", []))
-
-    @Slot(str, result=str)
-    def partitionMount(self, name: str) -> str:
-        """Current mount point assigned to a partition (empty if unused)."""
-        return str(self._partition_assignments.get(name, {}).get("mountpoint", ""))
-
-    @Slot(str, result=bool)
-    def partitionFormat(self, name: str) -> bool:
-        """Whether a partition is flagged for reformatting."""
-        return bool(self._partition_assignments.get(name, {}).get("format", False))
-
-    @Slot(str, result=str)
-    def partitionFsType(self, name: str) -> str:
-        """Target filesystem for a partition (empty means keep current)."""
-        return str(self._partition_assignments.get(name, {}).get("fstype", ""))
-
-    def _used_assignments(self) -> list[dict[str, Any]]:
-        """M1 assignments the user actually touched, across every disk.
-
-        Mount assignment is global (root and /home can each sit on a
-        different physical disk), so this is never scoped to the currently
-        selected disk - matches :func:`validate_manual_assignments` and
-        ``PartitionJob._partition_manual``'s own ``used`` filter.
-        """
-        return [
-            {"name": name, **entry}
-            for name, entry in self._partition_assignments.items()
-            if entry.get("mountpoint")
-            or entry.get("format")
-            or entry.get("subvolumes")
-            or entry.get("raw_path")
-        ]
-
-    def _manual_assignment_validity(self) -> tuple[bool, str]:
-        """The M1 fallback validity check (no pending M2 operations)."""
-        used = self._used_assignments()
-        if not used:
-            return False, "No partition is mounted at /"
-        uefi = Path("/sys/firmware/efi").exists()
-        return validate_manual_assignments(self._disks_model, used, uefi=uefi)
-
-    @Property(bool, notify=partitionOperationsChanged)
-    def manualPlanValid(self) -> bool:
-        """
-        Global validity of the manual plan.
-
-        When the M2 operation editor holds pending operations, validity is
-        driven by :func:`validate_operations` over the selected disk geometry.
-        Otherwise it falls back to :func:`validate_manual_assignments` across
-        every disk (root/ESP/boot-mountpoint/Btrfs-subvolume correctness).
-        """
-        if self._partition_operations:
-            return self._manual_ops_valid
-        valid, _reason = self._manual_assignment_validity()
-        return valid
-
-    @Property(str, notify=partitionOperationsChanged)
-    def manualPlanError(self) -> str:
-        """
-        Human-readable error for the manual plan (plain English; UI wraps qsTr).
-
-        Empty when the plan is valid. Reflects the M2 operation validation when
-        operations exist, else the M1 assignment validation.
-        """
-        if self._partition_operations:
-            return self._manual_ops_error
-        _valid, reason = self._manual_assignment_validity()
-        return reason
-
-    @Property(bool, notify=partitionOperationsChanged)
-    def operationsApplicable(self) -> bool:
-        """
-        Whether the pending operations can be written to disk (GParted-style).
-
-        Independent of a complete installable layout: this gates the Apply
-        button so delete/create/resize can be applied without first assigning a
-        root/ESP. Install completeness is enforced separately by
-        ``manualPlanValid`` at navigation time.
-        """
-        return bool(self._partition_operations) and self._manual_ops_applicable
-
-    @Property(str, notify=partitionOperationsChanged)
-    def operationsApplicableError(self) -> str:
-        """Human-readable reason the pending operations cannot be applied."""
-        if not self._partition_operations:
-            return ""
-        return self._manual_ops_applicable_error
+    def _disarm_confirmation(self) -> None:
+        """Drop the final confirmation after a change to what gets written."""
+        if self._selections.get("confirmed"):
+            self._selections["confirmed"] = False
+            self.selectionsChanged.emit()
 
     # =========================================================================
-    # Manual partitioning editor (M2: create/delete/format/setflag/resize)
+    # Partition plan (Erase / Install alongside / Manual)
     # =========================================================================
+
+    def _disk_geometry(self, disk_path: str) -> dict[str, Any]:
+        tail = disk_path.rsplit("/", 1)[-1]
+        return next((d for d in self._disks_model if d.get("name") == tail), {})
 
     def _selected_disk_geometry(self) -> dict[str, Any]:
-        """Return the disk_detector contract dict for the selected disk (or {})."""
-        selected = str(self._selections.get("disk", ""))
-        tail = selected.rsplit("/", 1)[-1]
-        for disk in self._disks_model:
-            if disk.get("name") == tail or f"/dev/{disk.get('name')}" == selected:
-                return disk
-        return {}
+        return self._disk_geometry(str(self._selections.get("disk", "")))
 
-    def _parsed_operations(self) -> list[PartitionOperation]:
-        """Parse the pending operation dicts, dropping malformed ones defensively."""
-        parsed: list[PartitionOperation] = []
-        for raw in self._partition_operations:
+    def _partitioning_changed(self) -> None:
+        self._disarm_confirmation()
+        self._refresh_partitioning()
+
+    def _alongside_part(self) -> dict[str, Any] | None:
+        return next(
+            (
+                c
+                for c in self._alongside_candidates
+                if c["eligible"] and int(c["number"]) == self._alongside_partition
+            ),
+            None,
+        )
+
+    def _current_bounds(self) -> _AlongsideBounds | None:
+        part = self._alongside_part()
+        if part is None:
+            return None
+        return _alongside_bounds(self._selected_disk_geometry(), part, self._min_install_gib)
+
+    def _refresh_alongside(self, disk: dict[str, Any]) -> None:
+        self._alongside_candidates = [
+            _alongside_candidate(disk, part, self._min_install_gib)
+            for part in disk.get("partitions", [])
+        ]
+        eligible = [c for c in self._alongside_candidates if c["eligible"]]
+        if self._alongside_part() is None:
+            largest = max(eligible, key=lambda c: int(c["sizeBytes"]), default=None)
+            self._alongside_partition = int(largest["number"]) if largest else 0
+            self._alongside_new_mb = 0
+        bounds = self._current_bounds()
+        if bounds is None:
+            self._alongside_new_mb = 0
+        elif not self._alongside_new_mb:
+            self._alongside_new_mb = bounds.default_new_mb
+        else:
+            self._alongside_new_mb = bounds.clamp_new_mb(self._alongside_new_mb)
+
+        selected = disk.get("name", "")
+        disks = sorted(self._disks_model, key=lambda d: d.get("name") != selected)
+        self._esp_candidates = [
+            {
+                "disk": d["name"],
+                "number": int(p["number"]),
+                "path": p.get("path", ""),
+                "sizeBytes": int(p.get("sizeBytes") or 0),
+                "label": p.get("label", ""),
+            }
+            for d in disks
+            for p in d.get("partitions", [])
+            if p.get("isEsp") and not p.get("mounted") and p.get("fstype") in _ESP_FILESYSTEMS
+        ]
+        chosen = (self._alongside_esp.get("disk"), self._alongside_esp.get("number"))
+        self._alongside_esp = next(
+            (e for e in self._esp_candidates if (e["disk"], e["number"]) == chosen),
+            self._esp_candidates[0] if self._esp_candidates else {},
+        )
+
+    def _build_plan(self, disk: dict[str, Any]) -> PartitionPlan:
+        mode = self._selections.get("partitionMode", "auto")
+        if mode == "manual":
+            return build_manual_plan(disk, self._manual_rows, self._manual_new_table)
+        fstype = str(self._selections.get("filesystem", ""))
+        encrypt = bool(self._selections.get("encryption"))
+        subvolumes = self._btrfs_subvolumes if fstype == "btrfs" else []
+        if mode == "auto":
+            efi_size_mb = int(self._selections.get("efiSizeMb", 2000))
+            return build_erase_plan(disk, fstype, encrypt, efi_size_mb, subvolumes)
+        bounds = self._current_bounds()
+        if bounds is None:
+            raise LookupError(msg("No partition on this disk can be shrunk to make room."))
+        if not self._alongside_esp:
+            raise LookupError(msg("No EFI system partition was found to reuse."))
+        return build_alongside_plan(
+            disk,
+            self._alongside_partition,
+            bounds.keep_bytes(self._alongside_new_mb),
+            fstype,
+            encrypt,
+            int(self._alongside_esp["number"]),
+            str(self._alongside_esp["disk"]),
+            subvolumes,
+        )
+
+    def _refresh_partitioning(self) -> None:
+        disk = self._selected_disk_geometry()
+        self._refresh_alongside(disk)
+        self._plan, self._plan_warnings, self._plan_checklist = None, [], []
+        self._plan_preview = list(disk.get("segments", []))
+        if not disk:
+            self._plan_errors = [msg("No disk selected.")]
+        else:
             try:
-                parsed.append(PartitionOperation.from_dict(raw))
-            except ValueError:
-                continue
-        return parsed
+                self._plan = self._build_plan(disk)
+            except LookupError as exc:
+                first = exc.args[0] if exc.args else None
+                self._plan_errors = [first if isinstance(first, Msg) else str(exc)]
+            except (KeyError, TypeError, ValueError) as exc:
+                self._plan_errors = [msg("Invalid partition layout: {error}", error=exc)]
+        if self._plan is not None:
+            self._evaluate_plan(self._plan, disk)
+        self.partitioningChanged.emit()
 
-    def _revalidate_operations(self) -> None:
-        """Recompute validity/error for the current operations + selected disk.
+    def _evaluate_plan(self, plan: PartitionPlan, disk: dict[str, Any]) -> None:
+        manual = self._selections.get("partitionMode") == "manual"
+        others = [d for d in self._disks_model if d is not disk]
+        errors = validate_plan(
+            plan,
+            disk,
+            uefi=True,
+            has_internet=self._has_internet,
+            min_install_gib=self._min_install_gib,
+            other_disks=others,
+        )
+        if manual and any(t.encrypt for t in plan.targets) and not self._manual_root_passphrase:
+            errors.append("Enter a passphrase for the encrypted root (/) partition.")
+        self._plan_errors = errors
+        # Erase and Alongside get swap from the swap strategy, never from a partition.
+        self._plan_warnings = plan_warnings(
+            plan, disk, other_disks=others, expect_swap_partition=manual
+        )
+        self._plan_checklist = plan_checklist(plan, disk, other_disks=others)
+        self._plan_preview = preview_segments(plan, disk)
 
-        Two levels: ``applicable`` (structural + encryption rules, gates Apply)
-        and ``valid`` (complete installable layout, gates navigation/install).
-        """
-        if not self._partition_operations:
-            self._manual_ops_valid = False
-            self._manual_ops_error = ""
-            self._manual_ops_applicable = False
-            self._manual_ops_applicable_error = ""
-            return
-        geom = self._selected_disk_geometry()
-        if not geom:
-            self._manual_ops_valid = False
-            self._manual_ops_error = "No disk selected"
-            self._manual_ops_applicable = False
-            self._manual_ops_applicable_error = "No disk selected"
-            return
-        uefi = Path("/sys/firmware/efi").exists()
-        try:
-            operations = [PartitionOperation.from_dict(op) for op in self._partition_operations]
-        except ValueError as exc:
-            self._manual_ops_valid = False
-            self._manual_ops_error = str(exc)
-            self._manual_ops_applicable = False
-            self._manual_ops_applicable_error = str(exc)
-            return
-        applied = self._used_assignments()
-        applicable, applicable_error = validate_operations_applicable(geom, operations)
-        if applicable:
-            applicable, applicable_error = validate_encryption_rules(geom, operations, applied)
-        self._manual_ops_applicable = applicable
-        self._manual_ops_applicable_error = applicable_error
-        valid, error = validate_operations(geom, operations, uefi=uefi, applied_assignments=applied)
-        self._manual_ops_valid = valid
-        self._manual_ops_error = error
+    @Property(bool, notify=partitioningChanged)
+    def alongsideAvailable(self) -> bool:
+        return bool(self._esp_candidates) and any(c["eligible"] for c in self._alongside_candidates)
 
-    @Property(list, notify=partitionOperationsChanged)
-    def pendingOperations(self) -> list[dict[str, Any]]:
-        """The ordered list of pending operation dicts (contract shape)."""
-        return self._partition_operations
+    @Property(list, notify=partitioningChanged)
+    def alongsideCandidates(self) -> list[dict[str, Any]]:
+        return localize(self._alongside_candidates)
 
-    @Slot(str)
-    def addPartitionOperation(self, op_json: str) -> None:
-        """
-        Append an operation received as a JSON string from QML.
-
-        The operation is passed as JSON (``JSON.stringify`` in QML) rather than
-        a plain QML object because a JS object does NOT marshal reliably to a
-        QVariant slot across PySide6 versions — the slot would silently never be
-        invoked, leaving the queue empty. Malformed / invalid operations are
-        rejected (surfaced through manualPlanError) rather than raising.
-        """
-        op_dict: Any = op_json
-        if isinstance(op_json, str):
-            try:
-                op_dict = json.loads(op_json)
-            except (ValueError, TypeError) as exc:
-                self._manual_ops_valid = False
-                self._manual_ops_error = f"Malformed operation payload: {exc}"
-                self.partitionOperationsChanged.emit()
-                return
-        params = op_dict.get("params") if isinstance(op_dict, dict) else None
-        passphrase = params.get("encryption_passphrase") if isinstance(params, dict) else None
-        if isinstance(passphrase, str) and passphrase:
-            self._redactor.add_secret(passphrase)
-        try:
-            PartitionOperation.from_dict(op_dict)
-        except ValueError as exc:
-            self._manual_ops_valid = False
-            self._manual_ops_error = str(exc)
-            if self._debug:
-                redacted = self._redactor.redact(repr(op_dict))
-                print(f"[Engine] REJECTED partition op ({exc}): {redacted}")
-            self.partitionOperationsChanged.emit()
-            return
-        self._partition_operations.append(op_dict)
-        if self._debug:
-            print(f"[Engine] Added partition op: {op_dict.get('type')} on {op_dict.get('target')}")
-        self._revalidate_operations()
-        self.partitionOperationsChanged.emit()
+    @Property(int, notify=partitioningChanged)
+    def alongsidePartition(self) -> int:
+        return self._alongside_partition
 
     @Slot(int)
-    def removePartitionOperation(self, index: int) -> None:
-        """Remove the operation at ``index`` (no-op if out of range), revalidate."""
-        if 0 <= index < len(self._partition_operations):
-            removed = self._partition_operations.pop(index)
-            if self._debug:
-                print(f"[Engine] Removed partition op #{index}: {removed.get('type')}")
-            self._revalidate_operations()
-            self.partitionOperationsChanged.emit()
+    def setAlongsidePartition(self, number: int) -> None:
+        eligible = {int(c["number"]) for c in self._alongside_candidates if c["eligible"]}
+        if number in eligible and number != self._alongside_partition:
+            self._alongside_partition = number
+            self._alongside_new_mb = 0
+            self._partitioning_changed()
 
-    @Slot()
-    def resetPartitionOperations(self) -> None:
-        """Clear all pending operations and reset validity/error."""
-        if self._partition_operations:
-            self._partition_operations = []
-            self._manual_ops_valid = False
-            self._manual_ops_error = ""
-            self._manual_ops_applicable = False
-            self._manual_ops_applicable_error = ""
-            if self._debug:
-                print("[Engine] Cleared all partition operations")
-            self.partitionOperationsChanged.emit()
+    @Property(int, notify=partitioningChanged)
+    def alongsideNewSizeMb(self) -> int:
+        return self._alongside_new_mb
 
-    @Property(bool, notify=partitionApplyingChanged)
-    def partitionApplying(self) -> bool:
-        """True while a live partition-apply is running (UI shows a busy state)."""
-        return self._partition_applying
-
-    @Slot()
-    def applyPartitionOperations(self) -> None:
-        """
-        Execute the queued M2 operations on the selected disk (GParted-style),
-        off the UI thread, then rescan so 'Available Disks' shows the real new
-        layout. Requires privileges (sgdisk/mkfs): on the live ISO Xen runs as
-        root; in dev, launch the app with sudo.
-        """
-        if self._partition_applying:
+    @Slot(int)
+    def setAlongsideNewSizeMb(self, size_mb: int) -> None:
+        bounds = self._current_bounds()
+        if bounds is None:
             return
-        selected = str(self._selections.get("disk", ""))
-        if not selected or not self._partition_operations:
-            self.partitionApplyFinished.emit(False, "No operations to apply")
+        size_mb = bounds.clamp_new_mb(int(size_mb))
+        if size_mb != self._alongside_new_mb:
+            self._alongside_new_mb = size_mb
+            self._partitioning_changed()
+
+    @Property(int, notify=partitioningChanged)
+    def alongsideMinNewMb(self) -> int:
+        bounds = self._current_bounds()
+        return bounds.min_new_mb if bounds else 0
+
+    @Property(int, notify=partitioningChanged)
+    def alongsideMaxNewMb(self) -> int:
+        bounds = self._current_bounds()
+        return bounds.max_new_mb if bounds else 0
+
+    @Property(list, notify=partitioningChanged)
+    def espCandidates(self) -> list[dict[str, Any]]:
+        return self._esp_candidates
+
+    @Property("QVariantMap", notify=partitioningChanged)  # type: ignore[arg-type]
+    def alongsideEsp(self) -> dict[str, Any]:
+        return self._alongside_esp
+
+    @Slot(str)
+    def setAlongsideEsp(self, esp_json: str) -> None:
+        try:
+            wanted = json.loads(esp_json)
+            key = (str(wanted["disk"]), int(wanted["number"]))
+        except (ValueError, TypeError, KeyError):
             return
-        self._revalidate_operations()
-        if not self._manual_ops_applicable:
-            self.partitionApplyFinished.emit(
-                False, self._manual_ops_applicable_error or "Operations cannot be applied"
-            )
-            return
+        esp = next((e for e in self._esp_candidates if (e["disk"], e["number"]) == key), None)
+        if esp is not None and esp != self._alongside_esp:
+            self._alongside_esp = esp
+            self._partitioning_changed()
 
-        disk_path = selected if selected.startswith("/dev/") else f"/dev/{selected}"
+    @Property(str, notify=partitioningChanged)
+    def btrfsSubvolumes(self) -> str:
+        return json.dumps(self._btrfs_subvolumes)
 
-        # Not self._selections: nothing in the UI sets "bootloader"; the
-        # bootloader job's yaml type: is authoritative.
-        bootloader = self._engine.bootloader_type()
-        has_separate_boot = any(
-            op.get("params", {}).get("mountpoint") == "/boot"
-            for op in self._partition_operations
-        ) or manual_has_separate_boot(self._used_assignments())
-
-        self._partition_applying = True
-        self.partitionApplyingChanged.emit()
-
-        self._apply_thread = QThread(self)
-        self._apply_worker = PartitionApplyWorker(
-            disk_path, list(self._partition_operations), self._dry_run,
-            bootloader, has_separate_boot,
-        )
-        self._apply_worker.moveToThread(self._apply_thread)
-        self._apply_thread.started.connect(self._apply_worker.run)
-        self._apply_worker.finished.connect(self._on_partition_apply_finished)
-        self._apply_worker.finished.connect(self._apply_thread.quit)
-        self._apply_worker.finished.connect(self._apply_worker.deleteLater)
-        self._apply_thread.finished.connect(self._apply_thread.deleteLater)
-        self._apply_thread.finished.connect(self._cleanup_apply_thread)
-        self._apply_thread.start()
-
-    def _reconcile_after_apply(self, applied_ops: list[dict[str, Any]]) -> None:
-        """
-        Promote each applied create/format op's queued mountpoint/encryption
-        intent onto the real partition it now corresponds to.
-
-        Fixes a pre-existing gap: a newly-created partition's Mount Point
-        field was captured in its `create` op's params but nothing ever
-        carried it into `_partition_assignments` (keyed by the partition's
-        real, post-Apply kernel name) - only the Edit dialog's
-        `setPartitionMount`, on an already-existing partition, worked. This
-        also has to exist for `encrypt` to correctly resolve to a mapper
-        device path for a newly-created partition, so both are fixed here
-        together.
-        """
-        disk = self._selected_disk_geometry()
-        segments = disk.get("segments", [])
-
-        for op in applied_ops:
-            if op.get("type") not in ("create", "format"):
-                continue
-            params = op.get("params", {})
-            mountpoint = params.get("mountpoint")
-            encrypt = bool(params.get("encrypt"))
-            if not mountpoint and not encrypt and not params.get("subvolumes"):
-                continue
-
-            real_name = self._resolve_real_partition_name(op, segments)
-            if not real_name:
-                continue
-
-            entry = self._assignment(real_name)
-            if mountpoint:
-                entry["mountpoint"] = mountpoint
-            if params.get("fstype"):
-                entry["fstype"] = params["fstype"]
-            if params.get("subvolumes"):
-                entry["subvolumes"] = params["subvolumes"]
-            if encrypt:
-                entry["raw_path"] = f"/dev/{real_name}"
-                entry["path"] = f"/dev/mapper/{manual_mapper_name_for(params)}"
-            else:
-                entry.pop("raw_path", None)
-                entry["path"] = f"/dev/{real_name}"
-
-        self.partitionPlanChanged.emit()
+    @Property(str, constant=True)
+    def defaultBtrfsSubvolumes(self) -> str:
+        return json.dumps(self._default_btrfs_subvolumes)
 
     @staticmethod
-    def _resolve_real_partition_name(
-        op: dict[str, Any], segments: list[dict[str, Any]]
-    ) -> str | None:
-        """Match a `create`/`format` op to the real partition it now
-        corresponds to, by start sector - same sector-matching
-        `_resolve_partition_number` already does job-side, mirrored here
-        client-side against freshly-rescanned disk geometry."""
-        params = op.get("params", {})
-        if op.get("type") == "format":
-            path = str(params.get("path", ""))
-            return path.rsplit("/", 1)[-1] if path else None
-        start = params.get("start_sector")
-        if start is None:
-            return None
-        for seg in segments:
-            if seg.get("kind") == "partition" and seg.get("startSector") == start:
-                return str(seg.get("name", ""))
-        return None
+    def _parse_btrfs_subvolumes(subvolumes_json: str) -> tuple[list[dict[str, str]], str]:
+        try:
+            raw = json.loads(subvolumes_json)
+            subvolumes = [
+                {"name": str(sv["name"]), "mountpoint": str(sv["mountpoint"])} for sv in raw
+            ]
+        except (ValueError, TypeError, KeyError):
+            return [], msg("Invalid subvolume list")
+        return subvolumes, validate_btrfs_subvolumes(subvolumes)[1]
 
-    def _on_partition_apply_finished(
-        self, success: bool, message: str, passphrases: dict[str, str]
-    ) -> None:
-        """Main-thread handler: on success, reconcile queued intent onto
-        real partition names, carry the batch's LUKS passphrases forward
-        (keyed by real partition name), clear the queue, and rescan."""
-        self._partition_applying = False
-        self.partitionApplyingChanged.emit()
-        if success:
-            self.refreshDisks()
-            self._reconcile_after_apply(list(self._partition_operations))
-            for raw_path, pw in passphrases.items():
-                self._redactor.add_secret(pw)
-                self._manual_luks_passphrases[raw_path.rsplit("/", 1)[-1]] = pw
-            self.resetPartitionOperations()
-        if self._debug:
-            print(f"[Engine] Partition apply finished: success={success} ({message})")
-        self.partitionApplyFinished.emit(success, message)
+    @Slot(str, result=str)
+    def validateBtrfsSubvolumes(self, subvolumes_json: str) -> str:
+        return localize(self._parse_btrfs_subvolumes(subvolumes_json)[1])
 
-    def _cleanup_apply_thread(self) -> None:
-        """Drop the finished apply thread/worker references."""
-        self._apply_thread = None
-        self._apply_worker = None
+    @Slot(str, result=bool)
+    def setBtrfsSubvolumes(self, subvolumes_json: str) -> bool:
+        subvolumes, error = self._parse_btrfs_subvolumes(subvolumes_json)
+        if error:
+            return False
+        if subvolumes != self._btrfs_subvolumes:
+            self._btrfs_subvolumes = subvolumes
+            self._partitioning_changed()
+        return True
 
-    @Property(list, notify=partitionOperationsChanged)
-    def simulatedSegments(self) -> list[dict[str, Any]]:
-        """
-        Geometry of the selected disk AFTER the pending operations.
+    @Property(list, notify=partitioningChanged)
+    def manualRows(self) -> list[dict[str, Any]]:
+        return self._manual_rows
 
-        Each segment carries the exact UI contract shape (see
-        :func:`xen.jobs.partition.simulate_operations`). With no operations,
-        this is the disk's current segment geometry normalized to that shape.
-        """
-        geom = self._selected_disk_geometry()
-        segments = geom.get("segments", []) if geom else []
-        operations = self._parsed_operations()
-        return simulate_operations(segments, operations)
+    @Property(bool, notify=partitioningChanged)
+    def manualNewTable(self) -> bool:
+        return self._manual_new_table
 
-    @Property(list, notify=partitionOperationsChanged)
-    def commandPreview(self) -> list[str]:
-        """
-        Dry-run preview of the commands the plan would run (joined strings).
+    @staticmethod
+    def _row_key(row: dict[str, Any]) -> str:
+        return str(row["ref"]) if row.get("kind") == "new" else str(row["number"])
 
-        Executes the operation path in dry-run mode against an in-memory
-        collector so the UI can show exactly what will happen with no side
-        effects. Returns an empty list when there are no operations.
-        """
-        if not self._partition_operations:
-            return []
-        selected = str(self._selections.get("disk", ""))
-        if not selected:
-            return []
-        collector = _CommandCollector()
-        job = _build_preview_job(selected, self._partition_operations, collector)
-        job()
-        return collector.lines
+    @staticmethod
+    def _valid_row(row: Any) -> bool:
+        if not isinstance(row, dict):
+            return False
+        if row.get("kind") == "new":
+            ref = row.get("ref")
+            # bare digits are reserved for existing partition numbers in removeManualRow
+            ref_ok = isinstance(ref, str) and ref != "" and not ref.isdigit()
+            bounds_ok = all(
+                isinstance(row.get(k), int) and not isinstance(row.get(k), bool)
+                for k in ("start", "end")
+            )
+            return ref_ok and bounds_ok
+        number = row.get("number")
+        return (
+            row.get("kind") == "existing"
+            and isinstance(number, int)
+            and not isinstance(number, bool)
+            and number > 0
+        )
+
+    @Slot(str, result=bool)
+    def setManualRow(self, row_json: str) -> bool:
+        try:
+            row = json.loads(row_json)
+        except (ValueError, TypeError):
+            return False
+        if not self._valid_row(row):
+            return False
+        key = self._row_key(row)
+        index = next(
+            (i for i, r in enumerate(self._manual_rows) if self._row_key(r) == key), None
+        )
+        if index is None:
+            self._manual_rows.append(row)
+        elif self._manual_rows[index] != row:
+            self._manual_rows[index] = row
+        else:
+            return True
+        self._drop_unused_root_passphrase()
+        self._partitioning_changed()
+        return True
+
+    @Slot(str)
+    def removeManualRow(self, key: str) -> None:
+        kept = [r for r in self._manual_rows if self._row_key(r) != key]
+        if len(kept) != len(self._manual_rows):
+            self._manual_rows = kept
+            self._drop_unused_root_passphrase()
+            self._partitioning_changed()
+
+    def _drop_unused_root_passphrase(self) -> None:
+        if not any(
+            r.get("encrypt") and str(r.get("mountpoint") or "").strip() == "/"
+            for r in self._manual_rows
+        ):
+            self._manual_root_passphrase = ""
+
+    @Slot(bool)
+    def setManualNewTable(self, new_table: bool) -> None:
+        if new_table != self._manual_new_table:
+            self._manual_new_table = new_table
+            if new_table:
+                self._manual_rows = [r for r in self._manual_rows if r.get("kind") == "new"]
+                self._drop_unused_root_passphrase()
+            self._partitioning_changed()
+
+    @Slot()
+    def revertManual(self) -> None:
+        if self._manual_rows or self._manual_new_table or self._manual_root_passphrase:
+            self._manual_rows = []
+            self._manual_new_table = False
+            self._manual_root_passphrase = ""
+            self._partitioning_changed()
+
+    @Slot(str)
+    def setManualRootPassphrase(self, passphrase: str) -> None:
+        self._redactor.add_secret(passphrase)
+        if passphrase != self._manual_root_passphrase:
+            self._manual_root_passphrase = passphrase
+            self._partitioning_changed()
+
+    @Slot(float, result=int)
+    def minShrinkMiB(self, min_size_bytes: float) -> int:
+        return min_shrink_bytes(int(min_size_bytes)) // _MIB
+
+    @Property(list, notify=partitioningChanged)
+    def planPreview(self) -> list[dict[str, Any]]:
+        return self._plan_preview
+
+    @Property(list, notify=partitioningChanged)
+    def planErrors(self) -> list[str]:
+        return localize(self._plan_errors)
+
+    @Property(list, notify=partitioningChanged)
+    def planWarnings(self) -> list[str]:
+        return localize(self._plan_warnings)
+
+    @Property(list, notify=partitioningChanged)
+    def planChecklist(self) -> list[dict[str, Any]]:
+        return localize(self._plan_checklist)
+
+    @Property(bool, notify=partitioningChanged)
+    def planValid(self) -> bool:
+        return self._plan is not None and not self._plan_errors
 
     @Slot()
     def refreshDisks(self) -> None:
-        """Scan and refresh available disks via the unified disk detector."""
+        if self._quitting:
+            return
+        if self._scan_thread is not None:
+            self._rescan_pending = True
+            return
         if self._debug:
             print("[Engine] Scanning disks...")
+        self._disks_scanning = True
+        self.disksScanningChanged.emit()
+        # The probes need root; a non-root dry run would only collect "couldn't check" noise.
+        probe = not self._dry_run or os.geteuid() == 0
+        self._scan_thread = QThread(self)
+        self._scan_worker = DiskScanWorker(probe)
+        self._scan_worker.moveToThread(self._scan_thread)
+        self._scan_thread.started.connect(self._scan_worker.run)
+        self._scan_worker.finished.connect(self._on_disk_scan_finished)
+        self._scan_worker.finished.connect(self._scan_thread.quit)
+        self._scan_worker.finished.connect(self._scan_worker.deleteLater)
+        self._scan_thread.finished.connect(self._scan_thread.deleteLater)
+        self._scan_thread.finished.connect(self._cleanup_scan_thread)
+        self._scan_thread.start()
 
-        try:
-            # disk_detector.list_disks() already returns the histobar contract
-            # (name, model, size, sizeBytes, type, removable, partitions[...])
-            # and has its own lsblk-failure fallback.
-            self._disks_model = disk_detector.list_disks()
-        except Exception as e:  # noqa: BLE001 - defensive: never crash the UI
-            if self._debug:
-                print(f"[Engine] Disk scan error: {e}")
-            self._disks_model = []
-
+    @Slot(object)
+    def _on_disk_scan_finished(self, disks: list[dict[str, Any]]) -> None:
+        before = self._plan.to_dict() if self._plan else None
+        self._disks_model = disks
         if self._debug:
-            print(f"[Engine] Found {len(self._disks_model)} disks")
-
+            print(f"[Engine] Found {len(disks)} disks")
+        if self._disks_scanning:
+            self._disks_scanning = False
+            self.disksScanningChanged.emit()
+        for job in self._engine.jobs:
+            if isinstance(job, PartitionJob):
+                job.disk_rescanned()
         self.disksChanged.emit()
-        # A rescan changes the selected disk's geometry, so the manual editor's
-        # derived views (simulatedSegments, validity, command preview) must
-        # re-evaluate against the fresh geometry. Without this, applying a plan
-        # updates "Available Disks" but leaves the partition editor stale.
-        self._revalidate_operations()
-        self.partitionOperationsChanged.emit()
+        self._refresh_partitioning()
+        if (self._plan.to_dict() if self._plan else None) != before:
+            self._disarm_confirmation()
+
+    def _cleanup_scan_thread(self) -> None:
+        self._scan_thread = None
+        self._scan_worker = None
+        if self._rescan_pending:
+            self._rescan_pending = False
+            self.refreshDisks()
+
+    @Slot()
+    def _wait_for_disk_scan(self) -> None:
+        # Quitting mid-probe would abort the process with a scratch mount still in place.
+        self._quitting = True
+        if self._scan_thread is not None:
+            # worker.finished -> quit is queued to this blocked thread, so quit directly.
+            self._scan_thread.quit()
+            self._scan_thread.wait()
 
     # =========================================================================
     # Progress Properties
@@ -3006,17 +2914,12 @@ class EngineBridge(QObject):
     @Property(str, notify=progressChanged)
     def currentJobName(self) -> str:
         """Get current job's friendly display name (e.g. "install" -> "Installing")."""
-        return _job_display_name(self._current_job_name)
+        return localize(_job_display_name(self._current_job_name))
 
     @Property(str, notify=progressChanged)
     def currentJobMessage(self) -> str:
         """Get current job status message."""
-        return self._current_job_message
-
-    @Property(list, notify=progressChanged)
-    def jobsList(self) -> list[dict[str, Any]]:
-        """Get jobs list with status for progress view."""
-        return self._jobs_list
+        return localize(self._current_job_message)
 
     @Property(bool, notify=progressChanged)
     def isStalled(self) -> bool:
@@ -3027,43 +2930,10 @@ class EngineBridge(QObject):
         """
         return self._is_stalled
 
-    @Property(bool, notify=progressChanged)
-    def indeterminate(self) -> bool:
-        """True quand le job progresse réellement mais sans total fiable.
-
-        Piloté explicitement par le job (``report_indeterminate``), et non par
-        le timer de silence. L'UI pulse la barre et affiche les compteurs texte
-        (« X construits, Y copiés ») au lieu d'un pourcentage inventé.
-        """
-        return self._indeterminate
-
-    @Property(str, notify=progressChanged)
-    def installationStatus(self) -> str:
-        """Get installation status: idle, running, success, failed."""
-        return self._installation_status
-
     @Property(str, notify=progressChanged)
     def errorMessage(self) -> str:
         """Get error message if installation failed."""
-        return self._error_message
-
-    def _update_jobs_list(self) -> None:
-        """Update jobs list with current status."""
-        self._jobs_list = []
-        job_names = self._engine.get_job_names()
-        job_labels = self._engine.get_job_descriptions()
-        current_idx = self.getCurrentJobIndex()
-
-        for i, name in enumerate(job_names):
-            if i < current_idx:
-                status = "completed"
-            elif i == current_idx:
-                status = "running"
-            else:
-                status = "pending"
-
-            label = job_labels[i] if i < len(job_labels) else name
-            self._jobs_list.append({"name": name, "status": status, "label": label})
+        return localize(self._error_message)
 
     # =========================================================================
     # Summary Properties
@@ -3089,7 +2959,7 @@ class EngineBridge(QObject):
         distribution = branding.name
         size = self._get_disk_size(disk)
         target = f"{disk} ({size})" if disk and size else disk
-        filesystem = str(self._selections.get("filesystem", "") or "")
+        filesystem = self._effective_filesystem()
         if target and filesystem:
             target = f"{target} > {filesystem.upper()}"
         return {
@@ -3101,6 +2971,20 @@ class EngineBridge(QObject):
             "installationTime": self._format_install_duration(),
             "installedPackages": 0,  # Could track from packages job
         }
+
+    def _manual_root(self) -> Any:
+        if self._plan is None:
+            return None
+        return next((t for t in self._plan.targets if t.mountpoint == "/"), None)
+
+    def _effective_filesystem(self) -> str:
+        """Root filesystem the install will actually use: the manual root's
+        own filesystem in manual mode, else the auto-mode selection."""
+        if self._selections.get("partitionMode") == "manual":
+            root = self._manual_root()
+            if root is not None and root.fstype:
+                return str(root.fstype)
+        return str(self._selections.get("filesystem", "") or "")
 
     def _format_install_duration(self) -> str:
         """Format the elapsed installation time as ``Xm Ys`` (or ``Ys``)."""
@@ -3134,9 +3018,9 @@ class EngineBridge(QObject):
 
         try:
             if action == "reboot":
-                subprocess.run(["systemctl", "reboot"], check=False)
+                subprocess.run(["systemctl", "reboot"], check=False, timeout=30)
             elif action == "shutdown":
-                subprocess.run(["systemctl", "poweroff"], check=False)
+                subprocess.run(["systemctl", "poweroff"], check=False, timeout=30)
             # "continue" does nothing - user can manually close
         except Exception as e:
             if self._debug:
@@ -3155,13 +3039,7 @@ class EngineBridge(QObject):
             if isinstance(value, str):
                 self._redactor.add_secret(value)
 
-        for op in self._partition_operations:
-            passphrase = op.get("params", {}).get("encryption_passphrase")
-            if isinstance(passphrase, str) and passphrase:
-                self._redactor.add_secret(passphrase)
-        for passphrase in self._manual_luks_passphrases.values():
-            if passphrase:
-                self._redactor.add_secret(passphrase)
+        self._redactor.add_secret(self._manual_root_passphrase)
 
         if self._debug:
             print("[Engine] Applying selections to context...")
@@ -3208,41 +3086,25 @@ class EngineBridge(QObject):
         if disk and not disk.startswith("/dev/"):
             normalized["disk"] = f"/dev/{disk}"
 
-        # Manual partitioning: forward the per-partition assignment plan, keeping
-        # only entries the user actually touched (a mount point and/or a format).
-        if normalized.get("partition_mode") == "manual":
-            # A stale AUTO-mode "encryption" flag (toggled on before switching
-            # to manual mode) must not leak through: luksbootkeyfile.py would
-            # try to run against whatever root_partition happens to be (and
-            # fail, aborting the install at the very end), and finished.py's
-            # cleanup would add "cryptroot" to its close list even when
-            # that's not this install's actual manual-mode mapper situation.
-            # Manual mode threads its own encryption intent entirely through
-            # partition_assignments/manual_luks_passphrases instead.
-            normalized["encryption"] = False
-            normalized["partition_assignments"] = [
-                {
-                    "name": name,
-                    "path": entry["path"],
-                    "mountpoint": entry["mountpoint"],
-                    "format": entry["format"],
-                    "fstype": entry["fstype"],
-                    "subvolumes": entry.get("subvolumes") or [],
-                    "raw_path": entry.get("raw_path", ""),
-                }
-                for name, entry in self._partition_assignments.items()
-                if entry["mountpoint"]
-                or entry["format"]
-                or entry.get("subvolumes")
-                or entry.get("raw_path")
-            ]
-            # M2 editor: forward the ordered operation list (snake contract).
-            # When present, the partition job drives the operation path instead
-            # of the legacy assignment path.
-            if self._partition_operations:
-                normalized["partition_operations"] = list(self._partition_operations)
-            if self._manual_luks_passphrases:
-                normalized["manual_luks_passphrases"] = dict(self._manual_luks_passphrases)
+        normalized["btrfs_subvolumes"] = [dict(sv) for sv in self._btrfs_subvolumes]
+        mode = normalized.get("partition_mode")
+        if mode == "alongside":
+            bounds = self._current_bounds()
+            normalized["alongside_partition"] = self._alongside_partition
+            normalized["alongside_keep_size_bytes"] = (
+                bounds.keep_bytes(self._alongside_new_mb) if bounds else 0
+            )
+            normalized["alongside_esp"] = {
+                "disk": self._alongside_esp.get("disk", ""),
+                "number": int(self._alongside_esp.get("number", 0)),
+            }
+        elif mode == "manual":
+            root = self._manual_root()
+            normalized["encryption"] = bool(root is not None and root.encrypt)
+            normalized["filesystem"] = self._effective_filesystem()
+            normalized["manual_rows"] = copy.deepcopy(self._manual_rows)
+            normalized["manual_new_table"] = self._manual_new_table
+            normalized["manual_root_passphrase"] = self._manual_root_passphrase
 
         # SECURITY: installer-wide guard-rails read by the destructive jobs
         # (e.g. partition). ``dry_run`` comes from the bridge launch flag;
@@ -3264,35 +3126,36 @@ class EngineBridge(QObject):
             print("[Engine] Launching network settings...")
 
         success, message = NetworkHelper.launch_network_settings()
-
         if success:
-            if self._debug:
-                print(f"[Engine] Network settings launched: {message}")
-            self.networkSettingsLaunched.emit(message)
+            logger.info("Network settings launched: %s", message)
         else:
-            if self._debug:
-                print(f"[Engine] Network settings error: {message}")
-            self.networkSettingsError.emit(message)
-
-    @Slot(result=bool)
-    def checkInternetConnectivity(self) -> bool:
-        """Check if internet connectivity is available."""
-        connected = NetworkHelper.check_internet_connectivity()
-        if self._debug:
-            print(f"[Engine] Internet connectivity: {connected}")
-        self.internetStatusChanged.emit(connected)
-        return connected
+            logger.warning("Network settings error: %s", message)
 
     @Slot()
     def recheckInternetStatus(self) -> None:
-        """Re-check internet status and update requirements if changed."""
+        """Re-probe connectivity off the GUI thread (offline it blocks for
+        several seconds); the result lands in :meth:`_apply_internet_status`."""
+        if self._internet_check_thread is not None:
+            return
         if self._debug:
             print("[Engine] Re-checking internet status...")
 
-        # Check connectivity (this emits internetStatusChanged signal)
-        self.checkInternetConnectivity()
+        def _probe() -> None:
+            self._internetCheckFinished.emit(NetworkHelper.check_internet_connectivity())
 
-        # Re-run requirements check to update the internet requirement status
+        self._internet_check_thread = threading.Thread(target=_probe, daemon=True)
+        self._internet_check_thread.start()
+
+    @Slot(bool)
+    def _apply_internet_status(self, connected: bool) -> None:
+        self._internet_check_thread = None
+        if self._debug:
+            print(f"[Engine] Internet connectivity: {connected}")
+        self._has_internet = connected
+        self._selections["has_internet"] = connected
+        self.internetStatusChanged.emit(connected)
+        # A Btrfs root needs the network for its snapshot tools.
+        self._refresh_partitioning()
         if self._requirements_checker is not None:
             self.checkRequirements()
 
@@ -3376,7 +3239,7 @@ class EngineBridge(QObject):
         "vi_VN": "vn",
         # Indonesian and Malay
         "id_ID": "id",
-        "ms_MY": "my",
+        "ms_MY": "us",  # XKB "my" is the Arabic-script Jawi layout
         # Turkish
         "tr_TR": "tr",
         # Greek
@@ -3457,8 +3320,3 @@ class EngineBridge(QObject):
 
         # Default to US layout if no match
         return "us"
-
-    @Slot(str, result=str)
-    def deriveKeymapFromLocale(self, locale: str) -> str:
-        """QML-accessible slot to derive keymap from locale."""
-        return self._derive_keymap_from_locale(locale)

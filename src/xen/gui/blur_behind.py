@@ -1,11 +1,11 @@
-"""KWin blur-behind hint for the installer window.
+"""KWin blur-behind hint for the installer window (X11/XWayland only).
 
-KWin exposes compositor blur only through a legacy X11 window property
-(``_KDE_NET_WM_BLUR_BEHIND_REGION``); it has no Wayland-native protocol
-that Qt applications can call into. On a Wayland session this still works
-through XWayland, since Qt's ``xcb`` platform plugin and KWin's X11
-compositing path are both active underneath. On any other platform
-(Wayland-only compositors, GNOME, non-Linux) this safely no-ops.
+Sets the X11 window property ``_KDE_NET_WM_BLUR_BEHIND_REGION``, so it only
+takes effect when Qt runs on the ``xcb`` platform plugin: a native X11
+session, or XWayland when the app is forced onto xcb. On native Wayland
+(Qt's ``wayland`` platform) it is a no-op; KWin's Wayland-side blur goes
+through its own ``org_kde_kwin_blur`` protocol, which this module does not
+implement. Non-KWin compositors ignore the property.
 """
 
 from __future__ import annotations

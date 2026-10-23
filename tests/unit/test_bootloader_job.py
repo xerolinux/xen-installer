@@ -11,7 +11,6 @@ import pytest
 try:
     from xen.jobs.base import JobContext, JobResult, JobStatus
     from xen.jobs.bootloader import BootloaderJob
-    from xen.jobs.partition import resolve_root_encryption
 
     HAS_BOOTLOADER_JOB = True
 except ImportError:
@@ -508,8 +507,9 @@ class TestCreateSystemdBootEntries:
             context = JobContext(
                 target_root=tmpdir,
                 selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
+                    "partition_assignments": [
+                        {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+                    ],
                     "luks_keyfile_path": "/etc/cryptsetup-keys.d/root.key",
                 },
             )
@@ -557,7 +557,7 @@ class TestInstallGrub:
 
             mock_subprocess.return_value = MagicMock(returncode=0, stdout="Success")
 
-            context = JobContext(target_root=tmpdir)
+            context = JobContext(target_root=tmpdir, selections={"esp_formatted": True})
             result = job._install_grub(context)
 
             assert result.success is True
@@ -929,6 +929,17 @@ class TestWriteGrubDefaults:
         assert 'GRUB_TIMEOUT="5"' in content
         assert 'GRUB_TIMEOUT="30"' not in content
 
+    def test_appends_configured_extra_kernel_params(self, tmp_path: Path) -> None:
+        job = BootloaderJob({"type": "grub", "extra_kernel_params": ["console=ttyS0"]})
+
+        job._write_grub_defaults(str(tmp_path), JobContext(selections={}))
+
+        content = (tmp_path / "etc" / "default" / "grub").read_text()
+        assert (
+            'GRUB_CMDLINE_LINUX_DEFAULT="quiet nowatchdog nvme_load=YES zswap.enabled=0 '
+            'console=ttyS0"'
+        ) in content
+
     @patch("xen.jobs.bootloader.BootloaderJob._blkid_uuid")
     def test_adds_cryptdevice_when_encrypted(self, mock_blkid: MagicMock, tmp_path: Path) -> None:
         """Regression: GRUB booted fine and LUKS never got unlocked because
@@ -938,7 +949,11 @@ class TestWriteGrubDefaults:
         mock_blkid.return_value = "abe5431a-d024-485c-9bd0-bd146e2fac1f"
         job = BootloaderJob()
         context = JobContext(
-            selections={"encryption": True, "root_partition": "/dev/vda2"}
+            selections={
+            "partition_assignments": [
+                {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+            ]
+        }
         )
 
         result = job._write_grub_defaults(str(tmp_path), context)
@@ -964,7 +979,11 @@ class TestWriteGrubDefaults:
         mock_blkid.return_value = None
         job = BootloaderJob()
         context = JobContext(
-            selections={"encryption": True, "root_partition": "/dev/vda2"}
+            selections={
+            "partition_assignments": [
+                {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+            ]
+        }
         )
 
         result = job._write_grub_defaults(str(tmp_path), context)
@@ -985,8 +1004,9 @@ class TestWriteGrubDefaults:
         job = BootloaderJob()
         context = JobContext(
             selections={
-                "encryption": True,
-                "root_partition": "/dev/vda2",
+                "partition_assignments": [
+                    {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+                ],
                 "luks_keyfile_path": "/etc/cryptsetup-keys.d/root.key",
             }
         )
@@ -1080,7 +1100,7 @@ class TestInstallGrubEfiFallback:
 
             mock_subprocess.side_effect = run_side_effect
 
-            context = JobContext(target_root=tmpdir)
+            context = JobContext(target_root=tmpdir, selections={"esp_formatted": True})
             result = job._install_grub(context)
 
             assert result.success is True
@@ -1181,11 +1201,11 @@ class TestGetBootloaderType:
 
         assert job._get_bootloader_type(context) == "systemd-boot"
 
-    def test_falls_back_to_systemd_boot_default(self) -> None:
+    def test_falls_back_to_grub_default(self) -> None:
         job = BootloaderJob()
         context = JobContext()
 
-        assert job._get_bootloader_type(context) == "systemd-boot"
+        assert job._get_bootloader_type(context) == "grub"
 
     @patch("xen.jobs.bootloader.BootloaderJob._install_grub")
     @patch("xen.jobs.bootloader.BootloaderJob.validate")
@@ -1202,78 +1222,6 @@ class TestGetBootloaderType:
 
         assert result.success is True
         mock_install.assert_called_once()
-
-
-class TestResolveRootEncryption:
-    """is_root_encrypted/raw_root_partition resolution: the single
-    AUTO-mode selection pair, or - when partition_mode is "manual" - the
-    manual plan's resolved mount assignments, so GRUB/mkinitcpio's
-    cryptdevice= works correctly whichever mode produced the encrypted
-    root."""
-
-    def test_auto_mode_encrypted(self) -> None:
-        context = JobContext(selections={"encryption": True, "root_partition": "/dev/sda2"})
-
-        assert resolve_root_encryption(context.selections) == (True, "/dev/sda2")
-
-    def test_auto_mode_not_encrypted(self) -> None:
-        context = JobContext(selections={"encryption": False})
-
-        assert resolve_root_encryption(context.selections) == (False, "")
-
-    def test_manual_mode_root_encryption_detected_from_assignments(self) -> None:
-        """When partition_mode is manual, "is root encrypted" comes from
-        partition_assignments (a mapper path at mountpoint "/"), not the
-        single auto-mode encryption selection."""
-        context = JobContext(
-            selections={
-                "partition_mode": "manual",
-                "partition_assignments": [
-                    {
-                        "path": "/dev/mapper/cryptroot",
-                        "mountpoint": "/",
-                        "raw_path": "/dev/sda2",
-                    },
-                ],
-            }
-        )
-
-        assert resolve_root_encryption(context.selections) == (True, "/dev/sda2")
-
-    def test_manual_mode_root_not_encrypted(self) -> None:
-        context = JobContext(
-            selections={
-                "partition_mode": "manual",
-                "partition_assignments": [
-                    {"path": "/dev/sda2", "mountpoint": "/"},
-                ],
-            }
-        )
-
-        assert resolve_root_encryption(context.selections) == (False, "")
-
-    def test_manual_mode_no_root_assignment(self) -> None:
-        context = JobContext(
-            selections={"partition_mode": "manual", "partition_assignments": []}
-        )
-
-        assert resolve_root_encryption(context.selections) == (False, "")
-
-    def test_manual_mode_ignores_auto_encryption_flag(self) -> None:
-        """A stale/unrelated AUTO-mode 'encryption' flag must not leak into
-        manual mode's result - only the resolved mount assignment counts."""
-        context = JobContext(
-            selections={
-                "partition_mode": "manual",
-                "encryption": True,
-                "root_partition": "/dev/sda2",
-                "partition_assignments": [
-                    {"path": "/dev/sda3", "mountpoint": "/"},
-                ],
-            }
-        )
-
-        assert resolve_root_encryption(context.selections) == (False, "")
 
 
 class TestValidate:
@@ -1470,13 +1418,13 @@ class TestBootloaderJobRun:
         assert result.error_code == 56
 
     @patch("xen.jobs.bootloader.BootloaderJob.validate")
-    def test_run_default_systemd_boot(self, mock_validate: MagicMock) -> None:
-        """Should default to systemd-boot if not specified."""
+    def test_run_defaults_to_grub(self, mock_validate: MagicMock) -> None:
+        """Should default to GRUB if not specified."""
         job = BootloaderJob()
 
         mock_validate.return_value = JobResult.ok()
 
-        with patch.object(job, "_install_systemd_boot") as mock_install:
+        with patch.object(job, "_install_grub") as mock_install:
             mock_install.return_value = JobResult.ok()
 
             context = JobContext(
@@ -1560,3 +1508,175 @@ class TestBootloaderJobIntegration:
             assert "vmlinuz-6.1.0" in content
             assert "initramfs-6.1.0.img" in content
             assert "UUID=test-uuid" in content
+
+
+class TestGrubTimeouts:
+    def _job(self, tmpdir: str) -> BootloaderJob:
+        job = BootloaderJob()
+        job._efi_mount = Path(tmpdir) / "boot" / "efi"
+        job._efi_mount.mkdir(parents=True, exist_ok=True)
+        return job
+
+    @patch("xen.jobs.bootloader.subprocess.run")
+    def test_every_grub_command_has_a_timeout(self, mock_subprocess: MagicMock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_subprocess.return_value = MagicMock(returncode=0, stdout="")
+            self._job(tmpdir)._install_grub(JobContext(target_root=tmpdir))
+        assert mock_subprocess.call_args_list
+        assert all(c.kwargs.get("timeout") for c in mock_subprocess.call_args_list)
+
+    @patch("xen.jobs.bootloader.subprocess.run")
+    def test_grub_mkconfig_timeout_fails_with_clear_message(
+        self, mock_subprocess: MagicMock
+    ) -> None:
+        def run(cmd: list[str], **_kwargs: Any) -> MagicMock:
+            if "grub-mkconfig" in cmd:
+                raise subprocess.TimeoutExpired(cmd, 600)
+            return MagicMock(returncode=0, stdout="")
+
+        mock_subprocess.side_effect = run
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self._job(tmpdir)._install_grub(JobContext(target_root=tmpdir))
+        assert result.success is False
+        assert "timed out" in result.message
+
+    @patch("xen.jobs.bootloader.subprocess.run")
+    def test_grub_install_timeout_fails_with_clear_message(
+        self, mock_subprocess: MagicMock
+    ) -> None:
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(["grub-install"], 300)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self._job(tmpdir)._install_grub(JobContext(target_root=tmpdir))
+        assert result.success is False
+        assert "timed out" in result.message
+
+    @patch("xen.jobs.base.subprocess.run")
+    def test_blkid_uuid_has_timeout(self, mock_subprocess: MagicMock) -> None:
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(["blkid"], 30)
+        assert BootloaderJob()._blkid_uuid("/dev/sda2") is None
+        assert mock_subprocess.call_args.kwargs.get("timeout")
+
+
+class TestHibernateResume:
+    """The resume hook is useless without resume=/resume_offset= on the cmdline."""
+
+    def _write(self, tmpdir: str, filesystem: str, outputs: dict[str, str]) -> str:
+        def run(cmd: list[str], **_kwargs: Any) -> MagicMock:
+            for key, out in outputs.items():
+                if key in cmd:
+                    return MagicMock(returncode=0, stdout=out)
+            return MagicMock(returncode=1, stdout="")
+
+        context = JobContext(
+            target_root=tmpdir,
+            selections={"swap_strategy": "hibernate", "filesystem": filesystem},
+        )
+        with patch("xen.jobs.bootloader.subprocess.run", side_effect=run):
+            result = BootloaderJob()._write_grub_defaults(tmpdir, context)
+        assert result.success is True
+        return (Path(tmpdir) / "etc" / "default" / "grub").read_text()
+
+    def test_btrfs_swapfile_uses_map_swapfile_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "swap").mkdir()
+            (Path(tmpdir) / "swap" / "swapfile").touch()
+            content = self._write(
+                tmpdir, "btrfs", {"findmnt": "1111-root-uuid\n", "map-swapfile": "533760\n"}
+            )
+        assert "resume=UUID=1111-root-uuid resume_offset=533760" in content
+
+    def test_ext4_swapfile_uses_first_physical_extent(self) -> None:
+        filefrag = (
+            "Filesystem type is: ef53\n"
+            "File size of /mnt/swapfile is 8589934592 (2097152 blocks of 4096 bytes)\n"
+            " ext:     logical_offset:        physical_offset: length:   expected: flags:\n"
+            "   0:        0..   32767:      34816..     67583:  32768:\n"
+            "   1:    32768..   63487:      67584..     98303:  30720:\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "swapfile").touch()
+            content = self._write(
+                tmpdir, "ext4", {"findmnt": "2222-root-uuid\n", "filefrag": filefrag}
+            )
+        assert "resume=UUID=2222-root-uuid resume_offset=34816" in content
+
+    def test_missing_swapfile_adds_no_resume_params(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            content = self._write(tmpdir, "ext4", {"findmnt": "3333\n"})
+        assert "resume=" not in content
+
+
+class TestDualBoot:
+    def test_bootloader_enables_os_prober(self, tmp_path: Path) -> None:
+        context = JobContext(target_root=str(tmp_path))
+        with patch("xen.jobs.bootloader.subprocess.run"):
+            result = BootloaderJob()._write_grub_defaults(str(tmp_path), context)
+        assert result.success is True
+        content = (tmp_path / "etc" / "default" / "grub").read_text()
+        assert 'GRUB_DISABLE_OS_PROBER="false"' in content
+
+    @pytest.mark.parametrize(("esp_formatted", "removable"), [(False, False), (True, True)])
+    def test_no_removable_on_reused_esp(
+        self, tmp_path: Path, esp_formatted: bool, removable: bool
+    ) -> None:
+        job = BootloaderJob()
+        job._efi_mount = tmp_path / "boot" / "efi"
+        job._efi_mount.mkdir(parents=True)
+        context = JobContext(target_root=str(tmp_path), selections={"esp_formatted": esp_formatted})
+        with patch("xen.jobs.bootloader.subprocess.run") as run:
+            run.return_value = MagicMock(returncode=0, stdout="")
+            result = job._install_grub(context)
+        assert result.success is True
+        installs = [c.args[0] for c in run.call_args_list if "grub-install" in c.args[0]]
+        assert any("--removable" in cmd for cmd in installs) is removable
+        assert len(installs) == (2 if removable else 1)
+
+    def test_resume_from_swap_partition(self, tmp_path: Path) -> None:
+        context = JobContext(
+            target_root=str(tmp_path),
+            selections={
+                "swap_strategy": "none",
+                "partition_assignments": [
+                    {"path": "/dev/sdx2", "raw_path": "/dev/sdx2", "mountpoint": "/"},
+                    {"path": "/dev/sdx3", "raw_path": "/dev/sdx3", "mountpoint": "swap",
+                     "fstype": "swap"},
+                ],
+            },
+        )  # fmt: skip
+        job = BootloaderJob()
+        with (
+            patch("xen.jobs.bootloader.subprocess.run") as run,
+            patch.object(BootloaderJob, "_blkid_uuid", side_effect={"/dev/sdx3": "swap-uuid"}.get),
+        ):
+            job._write_grub_defaults(str(tmp_path), context)
+        content = (tmp_path / "etc" / "default" / "grub").read_text()
+        assert "resume=UUID=swap-uuid" in content
+        assert "resume_offset" not in content
+        run.assert_not_called()
+
+    def test_encrypted_swap_partition_gives_no_resume(self, tmp_path: Path) -> None:
+        context = JobContext(
+            target_root=str(tmp_path),
+            selections={
+                "partition_assignments": [
+                    {"path": "/dev/mapper/cryptswap", "raw_path": "/dev/sdx3",
+                     "mountpoint": "swap", "fstype": "swap"},
+                ],
+            },
+        )  # fmt: skip
+        with patch.object(BootloaderJob, "_blkid_uuid", return_value="u"):
+            BootloaderJob()._write_grub_defaults(str(tmp_path), context)
+        assert "resume=" not in (tmp_path / "etc" / "default" / "grub").read_text()
+
+
+@pytest.mark.parametrize("value", ["console=ttyS0", {"console": "ttyS0"}, [1]])
+def test_extra_kernel_params_must_be_a_list_of_strings(tmp_path: Path, value: Any) -> None:
+    job = BootloaderJob({"type": "grub", "extra_kernel_params": value})
+    expected = "Invalid bootloader config: extra_kernel_params must be a list of strings"
+
+    validation = job.validate(JobContext(selections={}))
+    assert not validation.success and validation.message == expected
+
+    result = job._write_grub_defaults(str(tmp_path), JobContext(selections={}))
+    assert not result.success and result.message == expected
+    assert not (tmp_path / "etc" / "default" / "grub").exists()

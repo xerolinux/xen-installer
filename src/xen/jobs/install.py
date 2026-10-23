@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,6 @@ class InstallJob(BaseJob):
                                             # content (live user credentials, browser data)
         squashfs_path: str | None = None   # Path to .sfs file; auto-detected from the
                                             # standard archiso runtime mount if omitted
-        verify_install: bool = False       # Run post-install verification
     """
 
     name = "install"
@@ -62,18 +62,6 @@ class InstallJob(BaseJob):
         "/etc/machine-id",
     ]
 
-    # Critical files that must exist after installation
-    CRITICAL_FILES = [
-        "/etc/fstab",
-        "/etc/passwd",
-        "/etc/group",
-        "/etc/shadow",
-        "/etc/hostname",
-        "/boot",
-        "/usr/bin",
-        "/usr/lib",
-    ]
-
     # Minimum required free space (bytes) - 5 GB
     MIN_FREE_SPACE = 5 * 1024 * 1024 * 1024
 
@@ -96,7 +84,6 @@ class InstallJob(BaseJob):
         # Get configuration
         source = context.selections.get("source", "/")
         source_type = context.selections.get("source_type", "squashfs")
-        verify = context.selections.get("verify_install", False)
         target = context.target_root
 
         if source_type == "squashfs":
@@ -104,19 +91,21 @@ class InstallJob(BaseJob):
         else:
             squashfs_path = context.selections.get("squashfs_path")
 
-        context.report_progress(0, "Preparing installation...")
+        context.report_progress(0, msg("Preparing installation..."))
         logger.info(f"Starting installation from {source} to {target}")
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: system installation (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: system installation (dry run)"))
 
         # Handle squashfs extraction
         if source_type == "squashfs":
             if not squashfs_path:
                 return JobResult.fail(
-                    "No squashfs_path given and none could be auto-detected. "
-                    "Expected a live ISO image under /run/archiso/bootmnt/.",
+                    msg(
+                        "No squashfs_path given and none could be auto-detected. "
+                        "Expected a live ISO image under /run/archiso/bootmnt/."
+                    ),
                     error_code=50,
                 )
 
@@ -134,24 +123,16 @@ class InstallJob(BaseJob):
         if not result.success:
             return result
 
-        # Verify installation if requested
-        if verify:
-            context.report_progress(95, "Verifying installation...")
-            result = self._verify_installation(target)
-            if not result.success:
-                return result
-
-        context.report_progress(100, "Installation complete")
+        context.report_progress(100, msg("Installation complete"))
         logger.info("Installation completed successfully")
 
         return JobResult.ok(
-            "System files copied successfully",
+            msg("System files copied successfully"),
             data={
                 "source": source,
                 "target": target,
                 "source_type": source_type,
                 "bytes_copied": self._bytes_copied,
-                "verified": verify,
             },
         )
 
@@ -186,9 +167,10 @@ class InstallJob(BaseJob):
                 os.chmod(path, mode)
         except OSError as e:
             return JobResult.fail(
-                f"Failed to create pseudo-filesystem mountpoints: {e}", error_code=70
+                msg("Failed to create pseudo-filesystem mountpoints: {error}", error=e),
+                error_code=70,
             )
-        return JobResult.ok("Pseudo-filesystem mountpoints created")
+        return JobResult.ok(msg("Pseudo-filesystem mountpoints created"))
 
     def validate(self, context: JobContext) -> JobResult:
         """
@@ -196,7 +178,7 @@ class InstallJob(BaseJob):
 
         Checks:
         - Source exists and is readable
-        - Target is mounted and writable
+        - Target is a mountpoint and writable
         - Sufficient disk space available
         - Required tools are available (rsync, du)
 
@@ -218,7 +200,10 @@ class InstallJob(BaseJob):
         # Validate source type
         if source_type not in ("live", "squashfs"):
             return JobResult.fail(
-                f"Invalid source_type: {source_type}. Must be 'live' or 'squashfs'",
+                msg(
+                    "Invalid source_type: {source_type}. Must be 'live' or 'squashfs'",
+                    source_type=source_type,
+                ),
                 error_code=51,
             )
 
@@ -226,28 +211,30 @@ class InstallJob(BaseJob):
         if source_type == "squashfs":
             if not squashfs_path:
                 return JobResult.fail(
-                    "No squashfs_path given and none could be auto-detected. "
-                    "Expected a live ISO image under /run/archiso/bootmnt/.",
+                    msg(
+                        "No squashfs_path given and none could be auto-detected. "
+                        "Expected a live ISO image under /run/archiso/bootmnt/."
+                    ),
                     error_code=50,
                 )
 
             sfs_path = Path(squashfs_path)
             if not sfs_path.exists():
                 return JobResult.fail(
-                    f"Squashfs file not found: {squashfs_path}",
+                    msg("Squashfs file not found: {path}", path=squashfs_path),
                     error_code=52,
                 )
 
             if not sfs_path.is_file():
                 return JobResult.fail(
-                    f"Squashfs path is not a file: {squashfs_path}",
+                    msg("Squashfs path is not a file: {path}", path=squashfs_path),
                     error_code=53,
                 )
 
             # Check if unsquashfs is available
             if not shutil.which("unsquashfs"):
                 return JobResult.fail(
-                    "unsquashfs tool not found. Install squashfs-tools package.",
+                    msg("unsquashfs tool not found. Install squashfs-tools package."),
                     error_code=54,
                 )
 
@@ -256,13 +243,13 @@ class InstallJob(BaseJob):
             source_path = Path(source)
             if not source_path.exists():
                 return JobResult.fail(
-                    f"Source directory not found: {source}",
+                    msg("Source directory not found: {path}", path=source),
                     error_code=55,
                 )
 
             if not source_path.is_dir():
                 return JobResult.fail(
-                    f"Source path is not a directory: {source}",
+                    msg("Source path is not a directory: {path}", path=source),
                     error_code=56,
                 )
 
@@ -270,33 +257,48 @@ class InstallJob(BaseJob):
         target_path = Path(target)
         if not target_path.exists():
             return JobResult.fail(
-                f"Target directory not found: {target}. Mount the target partition first.",
+                msg(
+                    "Target directory not found: {path}. Mount the target partition first.",
+                    path=target,
+                ),
                 error_code=57,
             )
 
         if not target_path.is_dir():
             return JobResult.fail(
-                f"Target path is not a directory: {target}",
+                msg("Target path is not a directory: {path}", path=target),
                 error_code=58,
             )
 
         # Check if target directory is writable for the current user
         if not os.access(target_path, os.W_OK):
             return JobResult.fail(
-                f"Target directory is not writable: {target}",
+                msg("Target directory is not writable: {path}", path=target),
                 error_code=59,
+            )
+
+        # Copying onto an unmounted target would silently fill the live
+        # session's RAM-backed root instead of the disk.
+        if not context.selections.get("dry_run") and not os.path.ismount(target):
+            return JobResult.fail(
+                msg(
+                    "Target root {path} is not mounted: partitioning did not mount the "
+                    "target filesystem.",
+                    path=target,
+                ),
+                error_code=71,
             )
 
         # Check required tools
         if source_type == "live" and not shutil.which("rsync"):
             return JobResult.fail(
-                "rsync tool not found. Install rsync package.",
+                msg("rsync tool not found. Install rsync package."),
                 error_code=60,
             )
 
         if not shutil.which("du"):
             return JobResult.fail(
-                "du tool not found. Required for disk space calculation.",
+                msg("du tool not found. Required for disk space calculation."),
                 error_code=61,
             )
 
@@ -306,8 +308,12 @@ class InstallJob(BaseJob):
             free_gb = target_stat.free / (1024**3)
             min_gb = self.MIN_FREE_SPACE / (1024**3)
             return JobResult.fail(
-                f"Insufficient disk space on target. "
-                f"Available: {free_gb:.2f} GB, Required: {min_gb:.2f} GB minimum",
+                msg(
+                    "Insufficient disk space on target. "
+                    "Available: {available} GB, Required: {required} GB minimum",
+                    available=f"{free_gb:.2f}",
+                    required=f"{min_gb:.2f}",
+                ),
                 error_code=62,
             )
 
@@ -319,8 +325,12 @@ class InstallJob(BaseJob):
                     needed_gb = source_size / (1024**3)
                     free_gb = target_stat.free / (1024**3)
                     return JobResult.fail(
-                        f"Insufficient disk space. "
-                        f"Source size: {needed_gb:.2f} GB, Available: {free_gb:.2f} GB",
+                        msg(
+                            "Insufficient disk space. "
+                            "Source size: {needed} GB, Available: {available} GB",
+                            needed=f"{needed_gb:.2f}",
+                            available=f"{free_gb:.2f}",
+                        ),
                         error_code=63,
                     )
             except subprocess.CalledProcessError as e:
@@ -329,7 +339,7 @@ class InstallJob(BaseJob):
 
         logger.info("Installation prerequisites validated successfully")
         return JobResult.ok(
-            "Installation prerequisites validated",
+            msg("Installation prerequisites validated"),
             data={
                 "source": source,
                 "target": target,
@@ -477,7 +487,7 @@ class InstallJob(BaseJob):
 
         logger.debug(f"Rsync command: {' '.join(cmd)}")
 
-        context.report_progress(5, "Starting file copy...")
+        context.report_progress(5, msg("Starting file copy..."))
 
         # Execute rsync with progress parsing
         try:
@@ -526,7 +536,12 @@ class InstallJob(BaseJob):
                         if scaled_percent > last_percent:
                             context.report_progress(
                                 scaled_percent,
-                                f"Copying files... {scaled_percent}% ({speed}, ETA {eta})",
+                                msg(
+                                    "Copying files... {percent}% ({speed}, ETA {eta})",
+                                    percent=scaled_percent,
+                                    speed=speed,
+                                    eta=eta,
+                                ),
                             )
                             last_percent = scaled_percent
 
@@ -542,33 +557,28 @@ class InstallJob(BaseJob):
 
             if return_code != 0:
                 return JobResult.fail(
-                    f"rsync failed with exit code {return_code}",
+                    msg("rsync failed with exit code {code}", code=return_code),
                     error_code=64,
                     data={"return_code": return_code},
                 )
 
-            context.report_progress(90, "File copy completed")
+            context.report_progress(90, msg("File copy completed"))
             logger.info(f"rsync completed successfully. Bytes copied: {self._bytes_copied}")
 
             return JobResult.ok(
-                "Files copied successfully",
+                msg("Files copied successfully"),
                 data={"bytes_copied": self._bytes_copied},
             )
 
         except FileNotFoundError:
             return JobResult.fail(
-                "rsync command not found. Install rsync package.",
+                msg("rsync command not found. Install rsync package."),
                 error_code=60,
-            )
-        except subprocess.TimeoutExpired:
-            return JobResult.fail(
-                "rsync operation timed out",
-                error_code=65,
             )
         except Exception as e:
             logger.exception("Unexpected error during rsync")
             return JobResult.fail(
-                f"rsync failed: {e}",
+                msg("rsync failed: {error}", error=e),
                 error_code=66,
                 data={"exception": str(e)},
             )
@@ -628,7 +638,7 @@ class InstallJob(BaseJob):
         """
         logger.info(f"Extracting squashfs from {squashfs_path} to {target}")
 
-        context.report_progress(5, "Extracting squashfs image...")
+        context.report_progress(5, msg("Extracting squashfs image..."))
 
         cmd = [
             "unsquashfs",
@@ -649,10 +659,10 @@ class InstallJob(BaseJob):
 
             # Report progress in stages
             progress_stages = [
-                (10, "Reading image header..."),
-                (30, "Extracting files..."),
-                (60, "Processing directories..."),
-                (80, "Finalizing extraction..."),
+                (10, msg("Reading image header...")),
+                (30, msg("Extracting files...")),
+                (60, msg("Processing directories...")),
+                (80, msg("Finalizing extraction...")),
             ]
 
             stage_idx = 0
@@ -671,81 +681,28 @@ class InstallJob(BaseJob):
 
             if return_code != 0:
                 return JobResult.fail(
-                    f"unsquashfs failed with exit code {return_code}",
+                    msg("unsquashfs failed with exit code {code}", code=return_code),
                     error_code=67,
                     data={"return_code": return_code},
                 )
 
-            context.report_progress(90, "Squashfs extraction completed")
+            context.report_progress(90, msg("Squashfs extraction completed"))
             logger.info("Squashfs extraction completed successfully")
 
-            return JobResult.ok("Squashfs extracted successfully")
+            return JobResult.ok(msg("Squashfs extracted successfully"))
 
         except FileNotFoundError:
             return JobResult.fail(
-                "unsquashfs command not found. Install squashfs-tools package.",
+                msg("unsquashfs command not found. Install squashfs-tools package."),
                 error_code=54,
             )
         except Exception as e:
             logger.exception("Unexpected error during squashfs extraction")
             return JobResult.fail(
-                f"Squashfs extraction failed: {e}",
+                msg("Squashfs extraction failed: {error}", error=e),
                 error_code=68,
                 data={"exception": str(e)},
             )
-
-    def _verify_installation(self, target: str) -> JobResult:
-        """
-        Verify installation integrity.
-
-        Checks:
-        - Critical system files exist
-        - Directory structure is correct
-        - Basic filesystem sanity
-
-        Args:
-            target: Target directory path
-
-        Returns:
-            JobResult indicating verification success or failure
-        """
-        logger.info(f"Verifying installation at {target}")
-
-        target_path = Path(target)
-        missing_files = []
-
-        # Check critical files
-        for critical_file in self.CRITICAL_FILES:
-            file_path = target_path / critical_file.lstrip("/")
-            if not file_path.exists():
-                missing_files.append(critical_file)
-                logger.error(f"Critical file missing: {critical_file}")
-
-        if missing_files:
-            return JobResult.fail(
-                f"Installation verification failed. Missing critical files: {missing_files}",
-                error_code=69,
-                data={"missing_files": missing_files},
-            )
-
-        # Basic sanity checks
-        checks_passed = 0
-        checks_total = len(self.CRITICAL_FILES)
-
-        for critical_file in self.CRITICAL_FILES:
-            file_path = target_path / critical_file.lstrip("/")
-            if file_path.exists():
-                checks_passed += 1
-
-        logger.info(f"Verification: {checks_passed}/{checks_total} critical files present")
-
-        return JobResult.ok(
-            f"Installation verified successfully ({checks_passed}/{checks_total} checks passed)",
-            data={
-                "checks_passed": checks_passed,
-                "checks_total": checks_total,
-            },
-        )
 
     def cleanup(self, _context: JobContext) -> None:
         """

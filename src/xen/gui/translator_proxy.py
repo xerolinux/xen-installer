@@ -4,7 +4,6 @@ TranslatorProxy - Bridge between Python translator and QML.
 Enables live language switching in the QML interface by:
 1. Loading Qt translation files (.qm)
 2. Emitting signals to trigger QML retranslation
-3. Providing translation functions accessible from QML
 """
 
 from __future__ import annotations
@@ -37,15 +36,12 @@ class TranslatorProxy(QObject):
 
     This class:
     - Manages Qt QTranslator for QML qsTr() strings
-    - Wraps the Python Translator for custom strings
+    - Keeps the Python Translator's locale in sync
     - Emits languageChanged signal to trigger QML updates
     """
 
     # Signal emitted when language changes - QML should refresh
     languageChanged = Signal()
-
-    # Signal with locale string for debugging/logging
-    localeChanged = Signal(str)
 
     def __init__(
         self,
@@ -75,43 +71,10 @@ class TranslatorProxy(QObject):
 
         logger.debug(f"TranslatorProxy initialized, translations dir: {self._translations_dir}")
 
-    def set_engine(self, engine: QQmlApplicationEngine) -> None:
-        """Set the QML engine for retranslation."""
-        self._engine = engine
-
     @Property(str, notify=languageChanged)
     def currentLocale(self) -> str:
         """Get current locale code."""
         return self._current_locale
-
-    @Property(str, notify=languageChanged)
-    def currentLanguage(self) -> str:
-        """Get current language name (human readable)."""
-        locale_names = {
-            "en_US": "English",
-            "fr_FR": "Français",
-            "de_DE": "Deutsch",
-            "es_ES": "Español",
-            "it_IT": "Italiano",
-            "pt_BR": "Português (Brasil)",
-            "ru_RU": "Русский",
-            "zh_CN": "中文 (简体)",
-            "ja_JP": "日本語",
-            "ko_KR": "한국어",
-        }
-        # Try exact match, then base language
-        if self._current_locale in locale_names:
-            return locale_names[self._current_locale]
-        base = self._current_locale.split("_")[0]
-        for code, name in locale_names.items():
-            if code.startswith(base):
-                return name
-        return self._current_locale
-
-    @Property(list, constant=True)
-    def availableLocales(self) -> list[str]:
-        """Get list of available locale codes."""
-        return self._python_translator.available_locales
 
     @Slot(str, result=bool)
     def setLocale(self, locale: str) -> bool:
@@ -151,7 +114,6 @@ class TranslatorProxy(QObject):
 
         # Emit signals
         self.languageChanged.emit()
-        self.localeChanged.emit(locale)
 
         logger.info(f"Locale changed to {locale}")
         return True
@@ -207,63 +169,3 @@ class TranslatorProxy(QObject):
 
         logger.debug(f"No translation found for {locale}, using default strings")
         return False
-
-    @Slot(str, str, result=str)
-    def tr(self, key: str, section: str = "common") -> str:  # type: ignore[override]
-        """
-        Get translated string from Python translator.
-
-        Args:
-            key: Translation key
-            section: Section name
-
-        Returns:
-            Translated string
-        """
-        return self._python_translator.get(key, section)
-
-    @Slot(str, str, str, result=str)
-    def trWithDefault(self, key: str, section: str, default: str) -> str:
-        """
-        Get translated string with default fallback.
-
-        Args:
-            key: Translation key
-            section: Section name
-            default: Default value if not found
-
-        Returns:
-            Translated string
-        """
-        return self._python_translator.get(key, section, default=default)
-
-    @Slot(str, result=str)
-    def getLanguageName(self, locale: str) -> str:
-        """
-        Get human-readable name for a locale.
-
-        Args:
-            locale: Locale code
-
-        Returns:
-            Language name (e.g., "Français" for "fr_FR")
-        """
-        qt_locale = QLocale(locale.replace("_", "-"))
-        return qt_locale.nativeLanguageName() or locale
-
-
-def create_translator_proxy(
-    engine: QQmlApplicationEngine | None = None,
-    translations_dir: Path | str | None = None,
-) -> TranslatorProxy:
-    """
-    Factory function to create a TranslatorProxy instance.
-
-    Args:
-        engine: QML engine for retranslation
-        translations_dir: Directory containing .qm files
-
-    Returns:
-        Configured TranslatorProxy instance
-    """
-    return TranslatorProxy(engine=engine, translations_dir=translations_dir)

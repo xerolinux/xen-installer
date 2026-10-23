@@ -2,7 +2,7 @@
  * WelcomeView - Full welcome screen with wallpaper and requirements overlay
  *
  * Displays:
- * - Dynamic wallpaper background (dark/light mode)
+ * - Wallpaper background
  * - Logo and welcome text
  * - Requirements overlay panel
  * - Install button (enabled when requirements met)
@@ -11,7 +11,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 
 Item {
     id: root
@@ -20,6 +19,38 @@ Item {
     signal installClicked()
     signal requirementsChecked()
     signal configureNetworkRequested()
+    signal localeSelected(string locale)
+
+    // System language picker (lives here, like Calamares' welcome page,
+    // so the rest of the installer is already in the chosen language).
+    property var localesModel: []
+    property var localesModelNative: []  // [{code, name}]
+    // Read-only mirror of engine state; selection goes out through
+    // localeSelected and Main.qml calls engine.setSelectedLocale.
+    readonly property string selectedLocale: translator.currentLocale + ".UTF-8"
+
+    function nativeNameForLocale(localeCode) {
+        for (var i = 0; i < localesModelNative.length; i++) {
+            if (localesModelNative[i].code === localeCode)
+                return localesModelNative[i].name
+        }
+        return localeCode
+    }
+
+    function localeCodeForNativeName(nativeName) {
+        for (var i = 0; i < localesModelNative.length; i++) {
+            if (localesModelNative[i].name === nativeName)
+                return localesModelNative[i].code
+        }
+        return nativeName
+    }
+
+    function localeDisplayModel() {
+        var names = []
+        for (var i = 0; i < localesModelNative.length; i++)
+            names.push(localesModelNative[i].name)
+        return names.length > 0 ? names : localesModel
+    }
 
     // External properties
     property string welcomeWallpaper: ""
@@ -50,6 +81,7 @@ Item {
     property color successColor: "#10B981"
     property color warningColor: "#F59E0B"
     property color errorColor: "#EF4444"
+    readonly property color onGradientTextColor: "#ffffff"
 
     // Full-screen wallpaper background
     Image {
@@ -108,16 +140,24 @@ Item {
         }
     }
 
+    Item {
+        id: heroArea
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+            bottom: offlineNotice.visible ? offlineNotice.top : footerBar.top
+        }
+    }
+
     // Frosted hero card: contains all content in one calm panel over the
     // dimmed wallpaper, instead of free-floating text.
     Rectangle {
         id: heroCard
-        anchors.centerIn: parent
-        // Never shrinks below the 720 baseline (only grows): the
-        // requirement chips below have their own fixed internal sizing
-        // (RequirementChip.qml), not uiScale-aware, so a narrower card
-        // overflowed the 3-chip row off its right edge at minimum window
-        // size.
+        anchors.centerIn: heroArea
+        // Never shrinks below the 720 baseline (only grows): the chips'
+        // widths come from the card while their text scales with uiScale,
+        // so a narrower card at uiScale < 1 would elide their labels.
         width: Math.min(parent.width - 96, 720 * Math.max(1.0, uiScale))
         height: heroColumn.implicitHeight + 72 * uiScale
         radius: 20
@@ -143,16 +183,6 @@ Item {
                     source: logoUrl
                     fillMode: Image.PreserveAspectFit
                     visible: status === Image.Ready
-
-                    // Subtle glow effect
-                    layer.enabled: !engine.softwareRendering
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: primaryColor
-                        shadowHorizontalOffset: 0
-                        shadowVerticalOffset: 0
-                        shadowBlur: 0.3
-                    }
                 }
 
                 // Fallback logo placeholder
@@ -308,6 +338,7 @@ Item {
                                 successColor: root.successColor
                                 warningColor: root.warningColor
                                 errorColor: root.errorColor
+                                uiScale: root.uiScale
 
                                 onChipClicked: {
                                     if (name === "internet" && (status === "warn" || status === "fail")) {
@@ -317,6 +348,62 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 4
+                spacing: 10
+
+                Text {
+                    text: "\u{1F310}"
+                    font.pixelSize: 18 * uiScale
+                }
+
+                SearchableComboBox {
+                    objectName: "welcomeLocaleCombo"
+                    Layout.preferredWidth: 320 * uiScale
+                    Layout.preferredHeight: 36 * uiScale
+
+                    model: root.localeDisplayModel()
+                    currentValue: root.nativeNameForLocale(root.selectedLocale)
+                    placeholder: qsTr("Select language...")
+                    searchPlaceholder: qsTr("Search languages...")
+
+                    uiScale: root.uiScale
+                    primaryColor: root.primaryColor
+                    backgroundColor: root.backgroundColor
+                    surfaceColor: root.surfaceColor
+                    textColor: root.textColor
+                    textMutedColor: root.textMutedColor
+
+                    onValueSelected: function(nativeName) {
+                        root.localeSelected(root.localeCodeForNativeName(nativeName))
+                    }
+                }
+            }
+
+            Rectangle {
+                objectName: "uiLanguageNote"
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: noteText.implicitWidth + 24 * uiScale
+                Layout.maximumWidth: 600 * uiScale
+                Layout.preferredHeight: noteText.implicitHeight + 10 * uiScale
+                radius: 10 * uiScale
+                color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.15)
+                border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
+                border.width: 1
+
+                Text {
+                    id: noteText
+                    anchors.centerIn: parent
+                    width: Math.min(implicitWidth, 576 * uiScale)
+                    text: "\u{2139}\u{FE0F} " + qsTr("Only changes the installer's language. System language and keyboard come next.")
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    font.pixelSize: 11 * uiScale
+                    color: textMutedColor
                 }
             }
 
@@ -351,10 +438,6 @@ Item {
                     }
                     border.color: installButton.enabled ? Qt.rgba(1, 1, 1, 0.25) : "transparent"
                     border.width: 1
-
-                    Behavior on opacity {
-                        NumberAnimation { duration: 150 }
-                    }
                 }
 
                 contentItem: Item {
@@ -369,7 +452,7 @@ Item {
                         Text {
                             text: installButton.text
                             font: installButton.font
-                            color: installButton.enabled ? "#ffffff" : textMutedColor
+                            color: installButton.enabled ? root.onGradientTextColor : textMutedColor
                             verticalAlignment: Text.AlignVCenter
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -377,7 +460,7 @@ Item {
                         Text {
                             text: "\u2192"  // Right arrow
                             font.pixelSize: 18 * uiScale
-                            color: installButton.enabled ? "#ffffff" : textMutedColor
+                            color: root.onGradientTextColor
                             verticalAlignment: Text.AlignVCenter
                             anchors.verticalCenter: parent.verticalCenter
                             visible: installButton.enabled
@@ -405,28 +488,33 @@ Item {
     // Offline notice - install proceeds either way (no blocking); this just
     // sets expectations: no package chooser, no repo sync during install.
     Text {
+        id: offlineNotice
         visible: !root.hasInternet
+        width: parent.width - 52
+        wrapMode: Text.WordWrap
         anchors {
             bottom: footerBar.top
             bottomMargin: 8
             horizontalCenter: parent.horizontalCenter
         }
-        text: qsTr("No internet connection detected — installing offline (no optional software, no system update)")
+        text: qsTr("No internet connection detected: installing offline (no optional software, no system update)")
         font.pixelSize: 12 * uiScale
         color: warningColor
         horizontalAlignment: Text.AlignHCenter
     }
 
-    // Footer bar - transparent (anchored at bottom, aligned with Main.qml footer)
+    // Same placement as Main.qml's footer row (20px window margin, 6px text inset).
     Item {
         id: footerBar
         anchors {
             left: parent.left
             right: parent.right
             bottom: parent.bottom
-            margins: 0  // No additional margins - parent already has 32px from ColumnLayout
+            leftMargin: 26
+            rightMargin: 20
+            bottomMargin: 20
         }
-        height: 48
+        height: 40 * uiScale
 
         RowLayout {
             anchors.fill: parent
@@ -447,7 +535,7 @@ Item {
                 id: websiteLink
                 text: root.websiteLabel || root.websiteUrl
                 font.pixelSize: 12 * uiScale
-                color: primaryColor
+                color: accentColor
                 visible: root.websiteUrl !== ""
                 Layout.alignment: Qt.AlignVCenter
 
@@ -465,11 +553,11 @@ Item {
                     height: 1
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: -2
-                    color: primaryColor
+                    color: accentColor
                     visible: footerWebsiteMouseArea.containsMouse
                 }
 
-                opacity: footerWebsiteMouseArea.containsMouse ? 0.7 : 1.0
+                opacity: footerWebsiteMouseArea.containsMouse ? 0.8 : 1.0
                 Behavior on opacity {
                     NumberAnimation { duration: 150 }
                 }

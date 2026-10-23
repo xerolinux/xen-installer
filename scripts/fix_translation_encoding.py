@@ -265,7 +265,7 @@ def main():
 
     print()
     print("=" * 60)
-    print(f"📊 Summary:")
+    print("📊 Summary:")
     print(f"   Files processed: {len(results)}")
     print(f"   Total escapes: {total_escapes}")
     print(f"   Lines affected: {total_lines}")

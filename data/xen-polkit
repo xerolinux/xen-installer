@@ -1,10 +1,9 @@
 #!/bin/bash
-# Desktop-launch wrapper: runs Xen as root, matching how XeroLinux's Calamares
-# is launched (see calamaresx-app's calamares_polkit). --no-fork makes the GUI
-# process itself the one that performs partitioning/install/bootloader,
-# instead of forking a second privileged engine over IPC.
-if [ "$(which pkexec)" ]; then
-	exec pkexec --disable-internal-agent /usr/bin/xen --no-fork "$@"
+# pkexec strips WAYLAND_DISPLAY and XDG_RUNTIME_DIR, so they are handed to
+# the root-side launcher as arguments; it validates them before use.
+if command -v pkexec >/dev/null 2>&1; then
+	exec pkexec --disable-internal-agent /usr/lib/xen/xen-root-launch \
+		"${WAYLAND_DISPLAY:-}" "${XDG_RUNTIME_DIR:-}" "$@"
 else
-	exec /usr/bin/xen --no-fork "$@"
+	exec /usr/bin/xen "$@"
 fi

@@ -9,6 +9,18 @@ from xen.jobs.base import JobContext
 from xen.jobs.luksbootkeyfile import LuksBootKeyfileJob
 
 
+ROOT = {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+
+
+def _encrypted_root(passphrase: str, **extra: object) -> dict:
+    return {
+        "bootloader": "grub",
+        "partition_assignments": [ROOT],
+        "luks_passphrases": {"vda2": passphrase} if passphrase else {},
+        **extra,
+    }
+
+
 class TestRun:
     def test_dry_run_skips(self) -> None:
         job = LuksBootKeyfileJob()
@@ -20,7 +32,9 @@ class TestRun:
 
     def test_not_encrypted_skips(self) -> None:
         job = LuksBootKeyfileJob()
-        context = JobContext(selections={"encryption": False})
+        context = JobContext(
+            selections={"encryption": True, "partition_assignments": [{**ROOT, "path": "/dev/vda2"}]}
+        )
 
         result = job.run(context)
 
@@ -29,7 +43,9 @@ class TestRun:
 
     def test_encrypted_without_root_partition_fails(self) -> None:
         job = LuksBootKeyfileJob()
-        context = JobContext(selections={"encryption": True})
+        context = JobContext(selections=_encrypted_root("pw", partition_assignments=[
+            {**ROOT, "raw_path": ""}
+        ]))
 
         result = job.run(context)
 
@@ -38,14 +54,27 @@ class TestRun:
 
     def test_encrypted_without_passphrase_fails(self) -> None:
         job = LuksBootKeyfileJob()
-        context = JobContext(
-            selections={"encryption": True, "root_partition": "/dev/vda2"}
-        )
+        context = JobContext(selections=_encrypted_root("", encryption_passphrase="stale"))
 
         result = job.run(context)
 
         assert result.success is False
         assert result.error_code == 111
+
+    def test_systemd_boot_never_embeds_keyfile(self) -> None:
+        context = JobContext(selections=_encrypted_root("pw", bootloader="systemd-boot"))
+        result = LuksBootKeyfileJob().run(context)
+        assert result.success is True
+        assert "luks_keyfile_path" not in context.selections
+
+    def test_grub_with_plain_separate_boot_never_embeds_keyfile(self) -> None:
+        boot = {"path": "/dev/vda1", "raw_path": "/dev/vda1", "mountpoint": "/boot"}
+        context = JobContext(
+            selections=_encrypted_root("pw", partition_assignments=[ROOT, boot])
+        )
+        result = LuksBootKeyfileJob().run(context)
+        assert result.success is True
+        assert "luks_keyfile_path" not in context.selections
 
     @patch("subprocess.run")
     def test_success_writes_keyfile_and_sets_selection(self, mock_run: Mock) -> None:
@@ -54,11 +83,7 @@ class TestRun:
             job = LuksBootKeyfileJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
-                    "encryption_passphrase": "hunter2",
-                },
+                selections=_encrypted_root("hunter2"),
             )
             context.on_progress = MagicMock()
 
@@ -79,11 +104,7 @@ class TestRun:
             job = LuksBootKeyfileJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
-                    "encryption_passphrase": "hunter2",
-                },
+                selections=_encrypted_root("hunter2"),
             )
 
             job.run(context)
@@ -106,11 +127,7 @@ class TestRun:
             job = LuksBootKeyfileJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
-                    "encryption_passphrase": "hunter2",
-                },
+                selections=_encrypted_root("hunter2"),
             )
 
             result = job.run(context)
@@ -126,11 +143,7 @@ class TestRun:
             job = LuksBootKeyfileJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
-                    "encryption_passphrase": "hunter2",
-                },
+                selections=_encrypted_root("hunter2"),
             )
 
             result = job.run(context)
@@ -145,11 +158,7 @@ class TestRun:
             job = LuksBootKeyfileJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={
-                    "encryption": True,
-                    "root_partition": "/dev/vda2",
-                    "encryption_passphrase": "hunter2",
-                },
+                selections=_encrypted_root("hunter2"),
             )
 
             result = job.run(context)

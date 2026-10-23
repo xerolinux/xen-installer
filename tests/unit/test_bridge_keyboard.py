@@ -4,7 +4,7 @@ Covers:
 - `applyKeyboardLayout` delegates to the live-apply util (mocked here; the
   util itself is exercised in test_keyboard_layout.py).
 - `setSelectedKeymap` / `setSelectedKeyboardVariant` keep driving the install
-  config (selections dict) exactly as before — the live-apply affordance is
+  config (selections dict) exactly as before; the live-apply affordance is
   additive, not a replacement.
 """
 
@@ -46,17 +46,33 @@ def bridge(qapp: QApplication) -> EngineBridge:
     )
 
 
+@pytest.fixture
+def live_bridge(qapp: QApplication) -> EngineBridge:
+    assert qapp is not None
+    engine = Engine.from_config_file(MINIMAL_CONFIG)
+    return EngineBridge(
+        engine, MINIMAL_CONFIG.parent, debug=False, dry_run=False, skip_requirements=True
+    )
+
+
 class TestApplyKeyboardLayoutSlot:
-    def test_delegates_to_live_apply_util(self, bridge: EngineBridge) -> None:
+    def test_delegates_to_live_apply_util(self, live_bridge: EngineBridge) -> None:
         with patch("xen.gui.bridge.apply_keyboard_layout_live", return_value=True) as mocked:
-            result = bridge.applyKeyboardLayout("fr", "azerty")
+            result = live_bridge.applyKeyboardLayout("fr", "azerty")
 
         mocked.assert_called_once_with("fr", "azerty")
         assert result is True
 
-    def test_propagates_best_effort_failure(self, bridge: EngineBridge) -> None:
+    def test_dry_run_leaves_the_desktop_layout_alone(self, bridge: EngineBridge) -> None:
+        with patch("xen.gui.bridge.apply_keyboard_layout_live", return_value=True) as mocked:
+            result = bridge.applyKeyboardLayout("fr", "azerty")
+
+        mocked.assert_not_called()
+        assert result is False
+
+    def test_propagates_best_effort_failure(self, live_bridge: EngineBridge) -> None:
         with patch("xen.gui.bridge.apply_keyboard_layout_live", return_value=False):
-            result = bridge.applyKeyboardLayout("xx", "")
+            result = live_bridge.applyKeyboardLayout("xx", "")
 
         assert result is False
 

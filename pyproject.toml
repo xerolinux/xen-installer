@@ -78,7 +78,6 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
-    "UP042",  # str+Enum délibéré (protocole IPC sérialisable), pas StrEnum
 ]
 
 [tool.ruff.lint.isort]

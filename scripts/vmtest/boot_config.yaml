@@ -1,0 +1,120 @@
+# The production job list (config/examples/xerolinux.yaml) for the VM boot suite.
+# Dropped: welcome and packagechooser (GUI-only) and systemupdate (a full
+# network upgrade, not needed to boot). Added: console=ttyS0 so the installed
+# system logs to the serial port and systemd starts a serial getty there.
+
+version: "1.0"
+
+branding:
+  name: "XeroLinux"
+
+jobs:
+  - name: partition
+    config:
+      default_filesystem: xfs
+      allow_encryption: true
+      allow_manual_partitioning: true
+      min_install_gib: 25
+      btrfs_subvolumes:
+        - {name: "@", mountpoint: "/"}
+        - {name: "@home", mountpoint: "/home"}
+        - {name: "@root", mountpoint: "/root"}
+        - {name: "@srv", mountpoint: "/srv"}
+        - {name: "@cache", mountpoint: "/var/cache"}
+        - {name: "@tmp", mountpoint: "/var/tmp"}
+        - {name: "@log", mountpoint: "/var/log"}
+        - {name: "@swap", mountpoint: "/swap"}
+
+  - name: install
+
+  - name: luksbootkeyfile
+
+  - name: before
+    config:
+      timeout: 999
+      commands:
+        - "/usr/local/bin/xerolinux-before"
+
+  - name: locale
+    config:
+      default_language: "en_US"
+      default_timezone: "UTC"
+
+  - name: systemconfig
+
+  - name: removeuser
+    config:
+      username: liveuser
+
+  - name: users
+    config:
+      default_shell: "/bin/bash"
+
+  - name: services
+    config:
+      units:
+        - {name: "plasmalogin", action: enable, mandatory: true}
+        - {name: "cups.socket", action: enable, mandatory: false}
+        - {name: "saned.socket", action: enable, mandatory: false}
+        - {name: "NetworkManager", action: enable, mandatory: true}
+        - {name: "systemd-time-wait-sync", action: disable, mandatory: false}
+        - {name: "reflector", action: disable, mandatory: false}
+        - {name: "vboxservice", action: enable, mandatory: false}
+        - {name: "bluetooth", action: enable, mandatory: true}
+        - {name: "pacman-init", action: disable, mandatory: false}
+        - {name: "power-profiles-daemon", action: enable, mandatory: false}
+        - {name: "switcheroo-control", action: enable, mandatory: false}
+        - {name: "preload", action: enable, mandatory: false}
+        - {name: "sshd", action: enable, mandatory: true}
+        - {name: "fstrim.timer", action: enable, mandatory: true}
+        - {name: "xero-gpu-check", action: enable, mandatory: false}
+
+  # Online only for a Btrfs root (validate_plan requires it): installs the
+  # snapshot tools the snapshots job configures. Offline it only removes the
+  # live-only packages.
+  - name: packages
+    config:
+      extra_packages:
+        - os-prober
+        - ntfs-3g
+      remove:
+        - falkon
+        - ckbcomp
+        - qt6-doc
+        - qt6-examples
+        - memtest86+-efi
+        - live-launcher
+        - calamaresx-app
+        - calamaresx-cfg
+        - xen-app
+        - xen-cfg-xerolinux
+      btrfs_packages:
+        - snapper
+        - snap-pac
+        - grub-btrfs
+        - btrfs-assistant
+
+  - name: snapshots
+
+  - name: bootloader
+    config:
+      type: grub
+      extra_kernel_params:
+        - "console=ttyS0"
+
+  - name: finalize
+    config:
+      timeout: 300
+      commands:
+        - "/usr/local/bin/vcheck"
+        - "/usr/local/bin/all-cores"
+        - "/usr/local/bin/xerolinux-final"
+        - "/usr/local/bin/skel"
+        - "/usr/local/bin/services"
+        - "/usr/local/bin/dmcheck"
+        - "/usr/local/bin/ucode"
+        - "/usr/local/bin/igpudetect"
+        - "/usr/local/bin/fsprogschk"
+        - "/usr/local/bin/nouveau"
+
+  - name: finished

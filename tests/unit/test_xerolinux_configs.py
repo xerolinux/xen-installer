@@ -132,6 +132,26 @@ class TestAllXerolinuxConfigsUseGrub:
             assert resolved == "grub", f"{config_path.name}'s bootloader job resolves to grub"
 
 
+class TestDualBootAndPartitionConfig:
+    def test_target_gets_os_prober_and_ntfs_3g(self) -> None:
+        from xen.jobs.base import JobContext
+
+        for config_path in ALL_CONFIGS:
+            engine = Engine.from_config_file(config_path)
+            job = next(j for j in engine.jobs if j.name == "packages")
+            packages = job._get_package_list(JobContext(selections={"filesystem": "ext4"}))
+            assert {"os-prober", "ntfs-3g"} <= set(packages), config_path.name
+            assert not {"os-prober", "ntfs-3g"} & set(job._config.get("remove", []))
+
+    def test_partition_job_carries_subvolumes_and_min_install_size(self) -> None:
+        expected = ["@", "@home", "@root", "@srv", "@cache", "@tmp", "@log", "@swap"]
+        for config_path in ALL_CONFIGS:
+            engine = Engine.from_config_file(config_path)
+            job = next(j for j in engine.jobs if j.name == "partition")
+            assert job._config["min_install_gib"] == 25
+            assert [sv["name"] for sv in job._config["btrfs_subvolumes"]] == expected
+
+
 class TestAllXerolinuxConfigsHaveServicesAndFinalize:
     def test_services_and_finalize_jobs_present(self) -> None:
         for config_path in ALL_CONFIGS:

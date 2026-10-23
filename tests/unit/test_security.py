@@ -9,6 +9,7 @@ Validates:
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -91,7 +92,8 @@ class TestConfigurationSecurity:
         ]
 
         for config_file in config_files:
-            content = config_file.read_text()
+            # A mount point names a path on the installed system, not a file Xen reads.
+            content = re.sub(r'mountpoint:\s*"[^"]*"', "", config_file.read_text())
             # Find absolute paths (starting with /)
             abs_paths = re.findall(r'["\'](/[a-zA-Z][^"\']*)["\']', content)
 
@@ -338,3 +340,43 @@ class TestEnvironmentSafety:
         for pattern in sensitive_defaults:
             matches = re.findall(pattern, content, re.IGNORECASE)
             assert not matches, f"Sensitive default value found: {matches}"
+
+
+class TestRootLauncherArguments:
+    """xen-root-launch runs as root for a passwordless liveuser: only fixed flags may pass."""
+
+    LAUNCHER = PROJECT_ROOT / "data" / "xen-root-launch"
+
+    def _run(self, script: Path, *args: str) -> "subprocess.CompletedProcess[str]":
+        return subprocess.run(
+            ["bash", str(script), "", "", *args],
+            capture_output=True,
+            text=True,
+            env={"PATH": "/usr/bin:/bin"},
+            timeout=10,
+        )
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--config", "evil.yaml"),
+            ("-c", "evil.yaml"),
+            ("--config=evil.yaml",),
+            ("--debug", "--platform-info"),
+            ("--dry",),
+            ("evil.yaml",),
+        ],
+    )
+    def test_rejects_unlisted_arguments(self, args: tuple[str, ...]) -> None:
+        result = self._run(self.LAUNCHER, *args)
+        assert result.returncode == 2
+        assert "not allowed" in result.stderr
+
+    def test_passes_allowed_flags_through(self, tmp_path: Path) -> None:
+        script = tmp_path / "xen-root-launch"
+        script.write_text(
+            self.LAUNCHER.read_text().replace('exec /usr/bin/xen "$@"', 'printf "%s\\n" "$@"')
+        )
+        result = self._run(script, "--debug", "--dry-run", "--skip-requirements")
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.split() == ["--debug", "--dry-run", "--skip-requirements"]

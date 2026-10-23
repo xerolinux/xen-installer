@@ -12,21 +12,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 
 Item {
     id: root
+    objectName: "usersView"
 
     // Required property for branding access (icons)
     required property var branding
 
-    // Miroirs descendants (lecture seule) de la source de vérité `engine`.
-    // Ils ne sont JAMAIS réassignés impérativement : les champs écrivent
-    // directement via engine.setX(), donc ces bindings ne se cassent pas et
-    // reflètent toujours l'état courant (résout la non-persistance des vues).
-    readonly property string username: engine.username
-    readonly property string fullName: engine.fullName
-    readonly property string hostname: engine.hostname
     // Mot de passe root : par défaut identique au compte utilisateur. Les
     // champs root ne sont révélés que si rootSameAsUser est décoché.
     readonly property bool rootSameAsUser: engine.rootSameAsUser
@@ -49,11 +42,23 @@ Item {
         return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s
     }
 
+    function syncFromUsername() {
+        var name = usernameField.text
+        if (autoFullNameSynced) {
+            _syncingFullName = true
+            fullNameField.text = capitalizeFirst(name)
+            _syncingFullName = false
+        }
+        if (autoHostnameSynced) {
+            _syncingHostname = true
+            hostnameField.text = name.length > 0 ? name.toLowerCase() + "-pc" : ""
+            _syncingHostname = false
+        }
+    }
+
     // Theme colors
     property real uiScale: 1.0
     property color primaryColor: "#5597e6"
-    property color secondaryColor: "#3a7bc8"
-    property color accentColor: "#6b9ce8"
     property color backgroundColor: "#1a1a1a"
     property color surfaceColor: "#32373c"
     property color textColor: "#fffded"
@@ -71,15 +76,23 @@ Item {
     readonly property var reservedUsernames: [
         "root", "nobody", "daemon", "bin", "sys", "messagebus", "sshd",
         "nscd", "polkituser", "rtkit", "avahi", "systemd-network", "systemd-resolve",
-        "systemd-timesync", "systemd-coredump", "nm-openvpn", "dbus"
+        "systemd-timesync", "systemd-coredump", "nm-openvpn", "dbus", "liveuser"
     ]
     readonly property bool usernameReserved: reservedUsernames.indexOf(usernameField.text) !== -1
     readonly property bool usernameValid: usernameField.text.length > 0
+        && usernameField.text.length <= 32
         && /^[a-z_][a-z0-9_-]*$/.test(usernameField.text)
         && !usernameReserved
-    readonly property bool hostnameValid: hostnameField.text.length > 0
-        && /^[a-z][a-z0-9-]*$/.test(hostnameField.text)
-        && hostnameField.text !== "localhost"
+    // Mirrors UsersJob._validate_hostname: dot-separated labels of 1-63
+    // lowercase letters, digits or hyphens, never starting or ending with a
+    // hyphen, 253 characters max overall.
+    readonly property bool hostnameValid: {
+        var h = hostnameField.text
+        if (h.length === 0 || h.length > 253 || h === "localhost") return false
+        return h.split(".").every(function(label) {
+            return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(label)
+        })
+    }
 
     // Password criteria (NIST SP 800-63B inspired). Only non-empty is
     // required to proceed - a weak password is allowed, but the strength
@@ -89,17 +102,21 @@ Item {
     readonly property bool pwdHasLowercase: /[a-z]/.test(passwordField.text)
     readonly property bool pwdHasNumber: /[0-9]/.test(passwordField.text)
     readonly property bool pwdHasSpecial: /[^a-zA-Z0-9]/.test(passwordField.text)
-    readonly property bool passwordValid: passwordField.text.length > 0
+    // GECOS is ":"-separated and chpasswd reads "name:password" lines.
+    readonly property bool fullNameValid: !/[:\r\n]/.test(fullNameField.text)
+    readonly property bool passwordHasLineBreak: /[\r\n]/.test(passwordField.text)
+    readonly property bool rootPasswordHasLineBreak: /[\r\n]/.test(rootPasswordField.text)
+    readonly property bool passwordValid: passwordField.text.length > 0 && !passwordHasLineBreak
     readonly property bool passwordsMatch: passwordField.text === passwordConfirmField.text && passwordField.text.length > 0
 
     // Root password validation (only relevant when not reusing the user account
     // password). When rootSameAsUser is true, root credentials inherit the user
     // password, so no separate validation is required.
-    readonly property bool rootPasswordValid: rootPasswordField.text.length > 0
+    readonly property bool rootPasswordValid: rootPasswordField.text.length > 0 && !rootPasswordHasLineBreak
     readonly property bool rootPasswordsMatch: rootPasswordField.text === rootPasswordConfirmField.text && rootPasswordField.text.length > 0
     readonly property bool rootValid: rootSameAsUser || (rootPasswordValid && rootPasswordsMatch)
 
-    readonly property bool canProceed: usernameValid && hostnameValid && passwordValid && passwordsMatch && rootValid
+    readonly property bool canProceed: usernameValid && fullNameValid && hostnameValid && passwordValid && passwordsMatch && rootValid
     readonly property alias isValid: root.canProceed  // Alias for Main.qml compatibility
 
     // Password strength calculation
@@ -120,18 +137,12 @@ Item {
         property string iconSource: ""
 
         source: iconSource
-        width: 24
-        height: 24
-        sourceSize.width: 24
-        sourceSize.height: 24
+        width: 24 * uiScale
+        height: 24 * uiScale
+        sourceSize.width: width
+        sourceSize.height: height
         anchors.verticalCenter: parent.verticalCenter
-        visible: source != ""
-
-        layer.enabled: !engine.softwareRendering
-        layer.effect: MultiEffect {
-            colorization: 1.0
-            colorizationColor: textColor
-        }
+        visible: source.toString() !== ""
     }
 
     // Content sits directly on Main.qml's shared brand-gradient background -
@@ -148,7 +159,7 @@ Item {
         WheelHandler {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: function(event) {
-                var flickable = scrollView.contentItem
+                var flickable = scrollView.contentItem as Flickable
                 var multiplier = 3.0
                 var deltaY = event.angleDelta.y * multiplier
                 var newY = flickable.contentY - (deltaY / 120.0 * 40)
@@ -161,8 +172,10 @@ Item {
         // centers vertically instead of hugging the top with dead space
         // below on tall windows; a taller card still scrolls normally.
         Item {
+            id: scrollContent
             width: scrollView.availableWidth
-            height: Math.max(heroCard.height + 32, scrollView.availableHeight)
+            implicitHeight: Math.max(heroCard.height + 32, root.height - 2 * scrollView.anchors.margins)
+            height: implicitHeight
 
             // Ambient glow behind the card - plain stacked rectangles, not a
             // MultiEffect shadow: the installer always runs with
@@ -216,20 +229,19 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                // Form container — grille 2 colonnes (Variante B). Flat
+                // Form container - grille 2 colonnes (Variante B). Flat
                 // sections (no boxed card backgrounds/borders) separated by
                 // generous spacing; a thin divider marks the password block.
                 GridLayout {
                     columns: 2
-                    columnSpacing: 18
-                    rowSpacing: 10
+                    columnSpacing: 18 * uiScale
+                    rowSpacing: 10 * uiScale
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.maximumWidth: 900
+                    Layout.maximumWidth: 900 * uiScale
 
                     // Username section (ligne 1, colonne 0)
                     ColumnLayout {
-                        id: usernameColumn
                         Layout.row: 0
                         Layout.column: 0
                         Layout.fillWidth: true
@@ -262,6 +274,7 @@ Item {
 
                         TextField {
                             id: usernameField
+                            objectName: "usernameField"
                             Layout.fillWidth: true
                             Layout.preferredHeight: 46 * uiScale
                             padding: 0
@@ -275,16 +288,10 @@ Item {
                             text: engine.username
                             onTextChanged: {
                                 engine.setUsername(text)
-                                if (root.autoFullNameSynced) {
-                                    root._syncingFullName = true
-                                    fullNameField.text = root.capitalizeFirst(text)
-                                    root._syncingFullName = false
-                                }
-                                if (root.autoHostnameSynced) {
-                                    root._syncingHostname = true
-                                    hostnameField.text = text.length > 0 ? text.toLowerCase() + "-pc" : ""
-                                    root._syncingHostname = false
-                                }
+                                // Deferred: the sync writes back to engine, whose
+                                // change signal also re-evaluates this field's own
+                                // text binding (a binding loop if done inline).
+                                Qt.callLater(root.syncFromUsername)
                             }
 
                             background: Rectangle {
@@ -305,15 +312,16 @@ Item {
                             color: textColor
                             selectionColor: primaryColor
                             selectedTextColor: textColor
-                            leftPadding: 16
+                            leftPadding: 16 * uiScale
                         }
 
                         Text {
+                            objectName: "usernameHint"
                             Layout.fillWidth: true
                             text: usernameField.text.length > 0 && usernameReserved ?
-                                  qsTr("This username is reserved by the system — please choose another") :
+                                  qsTr("This username is reserved by the system, please choose another") :
                                   usernameField.text.length > 0 && !usernameValid ?
-                                  qsTr("Username must start with a letter and contain only lowercase letters, numbers, hyphens, or underscores") :
+                                  qsTr("Username must start with a lowercase letter or underscore, contain only lowercase letters, numbers, hyphens, or underscores, and be at most 32 characters") :
                                   qsTr("This will be your login name")
                             font.pixelSize: 11 * uiScale
                             color: usernameField.text.length > 0 && !usernameValid ? errorColor : textMutedColor
@@ -323,7 +331,6 @@ Item {
 
                     // Full name section (ligne 1, colonne 1)
                     ColumnLayout {
-                        id: fullNameColumn
                         Layout.row: 0
                         Layout.column: 1
                         Layout.fillWidth: true
@@ -349,6 +356,7 @@ Item {
 
                         TextField {
                             id: fullNameField
+                            objectName: "fullNameField"
                             Layout.fillWidth: true
                             Layout.preferredHeight: 46 * uiScale
                             padding: 0
@@ -367,7 +375,7 @@ Item {
                             background: Rectangle {
                                 radius: 8
                                 color: fullNameField.activeFocus ? Qt.darker(backgroundColor, 1.1) : backgroundColor
-                                border.color: fullNameField.activeFocus ? primaryColor : textMutedColor
+                                border.color: !fullNameValid ? errorColor : fullNameField.activeFocus ? primaryColor : textMutedColor
                                 border.width: 2
 
                                 Behavior on border.color {
@@ -378,14 +386,16 @@ Item {
                             color: textColor
                             selectionColor: primaryColor
                             selectedTextColor: textColor
-                            leftPadding: 16
+                            leftPadding: 16 * uiScale
                         }
 
                         Text {
+                            objectName: "fullNameHint"
                             Layout.fillWidth: true
-                            text: qsTr("Optional: Display name for your account")
+                            text: fullNameValid ? qsTr("Optional: Display name for your account")
+                                                : qsTr("Full name cannot contain ':' or line breaks")
                             font.pixelSize: 11 * uiScale
-                            color: textMutedColor
+                            color: fullNameValid ? textMutedColor : errorColor
                             wrapMode: Text.WordWrap
                         }
                     }
@@ -394,7 +404,6 @@ Item {
                     // "Account Options" qui l'accompagnait a été retirée : Xen
                     // n'a plus de bascule administrateur, cf. UsersJob).
                     ColumnLayout {
-                        id: hostnameColumn
                         Layout.row: 1
                         Layout.column: 0
                         Layout.columnSpan: 2
@@ -428,6 +437,7 @@ Item {
 
                         TextField {
                             id: hostnameField
+                            objectName: "hostnameField"
                             Layout.fillWidth: true
                             Layout.preferredHeight: 46 * uiScale
                             padding: 0
@@ -461,13 +471,13 @@ Item {
                             color: textColor
                             selectionColor: primaryColor
                             selectedTextColor: textColor
-                            leftPadding: 16
+                            leftPadding: 16 * uiScale
                         }
 
                         Text {
                             Layout.fillWidth: true
                             text: hostnameField.text.length > 0 && !hostnameValid ?
-                                  qsTr("Hostname must start with a letter and contain only lowercase letters, numbers, or hyphens") :
+                                  qsTr("Hostname may contain only lowercase letters, numbers, hyphens, and dots; each part must not start or end with a hyphen and be at most 63 characters") :
                                   qsTr("Your computer's network name")
                             font.pixelSize: 11 * uiScale
                             color: hostnameField.text.length > 0 && !hostnameValid ? errorColor : textMutedColor
@@ -477,7 +487,6 @@ Item {
 
                     // Password section (ligne 3, pleine largeur)
                     ColumnLayout {
-                        id: passwordColumn
                         Layout.row: 2
                         Layout.column: 0
                         Layout.fillWidth: true
@@ -521,6 +530,7 @@ Item {
 
                             TextField {
                                 id: passwordField
+                                objectName: "passwordField"
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 46 * uiScale
                                 padding: 0
@@ -553,7 +563,17 @@ Item {
                                 color: textColor
                                 selectionColor: primaryColor
                                 selectedTextColor: textColor
-                                leftPadding: 16
+                                leftPadding: 16 * uiScale
+                            }
+
+                            Text {
+                                objectName: "passwordLineBreakError"
+                                Layout.fillWidth: true
+                                visible: passwordHasLineBreak
+                                text: qsTr("Passwords cannot contain line breaks")
+                                font.pixelSize: 11 * uiScale
+                                color: errorColor
+                                wrapMode: Text.WordWrap
                             }
                                 }  // fin colonne gauche (password)
 
@@ -566,6 +586,7 @@ Item {
 
                                     TextField {
                                         id: passwordConfirmField
+                                        objectName: "passwordConfirmField"
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 46 * uiScale
                                         padding: 0
@@ -595,7 +616,7 @@ Item {
                                         color: textColor
                                         selectionColor: primaryColor
                                         selectedTextColor: textColor
-                                        leftPadding: 16
+                                        leftPadding: 16 * uiScale
                                     }
 
                                     // Password match indicator
@@ -606,18 +627,12 @@ Item {
 
                                         Image {
                                             source: passwordsMatch ? (root.branding ? root.branding.iconCheckUrl : "") : (root.branding ? root.branding.iconCrossUrl : "")
-                                            width: 16
-                                            height: 16
+                                            width: 16 * uiScale
+                                            height: 16 * uiScale
                                             anchors.verticalCenter: parent.verticalCenter
-                                            sourceSize.width: 16
-                                            sourceSize.height: 16
-                                            visible: source != ""
-
-                                            layer.enabled: !engine.softwareRendering
-                                            layer.effect: MultiEffect {
-                                                colorization: 1.0
-                                                colorizationColor: passwordsMatch ? successColor : errorColor
-                                            }
+                                            sourceSize.width: width
+                                            sourceSize.height: height
+                                            visible: source.toString() !== ""
                                         }
 
                                         Text {
@@ -658,17 +673,11 @@ Item {
                                     Image {
                                         anchors.centerIn: parent
                                         source: root.branding ? root.branding.iconCheckUrl : ""
-                                        width: 12
-                                        height: 12
-                                        sourceSize.width: 12
-                                        sourceSize.height: 12
-                                        visible: showPasswordCheck.checked && source != ""
-
-                                        layer.enabled: !engine.softwareRendering
-                                        layer.effect: MultiEffect {
-                                            colorization: 1.0
-                                            colorizationColor: textColor
-                                        }
+                                        width: 12 * uiScale
+                                        height: 12 * uiScale
+                                        sourceSize.width: width
+                                        sourceSize.height: height
+                                        visible: showPasswordCheck.checked && source.toString() !== ""
                                     }
 
                                     // Fallback checkmark
@@ -693,7 +702,7 @@ Item {
                             // Séparateur léger avant la section root.
                             Rectangle {
                                 Layout.fillWidth: true
-                                height: 1
+                                implicitHeight: 1
                                 color: Qt.darker(surfaceColor, 1.3)
                             }
 
@@ -720,17 +729,11 @@ Item {
                                     Image {
                                         anchors.centerIn: parent
                                         source: root.branding ? root.branding.iconCheckUrl : ""
-                                        width: 12
-                                        height: 12
-                                        sourceSize.width: 12
-                                        sourceSize.height: 12
-                                        visible: rootSameAsUserCheck.checked && source != ""
-
-                                        layer.enabled: !engine.softwareRendering
-                                        layer.effect: MultiEffect {
-                                            colorization: 1.0
-                                            colorizationColor: textColor
-                                        }
+                                        width: 12 * uiScale
+                                        height: 12 * uiScale
+                                        sourceSize.width: width
+                                        sourceSize.height: height
+                                        visible: rootSameAsUserCheck.checked && source.toString() !== ""
                                     }
 
                                     Text {
@@ -752,7 +755,7 @@ Item {
                                 }
                             }
 
-                            // Champs root (password + confirm) — collapse complet
+                            // Champs root (password + confirm) - collapse complet
                             // quand rootSameAsUser est coché (coût ~0px).
                             RowLayout {
                                 Layout.fillWidth: true
@@ -767,6 +770,7 @@ Item {
 
                                     TextField {
                                         id: rootPasswordField
+                                        objectName: "rootPasswordField"
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 46 * uiScale
                                         padding: 0
@@ -796,7 +800,17 @@ Item {
                                         color: textColor
                                         selectionColor: primaryColor
                                         selectedTextColor: textColor
-                                        leftPadding: 16
+                                        leftPadding: 16 * uiScale
+                                    }
+
+                                    Text {
+                                        objectName: "rootPasswordLineBreakError"
+                                        Layout.fillWidth: true
+                                        visible: rootPasswordHasLineBreak
+                                        text: qsTr("Passwords cannot contain line breaks")
+                                        font.pixelSize: 11 * uiScale
+                                        color: errorColor
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
 
@@ -808,6 +822,7 @@ Item {
 
                                     TextField {
                                         id: rootPasswordConfirmField
+                                        objectName: "rootPasswordConfirmField"
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 46 * uiScale
                                         padding: 0
@@ -837,7 +852,7 @@ Item {
                                         color: textColor
                                         selectionColor: primaryColor
                                         selectedTextColor: textColor
-                                        leftPadding: 16
+                                        leftPadding: 16 * uiScale
                                     }
 
                                     // Indicateur de correspondance des mots de passe root.
@@ -848,18 +863,12 @@ Item {
 
                                         Image {
                                             source: rootPasswordsMatch ? (root.branding ? root.branding.iconCheckUrl : "") : (root.branding ? root.branding.iconCrossUrl : "")
-                                            width: 16
-                                            height: 16
+                                            width: 16 * uiScale
+                                            height: 16 * uiScale
                                             anchors.verticalCenter: parent.verticalCenter
-                                            sourceSize.width: 16
-                                            sourceSize.height: 16
-                                            visible: source != ""
-
-                                            layer.enabled: !engine.softwareRendering
-                                            layer.effect: MultiEffect {
-                                                colorization: 1.0
-                                                colorizationColor: rootPasswordsMatch ? successColor : errorColor
-                                            }
+                                            sourceSize.width: width
+                                            sourceSize.height: height
+                                            visible: source.toString() !== ""
                                         }
 
                                         Text {
@@ -878,7 +887,7 @@ Item {
                 // footer global de Main.qml, qui consomme usersView.isValid via
                 // canProceedToNext(). Pas de barre de navigation interne ici.
 
-                Item { height: 8 }
+                Item { implicitHeight: 8 }
             }
             }
         }

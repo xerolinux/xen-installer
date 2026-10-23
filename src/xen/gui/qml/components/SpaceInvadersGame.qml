@@ -20,8 +20,7 @@ Item {
     // app's brand colors, since the whole point was "make it colorful").
     property color textColor: "#fffded"
     property color textMutedColor: "#9CA3AF"
-    property color surfaceColor: "#32373c"
-    property color primaryColor: "#5597e6"
+    property real uiScale: 1.0
 
     readonly property var rowColors: ["#ff5f56", "#ffb454", "#39ff8f", "#5bc0ff", "#c77dff"]
     // Each row is a different Linux-flavored "invader": terminal window,
@@ -106,6 +105,8 @@ Item {
         level = 1
         gameOver = false
         transitioning = false
+        moveLeft = false
+        moveRight = false
         playerX = width / 2 - playerW / 2
         running = true
         if (rainCols === 0) resetRain()
@@ -339,26 +340,26 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: 10
-        spacing: 10
+        anchors.margins: 10 * root.uiScale
+        spacing: 10 * root.uiScale
 
         Text {
             text: qsTr("Score: %1").arg(root.score)
-            font.pixelSize: 14
+            font.pixelSize: 14 * root.uiScale
             font.bold: true
-            color: "#fffded"
+            color: root.textColor
         }
         Text {
             text: qsTr("Level %1").arg(root.level)
-            font.pixelSize: 13
+            font.pixelSize: 13 * root.uiScale
             font.bold: true
             color: root.shipColor
         }
         Item { Layout.fillWidth: true }
         Text {
             text: qsTr("← → move · space to fire")
-            font.pixelSize: 11
-            color: "#9CA3AF"
+            font.pixelSize: 11 * root.uiScale
+            color: root.textMutedColor
         }
     }
 

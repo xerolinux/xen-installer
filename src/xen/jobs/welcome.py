@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 from xen.jobs.requirements import (
     RequirementCheck,
@@ -26,47 +26,21 @@ logger = logging.getLogger(__name__)
 class WelcomeConfig:
     """Configuration for the welcome job."""
 
-    # Display options
-    show_release_notes: bool = True
-
-    # Wallpaper paths (relative to theme directory)
-    wallpaper_dark: str = ""
-    wallpaper_light: str = ""
-    wallpaper_fallback: str = ""
-
-    # Requirements configuration
     requirements: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> WelcomeConfig:
         """Create config from dictionary."""
-        wallpapers = config.get("wallpapers", {})
-        return cls(
-            show_release_notes=config.get("show_release_notes", True),
-            wallpaper_dark=wallpapers.get("dark", ""),
-            wallpaper_light=wallpapers.get("light", ""),
-            wallpaper_fallback=wallpapers.get("fallback", ""),
-            requirements=config.get("requirements", {}),
-        )
+        return cls(requirements=config.get("requirements", {}))
 
 
 @dataclass
 class WelcomeState:
     """State of the welcome job for UI binding."""
 
-    # Wallpaper URLs
-    wallpaper_dark_url: str = ""
-    wallpaper_light_url: str = ""
-    current_wallpaper_url: str = ""
-
-    # Requirements state
     requirements_result: RequirementsResult | None = None
     all_requirements_met: bool = False
     can_proceed: bool = False
-
-    # UI state
-    is_dark_mode: bool = True
-    show_details: bool = False
 
 
 class WelcomeJob(BaseJob):
@@ -74,7 +48,6 @@ class WelcomeJob(BaseJob):
     Welcome screen job with system requirements validation.
 
     Responsibilities:
-    - Display branded welcome screen with configurable wallpaper
     - Perform comprehensive system requirements checks
     - Present check results in a modern, user-friendly overlay
     - Block installation if critical requirements are not met
@@ -99,65 +72,6 @@ class WelcomeJob(BaseJob):
     def state(self) -> WelcomeState:
         """Get current state for UI binding."""
         return self._state
-
-    def initialize(self, theme_base: Path | None = None) -> None:
-        """
-        Initialize the job with theme resources.
-
-        Args:
-            theme_base: Base path to theme directory
-        """
-        # Initialize requirements checker
-        self._checker = SystemRequirementsChecker(self._welcome_config.requirements)
-
-        # Resolve wallpaper paths to URLs
-        if theme_base:
-            self._resolve_wallpapers(theme_base)
-
-    def _resolve_wallpapers(self, theme_base: Path) -> None:
-        """Resolve wallpaper paths to file:// URLs."""
-        # Dark wallpaper
-        if self._welcome_config.wallpaper_dark:
-            dark_path = theme_base / self._welcome_config.wallpaper_dark
-            if dark_path.exists():
-                self._state.wallpaper_dark_url = f"file://{dark_path}"
-
-        # Light wallpaper
-        if self._welcome_config.wallpaper_light:
-            light_path = theme_base / self._welcome_config.wallpaper_light
-            if light_path.exists():
-                self._state.wallpaper_light_url = f"file://{light_path}"
-
-        # Fallback
-        if self._welcome_config.wallpaper_fallback:
-            fallback_path = theme_base / self._welcome_config.wallpaper_fallback
-            if fallback_path.exists():
-                fallback_url = f"file://{fallback_path}"
-                # Use as default if specific wallpapers not found
-                if not self._state.wallpaper_dark_url:
-                    self._state.wallpaper_dark_url = fallback_url
-                if not self._state.wallpaper_light_url:
-                    self._state.wallpaper_light_url = fallback_url
-
-        # Set current wallpaper based on mode
-        self._update_current_wallpaper()
-
-    def _update_current_wallpaper(self) -> None:
-        """Update current wallpaper based on dark/light mode."""
-        if self._state.is_dark_mode:
-            self._state.current_wallpaper_url = self._state.wallpaper_dark_url
-        else:
-            self._state.current_wallpaper_url = self._state.wallpaper_light_url
-
-    def set_dark_mode(self, is_dark: bool) -> None:
-        """
-        Set dark/light mode for wallpaper.
-
-        Args:
-            is_dark: True for dark mode, False for light mode
-        """
-        self._state.is_dark_mode = is_dark
-        self._update_current_wallpaper()
 
     def check_requirements(self) -> RequirementsResult:
         """
@@ -240,14 +154,17 @@ class WelcomeJob(BaseJob):
         Returns:
             JobResult indicating if requirements are met
         """
-        context.report_progress(0, "Checking system requirements...")
+        context.report_progress(0, msg("Checking system requirements..."))
 
         result = self.check_requirements()
 
         if not result.can_continue:
             failure_names = [f.description for f in result.failures]
             return JobResult.fail(
-                message=f"System requirements not met: {', '.join(failure_names)}",
+                message=msg(
+                    "System requirements not met: {failures}",
+                    failures=", ".join(failure_names),
+                ),
                 error_code=10,
                 data={"failures": [f.name for f in result.failures]},
             )
@@ -257,7 +174,7 @@ class WelcomeJob(BaseJob):
             logger.warning(f"Requirements warnings: {', '.join(warning_names)}")
 
         return JobResult.ok(
-            message="System requirements check passed",
+            message=msg("System requirements check passed"),
             data={
                 "passed": len(result.passed_checks),
                 "warnings": len(result.warnings),
@@ -277,25 +194,24 @@ class WelcomeJob(BaseJob):
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(10, "Initializing welcome screen...")
+        context.report_progress(10, msg("Initializing welcome screen..."))
 
         # Validate requirements first
         validation = self.validate(context)
         if not validation.success:
             return validation
 
-        context.report_progress(50, "Loading branding assets...")
+        context.report_progress(50, msg("Loading branding assets..."))
 
         # The actual UI display is handled by QML
         # This job just prepares the data
 
-        context.report_progress(100, "Welcome screen ready")
+        context.report_progress(100, msg("Welcome screen ready"))
 
         return JobResult.ok(
-            message="Welcome job completed",
+            message=msg("Welcome job completed"),
             data={
                 "requirements_summary": self.get_requirements_summary(),
-                "wallpaper_url": self._state.current_wallpaper_url,
                 "can_proceed": self._state.can_proceed,
             },
         )

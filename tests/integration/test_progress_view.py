@@ -81,7 +81,7 @@ class TestProgressView:
         bridge = _make_bridge()
         qml_engine, root = _load(bridge)
         try:
-            root.setProperty("currentStep", 6)
+            root.setProperty("currentStep", 7)
             qapp.processEvents()
 
             texts = _collect_texts(root)
@@ -94,7 +94,7 @@ class TestProgressView:
         qml_engine, root = _load(bridge)
         try:
             bridge._on_job_start(bridge._engine.get_job_names()[0])
-            root.setProperty("currentStep", 6)
+            root.setProperty("currentStep", 7)
             qapp.processEvents()
             qapp.processEvents()
 
@@ -110,9 +110,46 @@ class TestProgressView:
         bridge = _make_bridge()
         qml_engine, root = _load(bridge)
         try:
-            root.setProperty("currentStep", 6)
+            root.setProperty("currentStep", 7)
             qapp.processEvents()
 
             assert not hasattr(bridge, "currentJobProgress")
+        finally:
+            del qml_engine
+
+    def test_animations_only_run_while_shown_and_game_closed(self, qapp: QApplication) -> None:
+        from PySide6.QtCore import QMetaObject
+        from PySide6.QtQuick import QQuickItem
+
+        def find(obj: QObject, name: str) -> QObject | None:
+            stack, seen, refs = [obj], set(), []
+            while stack:
+                o = stack.pop()
+                if id(o) in seen:
+                    continue
+                seen.add(id(o))
+                refs.append(o)
+                if o.objectName() == name:
+                    return o
+                stack.extend(o.children())
+                if isinstance(o, QQuickItem):
+                    stack.extend(o.childItems())
+            return None
+
+        bridge = _make_bridge()
+        qml_engine, root = _load(bridge)
+        try:
+            qapp.processEvents()
+            view = find(root, "progressView")
+            assert view.property("animating") is False
+            root.setProperty("currentStep", 7)
+            qapp.processEvents()
+            assert view.property("animating") is True
+            game = find(view, "gamePopup")
+            QMetaObject.invokeMethod(game, "open")
+            qapp.processEvents()
+            assert view.property("animating") is False
+            QMetaObject.invokeMethod(game, "close")
+            qapp.processEvents()
         finally:
             del qml_engine

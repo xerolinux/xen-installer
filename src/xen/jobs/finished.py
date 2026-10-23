@@ -18,10 +18,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
-from xen.jobs.partition import is_swap_entry
+from xen.utils.log_capture import resolve_log_path
 
 logger = logging.getLogger(__name__)
+
+
+def _active_swaps() -> list[str]:
+    try:
+        lines = Path("/proc/swaps").read_text(encoding="utf-8").splitlines()[1:]
+    except OSError:
+        return []
+    # /proc/swaps escapes spaces in file paths as octal \040.
+    return [line.split()[0].replace("\\040", " ") for line in lines if line.strip()]
 
 
 class FinishedJob(BaseJob):
@@ -75,11 +85,8 @@ class FinishedJob(BaseJob):
         if "disk" in selections:
             partition_info["disk"] = selections["disk"]
             partition_info["filesystem"] = selections.get("filesystem", "ext4")
-            partition_info["mode"] = selections.get("mode", "auto")
-
-            swap_size = selections.get("swap_size", 0)
-            if swap_size > 0:
-                partition_info["swap_size_gb"] = swap_size
+            partition_info["mode"] = selections.get("partition_mode", "auto")
+            partition_info["swap"] = selections.get("swap_strategy", "none")
         summary["partitions"] = partition_info
 
         # User information (without sensitive data)
@@ -114,7 +121,7 @@ class FinishedJob(BaseJob):
         save_logs = context.selections.get("save_logs", True)
         if not save_logs:
             logger.info("Log saving disabled, skipping")
-            return JobResult.ok("Log saving skipped")
+            return JobResult.ok(msg("Log saving skipped"))
 
         target_root = Path(context.target_root)
         log_dir = target_root / "var" / "log" / "xen-installer"
@@ -133,21 +140,18 @@ class FinishedJob(BaseJob):
             )
             logger.info(f"Saved installation summary to {summary_file}")
 
-            # Copy the installer log into the target if present.
-            for log_source in [Path("/var/log/xen-install.log"), Path("/tmp/xen.log")]:
-                if not log_source.exists():
-                    continue
+            log_source = resolve_log_path()
+            if log_source.exists():
                 log_dest = log_dir / f"xen-{datetime.now():%Y%m%d-%H%M%S}.log"
                 shutil.copy2(log_source, log_dest)
                 logger.info(f"Copied log file: {log_source} -> {log_dest}")
-                break
 
-            return JobResult.ok(f"Logs saved to {log_dir}")
+            return JobResult.ok(msg("Logs saved to {path}", path=log_dir))
 
         except OSError as e:
             logger.warning(f"Failed to save logs: {e}")
             # Non-critical: continue even if log saving fails
-            return JobResult.ok(f"Log saving failed (non-critical): {e}")
+            return JobResult.ok(msg("Log saving failed (non-critical): {error}", error=e))
 
     def _safe_unmount(self, mount_point: Path, lazy: bool = False) -> bool:
         """
@@ -256,17 +260,44 @@ class FinishedJob(BaseJob):
             logger.error("umount command not found")
             return False
 
+    @staticmethod
+    def _swapoff_target(context: JobContext) -> list[str]:
+        """swapoff every swap under the target and every swap the partition job enabled.
+
+        An active swap keeps its filesystem or mapper busy, so this runs before
+        the unmount and the mapper close. Returns the entries still active.
+        """
+        prefix = context.target_root.rstrip("/") + "/"
+        ours = {os.path.realpath(d) for d in context.selections.get("target_swap_devices", [])}
+        failures: list[str] = []
+        for entry in _active_swaps():
+            if not (entry.startswith(prefix) or os.path.realpath(entry) in ours):
+                continue
+            try:
+                result = subprocess.run(
+                    ["swapoff", entry], check=False, capture_output=True, text=True, timeout=300
+                )
+            except (OSError, subprocess.TimeoutExpired) as e:
+                logger.warning(f"swapoff {entry} failed: {e}")
+                failures.append(entry)
+                continue
+            if result.returncode != 0:
+                logger.warning(f"swapoff {entry} failed: {result.stderr}")
+                failures.append(entry)
+        return failures
+
     def _cleanup_mounts(self, context: JobContext) -> JobResult:
         """
         Clean up all mounted filesystems.
 
-        Unmounts in correct order (child before parent):
-        1. /mnt/target/boot/efi (belt-and-suspenders)
-        2. /mnt/target and every submount still under it, recursively
+        Order matters (each step frees what the next one needs):
+        1. swapoff every swap under the target and every swap the
+           partition job enabled (an active swap keeps its filesystem busy)
+        2. /mnt/target/boot/efi (belt-and-suspenders)
+        3. /mnt/target and every submount still under it, recursively
            (umount -R) - covers root itself plus any manual-mode extra
            mountpoint (e.g. /home), not just the two hardcoded paths
-        3. Every LUKS mapper this install opened
-        4. swapoff for swap partitions
+        4. Every mapper the partition job opened, swap included
 
         Args:
             context: Execution context
@@ -277,94 +308,54 @@ class FinishedJob(BaseJob):
         target_root = Path(context.target_root)
         errors = []
 
+        errors += [f"Failed to deactivate swap: {s}" for s in self._swapoff_target(context)]
+
         # Unmount EFI partition first (belt-and-suspenders - the recursive
         # unmount below covers it too, but doing it explicitly surfaces an
         # EFI-specific unmount failure distinctly).
         efi_mount = target_root / "boot" / "efi"
         if os.path.ismount(efi_mount) and not self._safe_unmount(efi_mount):
-            errors.append(f"Failed to unmount EFI partition: {efi_mount}")
+            errors.append(msg("Failed to unmount EFI partition: {path}", path=efi_mount))
 
         # Must happen before any mapper close below, or the close can race
         # a still-busy mount.
         if not self._safe_unmount_recursive(target_root):
-            errors.append(f"Failed to unmount target root and its submounts: {target_root}")
+            errors.append(
+                msg(
+                    "Failed to unmount target root and its submounts: {path}",
+                    path=target_root,
+                )
+            )
 
-        # Close every LUKS mapper this install opened (root's fixed name,
-        # plus whatever manual mode's partition_assignments resolved to) so
-        # the disk is safe to remove right after install.
-        mapper_names = set()
-        if context.selections.get("encryption"):
-            mapper_names.add("cryptroot")
-        for assignment in context.selections.get("partition_assignments", []):
-            path = str(assignment.get("path", ""))
-            # Encrypted swap is plain dm-crypt opened only at boot, never here.
-            if path.startswith("/dev/mapper/") and not is_swap_entry(assignment):
-                mapper_names.add(path.rsplit("/", 1)[-1])
-
-        for mapper_name in mapper_names:
+        for mapper_name in reversed(context.selections.get("opened_mappers", [])):
             try:
                 close_result = subprocess.run(
-                    ["cryptsetup", "luksClose", mapper_name],
+                    ["cryptsetup", "close", mapper_name],
                     check=False,
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
-                if close_result.returncode == 0:
-                    logger.info(f"Closed LUKS mapper {mapper_name}")
-                else:
-                    logger.warning(
-                        f"Failed to close LUKS mapper {mapper_name}: {close_result.stderr}"
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to close LUKS mapper {mapper_name}: {e}")
-
-        # Deactivate swap if it was used
-        swap_partition = context.selections.get("swap_partition")
-        if swap_partition:
-            try:
-                subprocess.run(
-                    ["swapoff", swap_partition],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                logger.info(f"Deactivated swap: {swap_partition}")
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to deactivate swap: {e.stderr}")
-                errors.append(f"Failed to deactivate swap: {swap_partition}")
-            except FileNotFoundError:
-                logger.warning("swapoff command not found")
-            except subprocess.TimeoutExpired:
-                logger.error("swapoff timeout")
-                errors.append("Swap deactivation timeout")
-
-        # Also check for swap in layout data from partition job
-        # (partition job stores layout in result data)
-        if "swap" in context.selections:
-            swap_path = context.selections["swap"]
-            if swap_path:
-                try:
-                    subprocess.run(
-                        ["swapoff", swap_path],
-                        check=False,  # Don't fail if already off
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    logger.info(f"Deactivated swap (from layout): {swap_path}")
-                except Exception as e:
-                    logger.debug(f"Swap deactivation (layout) failed: {e}")
+            except (OSError, subprocess.TimeoutExpired) as e:
+                logger.warning(f"Failed to close mapper {mapper_name}: {e}")
+                continue
+            if close_result.returncode == 0:
+                logger.info(f"Closed mapper {mapper_name}")
+            else:
+                logger.warning(f"Failed to close mapper {mapper_name}: {close_result.stderr}")
 
         if errors:
             return JobResult.fail(
-                message=f"Cleanup completed with {len(errors)} error(s): {'; '.join(errors)}",
+                message=msg(
+                    "Cleanup completed with {count} error(s): {errors}",
+                    count=len(errors),
+                    errors="; ".join(errors),
+                ),
                 error_code=50,
                 data={"errors": errors},
             )
 
-        return JobResult.ok("All filesystems unmounted successfully")
+        return JobResult.ok(msg("All filesystems unmounted successfully"))
 
     def _prepare_action(self, context: JobContext) -> JobResult:
         """
@@ -381,7 +372,7 @@ class FinishedJob(BaseJob):
         if action == "reboot":
             logger.info("System ready for reboot")
             return JobResult.ok(
-                "Ready to reboot",
+                msg("Ready to reboot"),
                 data={
                     "action": "reboot",
                     "command": "systemctl reboot",
@@ -391,7 +382,7 @@ class FinishedJob(BaseJob):
         elif action == "shutdown":
             logger.info("System ready for shutdown")
             return JobResult.ok(
-                "Ready to shutdown",
+                msg("Ready to shutdown"),
                 data={
                     "action": "shutdown",
                     "command": "systemctl poweroff",
@@ -401,17 +392,14 @@ class FinishedJob(BaseJob):
         elif action == "continue":
             logger.info("Installation complete, system ready for inspection")
             return JobResult.ok(
-                "Installation complete",
-                data={
-                    "action": "continue",
-                    "message": "You can now inspect the installation or manually reboot.",
-                },
+                msg("Installation complete"),
+                data={"action": "continue"},
             )
 
         else:
             logger.warning(f"Unknown action: {action}, defaulting to 'continue'")
             return JobResult.ok(
-                "Installation complete (unknown action)",
+                msg("Installation complete (unknown action)"),
                 data={"action": "continue"},
             )
 
@@ -431,7 +419,11 @@ class FinishedJob(BaseJob):
 
         if action not in valid_actions:
             return JobResult.fail(
-                f"Invalid action: {action}. Must be one of: {', '.join(valid_actions)}",
+                msg(
+                    "Invalid action: {action}. Must be one of: {valid}",
+                    action=action,
+                    valid=", ".join(valid_actions),
+                ),
                 error_code=49,
             )
 
@@ -439,11 +431,11 @@ class FinishedJob(BaseJob):
         save_logs = context.selections.get("save_logs", True)
         if not isinstance(save_logs, bool):
             return JobResult.fail(
-                "Invalid save_logs value: must be boolean",
+                msg("Invalid save_logs value: must be boolean"),
                 error_code=49,
             )
 
-        return JobResult.ok("Finished job configuration valid")
+        return JobResult.ok(msg("Finished job configuration valid"))
 
     def run(self, context: JobContext) -> JobResult:
         """
@@ -461,7 +453,7 @@ class FinishedJob(BaseJob):
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(0, "Finishing installation...")
+        context.report_progress(0, msg("Finishing installation..."))
 
         # Validate first
         validation = self.validate(context)
@@ -469,24 +461,24 @@ class FinishedJob(BaseJob):
             return validation
 
         # Step 1: Generate summary
-        context.report_progress(10, "Generating installation summary...")
+        context.report_progress(10, msg("Generating installation summary..."))
         self._summary = self._generate_summary(context)
         logger.info("Installation summary generated")
 
         # Step 2: Save logs
-        context.report_progress(30, "Saving installation logs...")
+        context.report_progress(30, msg("Saving installation logs..."))
         log_result = self._save_logs(context)
         if not log_result.success:
             logger.warning(f"Log saving failed: {log_result.message}")
             # Continue anyway (non-critical)
 
         # Step 3: Cleanup mounts
-        context.report_progress(60, "Cleaning up filesystems...")
+        context.report_progress(60, msg("Cleaning up filesystems..."))
         cleanup_result = self._cleanup_mounts(context)
         if not cleanup_result.success:
             # Cleanup failure is critical
             return JobResult.fail(
-                f"Cleanup failed: {cleanup_result.message}",
+                msg("Cleanup failed: {error}", error=cleanup_result.message),
                 error_code=cleanup_result.error_code,
                 data={
                     "summary": self._summary,
@@ -495,10 +487,10 @@ class FinishedJob(BaseJob):
             )
 
         # Step 4: Prepare action
-        context.report_progress(90, "Preparing for completion...")
+        context.report_progress(90, msg("Preparing for completion..."))
         action_result = self._prepare_action(context)
 
-        context.report_progress(100, "Installation complete!")
+        context.report_progress(100, msg("Installation complete!"))
 
         # Build final result data
         result_data = {
@@ -511,7 +503,7 @@ class FinishedJob(BaseJob):
             result_data["command"] = action_result.data["command"]
 
         return JobResult.ok(
-            "Installation completed successfully",
+            msg("Installation completed successfully"),
             data=result_data,
         )
 

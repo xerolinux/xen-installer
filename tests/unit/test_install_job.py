@@ -60,13 +60,6 @@ class TestConstants:
         assert "/run" in job.EXCLUDE_DIRS
         assert "/tmp" in job.EXCLUDE_DIRS
 
-    def test_critical_files(self) -> None:
-        """CRITICAL_FILES should contain expected system files."""
-        job = InstallJob()
-        assert "/etc/fstab" in job.CRITICAL_FILES
-        assert "/etc/passwd" in job.CRITICAL_FILES
-        assert "/boot" in job.CRITICAL_FILES
-
     def test_min_free_space(self) -> None:
         """MIN_FREE_SPACE should be 5 GB."""
         job = InstallJob()
@@ -75,6 +68,26 @@ class TestConstants:
 
 
 class TestValidate:
+    @pytest.fixture(autouse=True)
+    def _target_is_mounted(self) -> object:
+        with patch("xen.jobs.install.os.path.ismount", return_value=True):
+            yield
+
+    @patch("xen.jobs.install.os.access", return_value=True)
+    @patch("xen.jobs.install.shutil.which", return_value="/usr/bin/unsquashfs")
+    def test_validate_rejects_unmounted_target(
+        self, _which: MagicMock, _access: MagicMock, tmp_path: Path
+    ) -> None:
+        sfs = tmp_path / "airootfs.sfs"
+        sfs.write_bytes(b"")
+        context = JobContext(
+            target_root=str(tmp_path),
+            selections={"source_type": "squashfs", "squashfs_path": str(sfs)},
+        )
+        with patch("xen.jobs.install.os.path.ismount", return_value=False):
+            result = InstallJob().validate(context)
+        assert result.success is False
+        assert "not mounted" in result.message
     """Tests for the validate() method."""
 
     def test_validate_invalid_source_type(self) -> None:
@@ -768,56 +781,6 @@ class TestExtractSquashfs:
         assert "unsquashfs command not found" in result.message
 
 
-class TestVerifyInstallation:
-    """Tests for _verify_installation() method."""
-
-    @patch("xen.jobs.install.Path")
-    def test_verify_installation_success(self, mock_path: MagicMock) -> None:
-        """_verify_installation should succeed when all critical files exist."""
-        job = InstallJob()
-
-        # Mock all critical files exist
-        mock_target = MagicMock()
-
-        def mock_file_exists(_file_path: str) -> MagicMock:
-            mock_file = MagicMock()
-            mock_file.exists.return_value = True
-            return mock_file
-
-        mock_target.__truediv__ = lambda _self, other: mock_file_exists(other)
-        mock_path.return_value = mock_target
-
-        result = job._verify_installation("/mnt")
-
-        assert result.success is True
-        assert "verified successfully" in result.message.lower()
-        assert result.data["checks_passed"] == len(job.CRITICAL_FILES)
-
-    @patch("xen.jobs.install.Path")
-    def test_verify_installation_missing_files(self, mock_path: MagicMock) -> None:
-        """_verify_installation should fail when critical files are missing."""
-        job = InstallJob()
-
-        # Mock some files missing
-        mock_target = MagicMock()
-
-        def mock_file_exists(file_path: str) -> MagicMock:
-            mock_file = MagicMock()
-            # Make /etc/fstab missing
-            mock_file.exists.return_value = "fstab" not in str(file_path)
-            return mock_file
-
-        mock_target.__truediv__ = lambda _self, other: mock_file_exists(other)
-        mock_path.return_value = mock_target
-
-        result = job._verify_installation("/mnt")
-
-        assert result.success is False
-        assert result.error_code == 69
-        assert "verification failed" in result.message.lower()
-        assert "missing_files" in result.data
-
-
 class TestEnsurePseudoMountpoints:
     """Tests for _ensure_pseudo_mountpoints (regression: arch-chroot failing
     to bind-mount /proc because rsync's EXCLUDE_DIRS never recreates the
@@ -892,36 +855,6 @@ class TestRun:
         mock_rsync.assert_called_once()
 
     @patch("xen.jobs.install.InstallJob._ensure_pseudo_mountpoints")
-    @patch("xen.jobs.install.InstallJob._verify_installation")
-    @patch("xen.jobs.install.InstallJob._run_rsync")
-    def test_run_with_verification(
-        self, mock_rsync: MagicMock, mock_verify: MagicMock, mock_mountpoints: MagicMock
-    ) -> None:
-        """run should verify installation if requested."""
-        job = InstallJob()
-
-        mock_rsync.return_value = JobResult.ok("Files copied")
-        mock_verify.return_value = JobResult.ok("Verified")
-        mock_mountpoints.return_value = JobResult.ok("Mountpoints created")
-
-        context = JobContext(
-            target_root="/mnt",
-            selections={
-                "source": "/",
-                "source_type": "live",
-                "verify_install": True,
-            },
-        )
-
-        result = job.run(context)
-
-        assert result.success is True
-        assert result.data["verified"] is True
-
-        mock_rsync.assert_called_once()
-        mock_verify.assert_called_once_with("/mnt")
-
-    @patch("xen.jobs.install.InstallJob._ensure_pseudo_mountpoints")
     @patch("xen.jobs.install.InstallJob._extract_squashfs")
     def test_run_squashfs_install(
         self, mock_extract: MagicMock, mock_mountpoints: MagicMock
@@ -988,33 +921,6 @@ class TestRun:
 
         assert result.success is False
         assert result.error_code == 64
-
-    @patch("xen.jobs.install.InstallJob._ensure_pseudo_mountpoints")
-    @patch("xen.jobs.install.InstallJob._verify_installation")
-    @patch("xen.jobs.install.InstallJob._run_rsync")
-    def test_run_verification_failure(
-        self, mock_rsync: MagicMock, mock_verify: MagicMock, mock_mountpoints: MagicMock
-    ) -> None:
-        """run should fail if verification fails."""
-        job = InstallJob()
-
-        mock_rsync.return_value = JobResult.ok("Files copied")
-        mock_verify.return_value = JobResult.fail("Verification failed", error_code=69)
-        mock_mountpoints.return_value = JobResult.ok("Mountpoints created")
-
-        context = JobContext(
-            selections={
-                "source": "/",
-                "source_type": "live",
-                "verify_install": True,
-            }
-        )
-
-        result = job.run(context)
-
-        assert result.success is False
-        assert result.error_code == 69
-
 
 class TestCleanup:
     """Tests for cleanup() method."""

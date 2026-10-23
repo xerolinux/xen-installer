@@ -1,0 +1,39 @@
+#!/bin/bash
+# Run by pkexec as root (see org.xen.installer.policy). Restores the invoking
+# user's Wayland session from the two leading arguments that xen-polkit
+# passes, then falls back to X11 (DISPLAY/XAUTHORITY, kept by allow_gui).
+set -u
+
+if [ "$#" -lt 2 ]; then
+	echo "usage: xen-root-launch WAYLAND_DISPLAY XDG_RUNTIME_DIR [--debug] [--dry-run] [--skip-requirements]" >&2
+	exit 2
+fi
+
+wayland_display=$1
+runtime_dir=$2
+shift 2
+
+# Root for a passwordless live user: anything that takes a value (--config)
+# would let that user point root at arbitrary files.
+for arg in "$@"; do
+	case "$arg" in
+	--debug | --dry-run | --skip-requirements) ;;
+	*)
+		printf 'xen-root-launch: argument not allowed: %s\n' "$arg" >&2
+		exit 2
+		;;
+	esac
+done
+
+if [[ -n "${PKEXEC_UID:-}" && "$PKEXEC_UID" =~ ^[0-9]+$ &&
+	"$wayland_display" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ &&
+	"$runtime_dir" == "/run/user/$PKEXEC_UID" &&
+	-d "$runtime_dir" && ! -L "$runtime_dir" &&
+	"$(stat -c %u -- "$runtime_dir")" == "$PKEXEC_UID" &&
+	-S "$runtime_dir/$wayland_display" ]]; then
+	export WAYLAND_DISPLAY="$wayland_display"
+	export XDG_RUNTIME_DIR="$runtime_dir"
+	export QT_QPA_PLATFORM="wayland;xcb"
+fi
+
+exec /usr/bin/xen "$@"

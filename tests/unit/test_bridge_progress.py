@@ -51,22 +51,6 @@ def bridge(qapp: QApplication) -> Iterator[EngineBridge]:
     logging.getLogger().removeHandler(obj._log_handler)
 
 
-class TestJobsList:
-    """jobsList feeds the progress-screen job detail list - each entry needs
-    a human-readable label, not just the internal job.name slug."""
-
-    def test_entries_have_name_status_and_label(self, bridge: EngineBridge) -> None:
-        bridge._update_jobs_list()
-        jobs = bridge.jobsList
-
-        assert len(jobs) > 0
-        for job in jobs:
-            assert "name" in job
-            assert "status" in job
-            assert "label" in job
-            assert isinstance(job["label"], str) and job["label"]
-
-
 class TestJobWeights:
     def test_one_weight_per_job(self, bridge: EngineBridge) -> None:
         assert len(bridge._job_weights) == len(bridge._engine.jobs)

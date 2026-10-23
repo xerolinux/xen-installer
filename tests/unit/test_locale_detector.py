@@ -59,23 +59,6 @@ class TestLocaleDetectionResult:
         with pytest.raises(AttributeError):
             result.language = "fr_FR.UTF-8"  # type: ignore[misc]
 
-    def test_to_dict(self) -> None:
-        """LocaleDetectionResult.to_dict should return correct dictionary."""
-        result = LocaleDetectionResult(
-            language="de_DE.UTF-8",
-            timezone="Europe/Berlin",
-            keymap="de",
-            source="cmdline",
-            confidence=0.7,
-        )
-        d = result.to_dict()
-        assert d == {
-            "language": "de_DE.UTF-8",
-            "timezone": "Europe/Berlin",
-            "keymap": "de",
-            "source": "cmdline",
-            "confidence": 0.7,
-        }
 
 
 # =============================================================================
@@ -622,3 +605,18 @@ class TestMappings:
         assert "de-DE" in EFI_LANG_TO_LOCALE
         assert "en-US" in EFI_LANG_TO_LOCALE
         assert "ja-JP" in EFI_LANG_TO_LOCALE
+
+
+class TestXkbKeymaps:
+    """Every keymap the detector emits must be a real XKB layout code."""
+
+    @pytest.mark.parametrize(
+        "timezone,expected",
+        [("Europe/London", "gb"), ("Europe/Stockholm", "se"), ("America/Montreal", "ca")],
+    )
+    def test_timezone_keymaps_are_xkb_codes(self, timezone: str, expected: str) -> None:
+        assert TIMEZONE_TO_LOCALE[timezone][1] == expected
+
+    def test_no_console_only_keymaps(self) -> None:
+        console_only = {"uk", "sv", "cf"}
+        assert not console_only & {keymap for _locale, keymap in TIMEZONE_TO_LOCALE.values()}

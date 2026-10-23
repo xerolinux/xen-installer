@@ -1,0 +1,9 @@
+{
+    "UrlTemplate" : "https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/%z/%y/%x",
+    "ImageFormat" : "jpg",
+    "QImageFormat" : "RGB888",
+    "ID" : "esri-world-physical",
+    "MaximumZoomLevel" : 8,
+    "MapCopyRight" : "Esri",
+    "DataCopyRight" : "Esri, HERE, Garmin, USGS, OpenStreetMap contributors"
+}

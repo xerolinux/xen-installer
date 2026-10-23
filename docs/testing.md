@@ -136,6 +136,40 @@ def test_job_name_validation():
     """Job names should be valid Python identifiers."""
 ```
 
+### 4. Tests de partitionnement sur disques réels (`scripts/vmtest/`)
+
+Les opérations root (partitionnement, LUKS, mkfs, redimensionnement, montages)
+ne sont jamais testées sur l'hôte : elles tournent dans une VM Arch ISO
+(QEMU, KVM, OVMF/UEFI) avec des disques virtuels construits par scénario
+(Windows-like NTFS, ext4, Btrfs, LUKS, secteurs 4Kn...).
+
+```bash
+python scripts/vmtest/run.py all
+python scripts/vmtest/run.py [--keep] [--timeout SECS] erase_btrfs alongside_ext4
+```
+
+Prérequis : QEMU, bsdtar, edk2-ovmf et un `archlinux-*.iso` dans `~/ISOs`.
+Les paquets de l'invité viennent de l'Arch Linux Archive à la date de l'ISO,
+et un seul `run.py` tourne à la fois (verrou dans `scripts/vmtest/.cache/`).
+Chaque scénario (`scripts/vmtest/scenarios/<nom>.py`) affiche `PASS` ou lève
+une `AssertionError` ; le code de sortie est 0 seulement si tous passent.
+Les scénarios `boot_*` font l'installation complète depuis le squashfs de
+`~/XeroBuild/XeroISO/xerolinux-*.iso`, redémarrent sur le disque cible et
+attendent l'invite `login:` sur la console série.
+
+Les scénarios `gui_*` (hors de `all`, lancés par `python scripts/vmtest/run.py gui`)
+testent la vraie interface : `makepkg` construit `xen-app` et `xen-cfg-xerolinux`
+depuis l'arbre de travail, la VM démarre l'ISO XeroLinux jusqu'au bureau Plasma
+live, un agent de commande (credential systemd via SMBIOS, port virtio-serial)
+installe ces paquets avec `pacman -U`, puis l'installeur est lancé par son entrée
+de menu (`xen-polkit`, pkexec, Wayland). Les pages sont pilotées par injection
+QMP (pointeur absolu, clavier) et chaque étape est vérifiée par OCR (tesseract,
+modèle `eng`) sur une capture d'écran, sauvegardée dans
+`scripts/vmtest/.cache/gui-<scénario>/`. Prérequis en plus : `tesseract` avec
+`tesseract-data-eng` (ou `eng.traineddata` dans `scripts/vmtest/.cache/tessdata`)
+et `python-pillow`.
+Voir `scripts/vmtest/README.md`.
+
 ---
 
 ## CI/CD Pipeline
@@ -228,23 +262,9 @@ class TestClassName:
 
 ### Fixtures Communes
 
-```python
-# conftest.py
-import pytest
-from pathlib import Path
-
-@pytest.fixture
-def config_path() -> Path:
-    """Path to test configuration."""
-    return Path("config/examples/xerolinux.yaml")
-
-@pytest.fixture
-def temp_config(tmp_path: Path) -> Path:
-    """Create temporary config for testing."""
-    config = tmp_path / "test.yaml"
-    config.write_text("branding:\n  name: Test")
-    return config
-```
+Il n'y a pas de `conftest.py` partagé : chaque module de test déclare ses
+propres fixtures. Les données de disques simulés communes sont dans
+`tests/mock_disks.py` (`mock_disks()`, `finalize_mock_disk()`).
 
 ---
 
@@ -325,9 +345,6 @@ def test_specific_case():
 ### Fixtures Non Trouvées
 
 ```bash
-# Vérifier que conftest.py est présent
-ls tests/conftest.py
-
 # Vérifier le PYTHONPATH
 pytest --collect-only
 ```

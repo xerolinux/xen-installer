@@ -13,9 +13,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
+
+_CHROOT_TIMEOUT = 60
 
 
 class UsersJob(BaseJob):
@@ -39,8 +42,9 @@ class UsersJob(BaseJob):
     name = "users"
     description = "User account and hostname configuration"
 
-    # Every user gets these, filtered against /etc/group so a group
-    # missing on the target profile doesn't fail useradd.
+    # Every user gets these (unless the job config's default_groups
+    # overrides them), filtered against /etc/group so a group missing on the
+    # target profile doesn't fail useradd.
     DEFAULT_GROUPS = [
         "wheel",
         "lp",
@@ -64,10 +68,12 @@ class UsersJob(BaseJob):
 
     # Usernames already claimed by system accounts on a stock Arch install.
     # Reusing one makes useradd fail (UID/GID already taken) or silently
-    # takes over a system account's home directory and shell.
+    # takes over a system account's home directory and shell. "liveuser" is
+    # matched by name in the live ISO's passwordless polkit rule.
     RESERVED_USERNAMES = frozenset(
         {
             "root",
+            "liveuser",
             "nobody",
             "daemon",
             "bin",
@@ -107,34 +113,56 @@ class UsersJob(BaseJob):
 
         # Validate username
         if not username:
-            return JobResult.fail("Username is required", error_code=10)
+            return JobResult.fail(msg("Username is required"), error_code=10)
 
         if not self._validate_username(username):
             return JobResult.fail(
-                f"Invalid username '{username}'. Must start with lowercase letter or underscore, "
-                "and contain only lowercase letters, digits, underscores, or hyphens.",
+                msg(
+                    "Invalid username '{username}'. Must start with lowercase letter or underscore, "
+                    "and contain only lowercase letters, digits, underscores, or hyphens.",
+                    username=username,
+                ),
                 error_code=11,
             )
 
         if username in self.RESERVED_USERNAMES:
             return JobResult.fail(
-                f"Username '{username}' is reserved by the system. Please choose another name.",
+                msg(
+                    "Username '{username}' is reserved by the system. Please choose another name.",
+                    username=username,
+                ),
                 error_code=14,
             )
 
         # Validate password (must not be empty, but we don't log it)
         if not password:
-            return JobResult.fail("Password is required", error_code=12)
+            return JobResult.fail(msg("Password is required"), error_code=12)
+
+        # chpasswd reads "name:password" lines: a line break would inject a
+        # second entry. Messages must never echo the secret itself.
+        root_password = str(context.selections.get("root_password") or "")
+        if any(c in pw for pw in (password, root_password) for c in "\r\n"):
+            return JobResult.fail(msg("Passwords cannot contain line breaks"), error_code=15)
+
+        # GECOS is a ":"-separated /etc/passwd field.
+        fullname = context.selections.get("fullname", "")
+        if any(c in fullname for c in ":\r\n"):
+            return JobResult.fail(
+                msg("Full name cannot contain ':' or line breaks"), error_code=16
+            )
 
         # Validate hostname (optional but if provided must be valid)
         if hostname and not self._validate_hostname(hostname):
             return JobResult.fail(
-                f"Invalid hostname '{hostname}'. Must contain only lowercase letters, digits, "
-                "and hyphens, and cannot start/end with hyphen.",
+                msg(
+                    "Invalid hostname '{hostname}'. Must contain only lowercase letters, digits, "
+                    "and hyphens, and cannot start/end with hyphen.",
+                    hostname=hostname,
+                ),
                 error_code=13,
             )
 
-        return JobResult.ok("User configuration is valid")
+        return JobResult.ok(msg("User configuration is valid"))
 
     def run(self, context: JobContext) -> JobResult:
         """
@@ -146,11 +174,11 @@ class UsersJob(BaseJob):
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(0, "Starting user configuration...")
+        context.report_progress(0, msg("Starting user configuration..."))
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: user account creation (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: user account creation (dry run)"))
 
         # Validate first
         validation = self.validate(context)
@@ -162,16 +190,14 @@ class UsersJob(BaseJob):
         password = context.selections.get("password", "")  # NEVER LOG THIS
         fullname = context.selections.get("fullname", "").strip()
         hostname = context.selections.get("hostname", "").strip()
-        shell = context.selections.get("shell", "/bin/bash")
+        shell = context.selections.get("shell") or self._config.get("default_shell", "/bin/bash")
         target_root = context.target_root
-
-        # UsersView.qml collects root_password/root_same_as_user, but no job
-        # consumes them - root ships locked by the base package, so this is
-        # inert, not a gap. SECURITY: never log root_password if that changes.
 
         try:
             # Step 1: Create user account
-            context.report_progress(20, f"Creating user account '{username}'...")
+            context.report_progress(
+                20, msg("Creating user account '{username}'...", username=username)
+            )
             create_result = self._create_user(
                 target_root=target_root,
                 username=username,
@@ -182,7 +208,7 @@ class UsersJob(BaseJob):
                 return create_result
 
             # Step 2: Set user password (SECURE - never log password)
-            context.report_progress(50, "Setting user password...")
+            context.report_progress(50, msg("Setting user password..."))
             password_result = self._set_password(
                 target_root=target_root,
                 username=username,
@@ -191,22 +217,29 @@ class UsersJob(BaseJob):
             if not password_result.success:
                 return password_result
 
+            context.report_progress(60, msg("Configuring root account..."))
+            root_result = self._configure_root_password(target_root, context.selections, password)
+            if not root_result.success:
+                return root_result
+
             # Step 2.5: Guarantee sudo actually works for the new account.
             # Non-fatal by design - never blocks user creation.
-            context.report_progress(65, "Ensuring sudo access...")
+            context.report_progress(65, msg("Ensuring sudo access..."))
             self._ensure_sudo_access(target_root)
 
             # Step 3: Configure hostname (if provided)
             if hostname:
-                context.report_progress(80, f"Setting hostname '{hostname}'...")
+                context.report_progress(
+                    80, msg("Setting hostname '{hostname}'...", hostname=hostname)
+                )
                 hostname_result = self._set_hostname(target_root, hostname)
                 if not hostname_result.success:
                     return hostname_result
 
-            context.report_progress(100, "User configuration complete")
+            context.report_progress(100, msg("User configuration complete"))
 
             return JobResult.ok(
-                f"User '{username}' created successfully",
+                msg("User '{username}' created successfully", username=username),
                 data={
                     "username": username,
                     "hostname": hostname or "not_set",
@@ -216,13 +249,13 @@ class UsersJob(BaseJob):
         except subprocess.CalledProcessError as e:
             logger.error(f"Command failed: {e.cmd} (exit code: {e.returncode})")
             return JobResult.fail(
-                f"User configuration failed: {e}",
+                msg("User configuration failed: {error}", error=e),
                 error_code=20,
             )
         except Exception as e:
             logger.exception("Unexpected error during user configuration")
             return JobResult.fail(
-                f"Unexpected error: {e}",
+                msg("Unexpected error: {error}", error=e),
                 error_code=21,
             )
         finally:
@@ -253,7 +286,8 @@ class UsersJob(BaseJob):
         # (e.g. no CUPS/scanner packages) never fails useradd outright.
         group_file = Path(target_root) / "etc" / "group"
         group_content = group_file.read_text() if group_file.exists() else ""
-        groups = [g for g in self.DEFAULT_GROUPS if f"{g}:" in group_content]
+        wanted = self._config.get("default_groups") or self.DEFAULT_GROUPS
+        groups = [g for g in wanted if f"{g}:" in group_content]
 
         # wheel/sudo isn't filtered by existence like DEFAULT_GROUPS - one
         # of the two must be present on any Arch/Debian base.
@@ -290,6 +324,7 @@ class UsersJob(BaseJob):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_CHROOT_TIMEOUT,
             )
 
             # useradd's default home mode depends on the target's
@@ -299,16 +334,67 @@ class UsersJob(BaseJob):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=_CHROOT_TIMEOUT,
             )
 
-            return JobResult.ok(f"User '{username}' created")
+            return JobResult.ok(msg("User '{username}' created", username=username))
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to create user: {e.stderr}")
             return JobResult.fail(
-                f"Failed to create user '{username}': {e.stderr}",
+                msg(
+                    "Failed to create user '{username}': {error}",
+                    username=username,
+                    error=e.stderr,
+                ),
                 error_code=22,
             )
+        except subprocess.TimeoutExpired:
+            logger.error(f"Creating user '{username}' timed out")
+            return JobResult.fail(
+                msg(
+                    "Creating user '{username}' timed out after {seconds}s",
+                    username=username,
+                    seconds=_CHROOT_TIMEOUT,
+                ),
+                error_code=22,
+            )
+
+    def _configure_root_password(
+        self, target_root: str, selections: dict[str, Any], user_password: str
+    ) -> JobResult:
+        """Set root's password, or lock root when none was chosen.
+
+        The squashfs copy carries the live ISO's /etc/shadow, so leaving root
+        untouched would keep whatever root password the live session had.
+        """
+        if selections.get("root_same_as_user"):
+            root_password = user_password
+        else:
+            root_password = str(selections.get("root_password") or "")
+        try:
+            if root_password:
+                return self._set_password(
+                    target_root=target_root, username="root", password=root_password
+                )
+            return self._lock_root(target_root)
+        finally:
+            root_password = ""  # noqa: F841
+
+    def _lock_root(self, target_root: str) -> JobResult:
+        try:
+            subprocess.run(
+                ["arch-chroot", target_root, "passwd", "-l", "root"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=_CHROOT_TIMEOUT,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            logger.error(f"Failed to lock the root account: {e}")
+            return JobResult.fail(msg("Failed to lock the root account"), error_code=25)
+        logger.info("Root account locked (no root password chosen)")
+        return JobResult.ok(msg("Root account locked"))
 
     def _ensure_sudo_access(self, target_root: str) -> JobResult:
         """Guarantee wheel has working sudo access, regardless of whether
@@ -328,7 +414,7 @@ class UsersJob(BaseJob):
             os.chmod(drop_in, 0o440)
         except OSError as e:
             logger.warning(f"Failed to write {drop_in}: {e}")
-            return JobResult.ok("Sudo drop-in write failed (non-fatal)")
+            return JobResult.ok(msg("Sudo drop-in write failed (non-fatal)"))
 
         try:
             result = subprocess.run(
@@ -339,15 +425,15 @@ class UsersJob(BaseJob):
             )
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             logger.warning(f"Could not validate sudoers drop-in: {e}")
-            return JobResult.ok("Sudo drop-in validation skipped (non-fatal)")
+            return JobResult.ok(msg("Sudo drop-in validation skipped (non-fatal)"))
 
         if result.returncode != 0:
             logger.warning(f"Sudoers drop-in failed validation, removing it: {result.stderr}")
             drop_in.unlink(missing_ok=True)
-            return JobResult.ok("Sudo drop-in invalid, removed (non-fatal)")
+            return JobResult.ok(msg("Sudo drop-in invalid, removed (non-fatal)"))
 
         logger.info(f"Ensured wheel sudo access via {drop_in}")
-        return JobResult.ok("Sudo access ensured")
+        return JobResult.ok(msg("Sudo access ensured"))
 
     def _set_password(
         self,
@@ -385,19 +471,20 @@ class UsersJob(BaseJob):
                 text=True,
                 capture_output=True,
                 check=True,
+                timeout=_CHROOT_TIMEOUT,
             )
 
             # SECURITY: Do NOT log that password was set successfully with any details
             logger.info(f"Password configured for user '{username}'")
-            return JobResult.ok("Password set")
+            return JobResult.ok(msg("Password set"))
 
-        except subprocess.CalledProcessError:
-            # SECURITY: chpasswd peut renvoyer la ligne "username:password" dans
-            # e.stderr. On logue une chaîne statique pour garantir zéro fuite,
-            # quelle que soit la verbosité du logger.
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            # SECURITY: chpasswd can echo the "username:password" line back in
+            # e.stderr, and TimeoutExpired carries the stdin input. Log a static
+            # string so nothing leaks at any logger verbosity.
             logger.error("password change failed")
             return JobResult.fail(
-                "Failed to set user password",
+                msg("Failed to set user password"),
                 error_code=23,
             )
         finally:
@@ -430,12 +517,12 @@ class UsersJob(BaseJob):
             hosts_file.write_text(hosts_content)
 
             logger.info(f"Hostname set to '{hostname}'")
-            return JobResult.ok(f"Hostname set to '{hostname}'")
+            return JobResult.ok(msg("Hostname set to '{hostname}'", hostname=hostname))
 
         except OSError as e:
             logger.error(f"Failed to set hostname: {e}")
             return JobResult.fail(
-                f"Failed to set hostname: {e}",
+                msg("Failed to set hostname: {error}", error=e),
                 error_code=24,
             )
 

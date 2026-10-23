@@ -1,276 +1,118 @@
 # Configuration Polkit pour Xen
 
-Documentation pour configurer PolicyKit (polkit) afin de permettre l'élévation de privilèges de l'Engine Xen.
+Xen s'exécute en **un seul processus root** : l'interface QML et les Jobs
+(partitionnement, montage, installation, bootloader) tournent dans le même
+processus Python. L'élévation passe par `pkexec` et une action polkit dédiée.
 
-## Vue d'ensemble
-
-Xen utilise une architecture à deux processus pour des raisons de sécurité :
+## Chaîne de lancement
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│   UI Process (utilisateur)     Engine Process (root)        │
-│   ┌──────────────────┐         ┌──────────────────┐         │
-│   │  Interface QML   │◄───────►│  Jobs système    │         │
-│   │  (non privilégié)│   IPC   │  (privilégié)    │         │
-│   └──────────────────┘         └──────────────────┘         │
-│                        pkexec                                │
-└─────────────────────────────────────────────────────────────┘
+xen.desktop
+  └── /usr/bin/xen-polkit                    (utilisateur)
+        └── pkexec --disable-internal-agent /usr/lib/xen/xen-root-launch \
+                   "$WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR" "$@"
+              └── /usr/lib/xen/xen-root-launch   (root)
+                    └── exec /usr/bin/xen "$@"
 ```
 
-L'Engine nécessite des privilèges root pour :
-- Partitionner les disques
-- Monter les systèmes de fichiers
-- Installer le bootloader
-- Configurer le système cible
+`pkexec` efface `WAYLAND_DISPLAY` et `XDG_RUNTIME_DIR`, ce qui ferait
+retomber l'application sur XWayland. `xen-polkit` les passe donc en
+arguments, et `xen-root-launch` ne les exporte qu'après validation :
 
-## Prérequis
+- `PKEXEC_UID` est un entier ;
+- `WAYLAND_DISPLAY` est un simple nom de socket (pas de `/`) ;
+- `XDG_RUNTIME_DIR` vaut exactement `/run/user/$PKEXEC_UID`, est un
+  répertoire (pas un lien symbolique) appartenant à cet utilisateur ;
+- le socket `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` existe.
 
-- `polkit` (PolicyKit) installé sur le système
-- Agent polkit fonctionnel (GUI ou console)
+Il exporte alors aussi `QT_QPA_PLATFORM="wayland;xcb"`. Sinon, rien n'est
+exporté et Qt utilise X11 via `DISPLAY`/`XAUTHORITY`, que `pkexec` conserve
+grâce à `org.freedesktop.policykit.exec.allow_gui`. Ne jamais remplacer ce
+mécanisme par `pkexec env ...` : l'action polkit porterait alors sur `env`
+et autoriserait n'importe quelle commande.
 
-### Vérifier l'installation
+`xen` refuse de démarrer sans root, sauf avec `--dry-run`.
 
-```bash
-# Vérifier que polkit est installé
-which pkexec
+## Action polkit
 
-# Vérifier le service polkit
-systemctl status polkit
-
-# Lister les agents disponibles
-ls /usr/lib/polkit-*/polkit-agent-helper-*
-```
-
-## Configuration Production
-
-### 1. Créer la policy Xen
-
-Créez le fichier `/usr/share/polkit-1/actions/org.xen.installer.policy` :
+Fichier : `data/polkit/org.xen.installer.policy`, installé dans
+`/usr/share/polkit-1/actions/`.
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE policyconfig PUBLIC
- "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
-
-<policyconfig>
-  <vendor>Xen Installer</vendor>
-  <vendor_url>https://github.com/XeroLinux/xen-installer</vendor_url>
-  <icon_name>system-installer</icon_name>
-
-  <action id="org.xen.installer.run-engine">
-    <description>Run Xen installation engine</description>
-    <description xml:lang="fr">Exécuter le moteur d'installation Xen</description>
-    <message>Authentication is required to run the Xen installer engine</message>
-    <message xml:lang="fr">L'authentification est requise pour exécuter le moteur d'installation Xen</message>
-    <defaults>
-      <!-- Environnement Live ISO : pas d'authentification -->
-      <allow_any>yes</allow_any>
-      <allow_inactive>yes</allow_inactive>
-      <allow_active>yes</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/python3</annotate>
-    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
-  </action>
-
-</policyconfig>
+<action id="org.xen.installer.run">
+  <defaults>
+    <allow_any>auth_admin</allow_any>
+    <allow_inactive>auth_admin_keep</allow_inactive>
+    <allow_active>auth_admin_keep</allow_active>
+  </defaults>
+  <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/xen/xen-root-launch</annotate>
+  <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+</action>
 ```
 
-### 2. Variantes de configuration
+Par défaut, lancer Xen exige une authentification administrateur : `xen`
+accepte `--config`, et les commandes d'une configuration s'exécutent en root.
 
-#### Live ISO (sans authentification)
+## Live ISO sans mot de passe
 
-Pour un environnement Live ISO où l'utilisateur a déjà un accès complet :
-
-```xml
-<defaults>
-  <allow_any>yes</allow_any>
-  <allow_inactive>yes</allow_inactive>
-  <allow_active>yes</allow_active>
-</defaults>
-```
-
-#### Système installé (avec authentification)
-
-Pour un système installé nécessitant une authentification admin :
-
-```xml
-<defaults>
-  <allow_any>auth_admin</allow_any>
-  <allow_inactive>auth_admin</allow_inactive>
-  <allow_active>auth_admin_keep</allow_active>
-</defaults>
-```
-
-#### Options de `<defaults>`
-
-| Valeur | Description |
-|--------|-------------|
-| `no` | Toujours refusé |
-| `yes` | Toujours autorisé |
-| `auth_self` | Authentification utilisateur courant |
-| `auth_admin` | Authentification administrateur |
-| `auth_self_keep` | Auth utilisateur, garde le token |
-| `auth_admin_keep` | Auth admin, garde le token |
-
-### 3. Recharger polkit
-
-```bash
-# Recharger les policies
-sudo systemctl restart polkit
-
-# Vérifier que la policy est chargée
-pkaction --verbose --action-id org.xen.installer.run-engine
-```
-
-## Configuration pour le développement
-
-### Option 1 : Mode `--no-fork` (recommandé)
-
-Le plus simple pour le développement :
-
-```bash
-python -m xen.main --debug --no-fork
-```
-
-Avantages :
-- Pas besoin de polkit
-- Processus unique facile à debugger
-- Pas d'authentification requise
-
-### Option 2 : Policy de développement permissive
-
-Créez `/etc/polkit-1/rules.d/99-xen-dev.rules` :
+Fichier : `data/polkit/49-xen-installer-live.rules`, installé dans
+`/usr/share/polkit-1/rules.d/`.
 
 ```javascript
-// Autoriser l'exécution d'Xen sans authentification pour le développement
-// ATTENTION: Ne pas utiliser en production !
 polkit.addRule(function(action, subject) {
-    if (action.id == "org.freedesktop.policykit.exec" &&
-        action.lookup("program").indexOf("xen") !== -1) {
+    if (action.id == "org.xen.installer.run" &&
+        subject.user == "liveuser" &&
+        subject.local && subject.active) {
         return polkit.Result.YES;
     }
 });
 ```
 
-**Important** : Supprimez ce fichier en production !
+Seul `liveuser`, dans une session locale et active, est dispensé
+d'authentification. Le paquet `xen-app` (règle comprise) est retiré du
+système installé par le job `packages` (liste `remove` de
+`config/examples/xerolinux*.yaml`), donc la règle ne persiste pas après
+l'installation.
 
-### Option 3 : Groupe wheel/sudo sans mot de passe
+## Vérification
 
-Dans `/etc/polkit-1/rules.d/50-wheel.rules` :
-
-```javascript
-polkit.addRule(function(action, subject) {
-    if (subject.isInGroup("wheel")) {
-        return polkit.Result.YES;
-    }
-});
+```bash
+pkaction --verbose --action-id org.xen.installer.run
+xmllint --noout /usr/share/polkit-1/actions/org.xen.installer.policy
+journalctl -u polkit -b
 ```
+
+Sur le live ISO, `xen-polkit` doit ouvrir Xen sans demander de mot de
+passe, et `xen --platform-info` lancé de la même façon doit indiquer le
+plugin `wayland` sous une session Wayland.
+
+## Développement
+
+Pas besoin de polkit pour travailler sur l'interface :
+
+```bash
+PYTHONPATH=src python -m xen.main --dry-run --config config/examples/xerolinux.yaml
+```
+
+`--dry-run` n'exécute aucune commande système et lève l'exigence root.
 
 ## Dépannage
 
-### Erreur : "Engine process died with code 1"
+### Aucune fenêtre d'authentification
 
-**Causes possibles** :
+Un agent polkit graphique doit tourner dans la session (KDE :
+`polkit-kde-agent`). `xen-polkit` passe `--disable-internal-agent`, donc
+`pkexec` n'utilise jamais d'agent texte.
 
-1. **Pas d'agent polkit GUI**
-   ```bash
-   # Vérifier si un agent est en cours
-   ps aux | grep polkit-agent
+### L'application démarre sous XWayland
 
-   # Installer un agent si nécessaire
-   # GNOME: polkit-gnome
-   # KDE: polkit-kde-agent
-   # Console: pkttyagent
-   ```
-
-2. **Policy non chargée**
-   ```bash
-   # Vérifier la policy
-   pkaction --action-id org.xen.installer.run-engine
-
-   # Si erreur, vérifier le fichier XML
-   xmllint --noout /usr/share/polkit-1/actions/org.xen.installer.policy
-   ```
-
-3. **Environnement Python différent**
-   ```bash
-   # pkexec utilise l'environnement root, pas votre venv
-   # Solution: installer xen système ou utiliser --no-fork
-   ```
-
-### Erreur : "Authentication failed"
-
-```bash
-# Vérifier les logs polkit
-journalctl -u polkit -f
-
-# Tester manuellement
-pkexec whoami
-```
-
-### Erreur : "No session for PID"
-
-L'agent polkit nécessite une session D-Bus valide :
-
-```bash
-# Vérifier la session
-echo $DBUS_SESSION_BUS_ADDRESS
-
-# Si vide, démarrer une session
-eval $(dbus-launch --sh-syntax)
-```
-
-## Intégration Distribution
-
-### Script d'installation de la policy
-
-```bash
-#!/bin/bash
-# install-polkit-policy.sh
-
-POLICY_FILE="/usr/share/polkit-1/actions/org.xen.installer.policy"
-
-if [[ $EUID -ne 0 ]]; then
-   echo "Ce script doit être exécuté en root"
-   exit 1
-fi
-
-cat > "$POLICY_FILE" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE policyconfig PUBLIC
- "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
-
-<policyconfig>
-  <vendor>Xen Installer</vendor>
-  <vendor_url>https://github.com/XeroLinux/xen-installer</vendor_url>
-
-  <action id="org.xen.installer.run-engine">
-    <description>Run Xen installation engine</description>
-    <message>Authentication is required to run the Xen installer</message>
-    <defaults>
-      <allow_any>yes</allow_any>
-      <allow_inactive>yes</allow_inactive>
-      <allow_active>yes</allow_active>
-    </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/python3</annotate>
-    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
-  </action>
-</policyconfig>
-EOF
-
-echo "Policy installée: $POLICY_FILE"
-systemctl restart polkit
-echo "Polkit redémarré"
-```
-
-### Fichier policy pour packaging
-
-Placez dans `packaging/polkit/org.xen.installer.policy` pour inclusion dans les packages distribution.
+`xen-root-launch` a refusé les valeurs reçues. Vérifier dans la session
+utilisateur que `WAYLAND_DISPLAY` est défini, que `XDG_RUNTIME_DIR` vaut
+`/run/user/$(id -u)` et que le socket existe. Le paquet `qt6-wayland` doit
+être installé.
 
 ## Références
 
 - [polkit Reference Manual](https://www.freedesktop.org/software/polkit/docs/latest/)
-- [pkexec(1) man page](https://man.archlinux.org/man/pkexec.1)
-- [Writing polkit policies](https://wiki.archlinux.org/title/Polkit)
+- [pkexec(1)](https://man.archlinux.org/man/pkexec.1)
+- [Polkit (ArchWiki)](https://wiki.archlinux.org/title/Polkit)

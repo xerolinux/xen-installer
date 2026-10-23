@@ -18,6 +18,13 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_USERS_JOB, reason="UsersJob not available")
 
 
+@pytest.fixture(autouse=True)
+def _no_real_chroot() -> object:
+    """Safety net: nothing here may run a real arch-chroot on the host."""
+    with patch("xen.jobs.users.subprocess.run", return_value=MagicMock(returncode=0)):
+        yield
+
+
 class TestUsersJob:
     """Tests for UsersJob implementation."""
 
@@ -164,6 +171,15 @@ class TestValidateMethod:
         context = JobContext(selections={"username": "root", "password": "secret123"})
 
         result = job.validate(context)
+
+        assert result.success is False
+        assert result.error_code == 14
+
+    def test_validate_reserved_username_liveuser(self) -> None:
+        """The live ISO's passwordless polkit rule matches 'liveuser' by name."""
+        context = JobContext(selections={"username": "liveuser", "password": "secret123"})
+
+        result = UsersJob().validate(context)
 
         assert result.success is False
         assert result.error_code == 14
@@ -771,3 +787,120 @@ class TestPasswordNeverInLogs:
             assert test_password not in record.getMessage()
             assert test_password not in record.message
             assert test_password not in str(record.args)
+
+
+class TestRootPassword:
+    """The live ISO's /etc/shadow is copied verbatim: root must be set or locked."""
+
+    def _run(self, **selections: object) -> tuple[JobResult, MagicMock, MagicMock]:
+        job = UsersJob()
+        context = JobContext(
+            target_root="/mnt",
+            selections={"username": "john", "password": "userpw", **selections},
+        )
+        with (
+            patch.object(UsersJob, "_create_user", return_value=JobResult.ok()),
+            patch.object(UsersJob, "_set_password", return_value=JobResult.ok()) as set_pw,
+            patch.object(UsersJob, "_ensure_sudo_access", return_value=JobResult.ok()),
+            patch("xen.jobs.users.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value = MagicMock(returncode=0)
+            result = job.run(context)
+        return result, set_pw, mock_run
+
+    def test_same_as_user_sets_root_to_user_password(self) -> None:
+        result, set_pw, _ = self._run(root_same_as_user=True, root_password="ignored")
+        assert result.success is True
+        assert set_pw.call_args_list[-1].kwargs == {
+            "target_root": "/mnt",
+            "username": "root",
+            "password": "userpw",
+        }
+
+    def test_separate_root_password_is_applied(self) -> None:
+        result, set_pw, _ = self._run(root_same_as_user=False, root_password="rootpw")
+        assert result.success is True
+        assert set_pw.call_args_list[-1].kwargs["username"] == "root"
+        assert set_pw.call_args_list[-1].kwargs["password"] == "rootpw"
+
+    def test_no_root_password_locks_root(self) -> None:
+        result, set_pw, mock_run = self._run(root_same_as_user=False, root_password="")
+        assert result.success is True
+        assert set_pw.call_count == 1
+        cmds = [c.args[0] for c in mock_run.call_args_list]
+        assert ["arch-chroot", "/mnt", "passwd", "-l", "root"] in cmds
+
+    def test_lock_failure_fails_the_job(self) -> None:
+        job = UsersJob()
+        with patch(
+            "xen.jobs.users.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["passwd"], stderr="nope"),
+        ):
+            result = job._lock_root("/mnt")
+        assert result.success is False
+
+
+class TestCredentialValidation:
+    @pytest.mark.parametrize(
+        "selections",
+        [
+            {"password": "bad\npw"},
+            {"password": "bad\rpw"},
+            {"root_same_as_user": False, "root_password": "bad\npw"},
+            {"fullname": "John:Doe"},
+            {"fullname": "John\nDoe"},
+        ],
+    )
+    def test_rejects_chpasswd_and_passwd_field_separators(self, selections: dict) -> None:
+        context = JobContext(selections={"username": "john", "password": "ok", **selections})
+        result = UsersJob().validate(context)
+        assert result.success is False
+        assert "bad" not in result.message
+
+
+class TestConfigDefaults:
+    def test_default_groups_from_config_override_builtin_list(self, tmp_path: Path) -> None:
+        (tmp_path / "etc").mkdir()
+        (tmp_path / "etc" / "group").write_text("wheel:x:1:\nvideo:x:2:\nlp:x:3:\n")
+        job = UsersJob({"default_groups": ["wheel", "video", "missing"]})
+        with patch("xen.jobs.users.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            job._create_user(str(tmp_path), "john", "", "/bin/bash")
+        useradd = mock_run.call_args_list[0].args[0]
+        assert useradd[useradd.index("-G") + 1] == "wheel,video"
+
+    def test_default_shell_from_config_used_when_no_selection(self) -> None:
+        job = UsersJob({"default_shell": "/usr/bin/zsh"})
+        context = JobContext(
+            target_root="/mnt", selections={"username": "john", "password": "pw"}
+        )
+        with (
+            patch.object(UsersJob, "_create_user", return_value=JobResult.ok()) as create,
+            patch.object(UsersJob, "_set_password", return_value=JobResult.ok()),
+            patch.object(UsersJob, "_configure_root_password", return_value=JobResult.ok()),
+            patch.object(UsersJob, "_ensure_sudo_access", return_value=JobResult.ok()),
+        ):
+            job.run(context)
+        assert create.call_args.kwargs["shell"] == "/usr/bin/zsh"
+
+
+class TestUsersTimeouts:
+    def test_chpasswd_timeout_fails_without_leaking(self, caplog: pytest.LogCaptureFixture) -> None:
+        with patch(
+            "xen.jobs.users.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["chpasswd"], 1),
+        ) as mock_run:
+            result = UsersJob()._set_password("/mnt", "john", "s3cret-pw")
+        assert result.success is False
+        assert mock_run.call_args.kwargs.get("timeout")
+        assert "s3cret-pw" not in caplog.text
+        assert "s3cret-pw" not in result.message
+
+    def test_useradd_timeout_fails(self, tmp_path: Path) -> None:
+        with patch(
+            "xen.jobs.users.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["useradd"], 1),
+        ) as mock_run:
+            result = UsersJob()._create_user(str(tmp_path), "john", "", "/bin/bash")
+        assert result.success is False
+        assert mock_run.call_args.kwargs.get("timeout")

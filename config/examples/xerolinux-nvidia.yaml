@@ -8,7 +8,7 @@
 # tuning) instead of nouveau (nouveau blacklist only). The GPU driver
 # packages themselves (nvidia-open-dkms, nvidia-utils, ...) ship on the
 # nVidia live ISO's own squashfs and land on the target via the install
-# job's squashfs extraction — no package-list difference belongs in this config.
+# job's squashfs extraction - no package-list difference belongs in this config.
 #
 # Single profile for both online and offline installs - see xerolinux.yaml's
 # header for how the packagechooser/systemupdate offline-skip works.
@@ -43,7 +43,6 @@ branding:
 jobs:
   - name: welcome
     config:
-      show_release_notes: false
       requirements:
         ram:
           enabled: true
@@ -58,6 +57,9 @@ jobs:
           enabled: true
           required: false
           recommended: true
+        efi:
+          enabled: true
+          required: true
 
   - name: packagechooser
     # Skips cleanly offline (no repos to fetch optional packages from).
@@ -69,6 +71,18 @@ jobs:
       default_filesystem: xfs
       allow_encryption: true
       allow_manual_partitioning: true
+      # Smallest root (/) partition, in GiB, any mode accepts.
+      min_install_gib: 25
+      # Erase and Install alongside with Btrfs create these subvolumes.
+      btrfs_subvolumes:
+        - {name: "@", mountpoint: "/"}
+        - {name: "@home", mountpoint: "/home"}
+        - {name: "@root", mountpoint: "/root"}
+        - {name: "@srv", mountpoint: "/srv"}
+        - {name: "@cache", mountpoint: "/var/cache"}
+        - {name: "@tmp", mountpoint: "/var/tmp"}
+        - {name: "@log", mountpoint: "/var/log"}
+        - {name: "@swap", mountpoint: "/swap"}
 
   - name: install
     # Extracts the live ISO's own squashfs image (InstallJob's built-in
@@ -91,19 +105,20 @@ jobs:
       commands:
         - "/usr/local/bin/xerolinux-before"
 
+  - name: locale
+    # Runs after the target is mounted and populated (partition/install) -
+    # locale.conf, timezone, keyboard, and hwclock all write into the target
+    # filesystem via arch-chroot. Must run before systemconfig so its
+    # mkinitcpio rebuild picks up the target's vconsole.conf keymap.
+    config:
+      default_language: "en_US"
+      default_timezone: "UTC"
+
   - name: systemconfig
     # Regenerates target-specific /etc/fstab, /etc/machine-id, and the
     # initramfs (with the encrypt/resume hooks the user's choices need) -
     # install's squashfs extraction correctly excludes/regenerates these as
     # live-session/build-specific.
-
-  - name: locale
-    # Runs after the target is mounted and populated (partition/install/
-    # systemconfig) - locale.conf, timezone, keyboard, and hwclock all
-    # write into the target filesystem via arch-chroot.
-    config:
-      default_language: "en_US"
-      default_timezone: "UTC"
 
   - name: removeuser
     # Mirrors Calamares's removeuser: deletes archiso's default "liveuser"
@@ -114,12 +129,7 @@ jobs:
 
   - name: users
     config:
-      require_root_password: true
       default_shell: "/bin/bash"
-      default_groups:
-        - wheel
-        - video
-        - audio
 
   - name: services
     config:
@@ -187,7 +197,7 @@ jobs:
     # Skips cleanly offline (nothing to sync/upgrade without a connection).
     # Ranks mirrors (reflector) before the first sync - a deliberate
     # deviation from Calamares, which only runs reflector as a one-shot
-    # service after first boot (see the "reflector" unit below).
+    # service after first boot (see the "reflector" unit above).
     config:
       timeout_syncdb: 600
       timeout_keyring: 300
@@ -195,6 +205,11 @@ jobs:
 
   - name: packages
     config:
+      # os-prober lets grub-mkconfig list Windows and other installed
+      # systems; ntfs-3g lets it read their NTFS partitions.
+      extra_packages:
+        - os-prober
+        - ntfs-3g
       remove:
         # falkon: Calamares removes it only when online (packages.conf) and
         # keeps it offline (packages-offline.conf, fallback browser since

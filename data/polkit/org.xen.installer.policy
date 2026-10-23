@@ -8,18 +8,18 @@
   <vendor_url>https://github.com/XeroLinux</vendor_url>
   <icon_name>system-installer</icon_name>
 
-  <action id="org.xen.installer.run-engine">
-    <description>Run Xen installation engine</description>
-    <description xml:lang="fr">Exécuter le moteur d'installation Xen</description>
-    <message>Authentication is required to run the Xen installer engine</message>
-    <message xml:lang="fr">L'authentification est requise pour exécuter le moteur d'installation Xen</message>
+  <action id="org.xen.installer.run">
+    <description>Run the Xen installer</description>
+    <description xml:lang="fr">Exécuter l'installateur Xen</description>
+    <message>Authentication is required to run the Xen installer</message>
+    <message xml:lang="fr">L'authentification est requise pour exécuter l'installateur Xen</message>
     <defaults>
-      <!-- Live ISO environment: the user already has full access. -->
-      <allow_any>yes</allow_any>
-      <allow_inactive>yes</allow_inactive>
-      <allow_active>yes</allow_active>
+      <!-- The live ISO user is allowed without a password by 49-xen-installer-live.rules. -->
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/xen</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/xen/xen-root-launch</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 

@@ -12,6 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class FinalizeJob(BaseJob):
     """
     Runs a config-driven, ordered list of already-installed scripts via
     arch-chroot. A failing script is logged as a warning and does not fail
-    the job — these are XeroLinux polish/finalization steps, not required
+    the job: these are XeroLinux polish/finalization steps, not required
     for a bootable/usable target system.
 
     Configuration (from xen.yaml):
@@ -42,8 +43,8 @@ class FinalizeJob(BaseJob):
 
     def run(self, context: JobContext) -> JobResult:
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok(f"Skipped: {self._label} scripts (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(self._skipped_text())
 
         commands: list[str] = self._config.get("commands", [])
         target_root = context.target_root
@@ -52,7 +53,9 @@ class FinalizeJob(BaseJob):
         failed: list[str] = []
 
         for index, command in enumerate(commands):
-            context.report_progress(int((index / total) * 100), f"Running {command}...")
+            context.report_progress(
+                int((index / total) * 100), msg("Running {command}...", command=command)
+            )
             cmd = ["arch-chroot", target_root, command]
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -69,19 +72,51 @@ class FinalizeJob(BaseJob):
                 failed.append(command)
             except FileNotFoundError:
                 return JobResult.fail(
-                    "arch-chroot not found. Cannot access target system.", error_code=63
+                    msg("arch-chroot not found. Cannot access target system."),
+                    error_code=63,
                 )
 
-        self._dedupe_grub_cmdline(target_root)
-        self._take_fresh_install_snapshot(target_root, context)
+        self._after_commands(target_root, context)
 
-        context.report_progress(100, f"{self._label.capitalize()} complete")
+        context.report_progress(100, self._complete_text())
         if not commands:
-            return JobResult.ok(f"No {self._label} scripts configured")
+            return JobResult.ok(self._none_text())
         return JobResult.ok(
-            f"Ran {total} {self._label} scripts ({len(failed)} failures, non-fatal)",
+            self._ran_text(total, len(failed)),
             data={"failed": failed},
         )
+
+    def _skipped_text(self) -> str:
+        if self._label == "pre-configuration":
+            return msg("Skipped: pre-configuration scripts (dry run)")
+        return msg("Skipped: finalization scripts (dry run)")
+
+    def _complete_text(self) -> str:
+        if self._label == "pre-configuration":
+            return msg("Pre-configuration complete")
+        return msg("Finalization complete")
+
+    def _none_text(self) -> str:
+        if self._label == "pre-configuration":
+            return msg("No pre-configuration scripts configured")
+        return msg("No finalization scripts configured")
+
+    def _ran_text(self, total: int, failed: int) -> str:
+        if self._label == "pre-configuration":
+            return msg(
+                "Ran {total} pre-configuration scripts ({failed} failures, non-fatal)",
+                total=total,
+                failed=failed,
+            )
+        return msg(
+            "Ran {total} finalization scripts ({failed} failures, non-fatal)",
+            total=total,
+            failed=failed,
+        )
+
+    def _after_commands(self, target_root: str, context: JobContext) -> None:
+        self._dedupe_grub_cmdline(target_root)
+        self._take_fresh_install_snapshot(target_root, context)
 
     def _dedupe_grub_cmdline(self, target_root: str) -> None:
         # Some finalize scripts (e.g. nouveau) sed-append kernel params

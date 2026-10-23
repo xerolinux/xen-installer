@@ -11,59 +11,84 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 
 Item {
     id: root
+    objectName: "progressView"
 
-    // External properties
     property int overallProgress: 0  // 0-100
     property string currentJobName: ""
     property string currentJobMessage: ""
-    // Not rendered (duplicates currentJobName/Message above) - kept bound
-    // from Main.qml in case a future compact treatment wants it.
-    property var jobsList: []  // Array of {name, status: "pending"|"running"|"completed"|"failed", label}
-    // Idem : conservée pour compatibilité avec Main.qml (onRetryClicked fait
-    // `progressView.logMessages = []`). Le contenu du journal live vient
-    // désormais directement de `engine.logTail` (voir carte "Installation
-    // Log" plus bas), ce tableau n'est plus lu ni peuplé.
-    property var logMessages: []  // Array of log message strings (legacy, unused)
-    property string installationStatus: "idle"  // idle, running, success, failed
-    property string errorMessage: ""
     property bool isStalled: false
-    property bool indeterminate: false
-    readonly property bool pulsing: root.isStalled || root.indeterminate
+    readonly property bool animating: root.visible && !gamePopup.visible
 
-    // Distro info
-    property string distroName: ""
     property string distroLogo: ""
 
     // Theme colors
     property real uiScale: 1.0
     property color primaryColor: "#5597e6"
-    property color secondaryColor: "#3a7bc8"
-    property color accentColor: "#6b9ce8"
     property color backgroundColor: "#1a1a1a"
     property color surfaceColor: "#32373c"
     property color textColor: "#fffded"
     property color textMutedColor: "#9CA3AF"
-    property color successColor: "#10B981"
     property color warningColor: "#F59E0B"
-    property color errorColor: "#EF4444"
 
-    // Fixed, non-scrolling layout (no ScrollView/Flickable): every card is
-    // sized compactly enough to fit the viewport in one screen, same
-    // approach as PartitionView.qml.
-    Item {
+    component ThemedButton: Button {
+        id: themedButton
+        property real minWidth: 90
+        property real minHeight: 34
+        property real fontSize: 13
+        property color fill: backgroundColor
+        property color borderColor: textMutedColor
+        property color labelColor: textColor
+
+        background: Rectangle {
+            implicitWidth: themedButton.minWidth * uiScale
+            implicitHeight: themedButton.minHeight * uiScale
+            radius: 8
+            color: themedButton.pressed ? Qt.darker(themedButton.fill, 1.2)
+                 : themedButton.hovered ? Qt.lighter(themedButton.fill, 1.1) : themedButton.fill
+            border.color: themedButton.borderColor
+            border.width: 1
+        }
+
+        contentItem: Text {
+            text: themedButton.text
+            font.pixelSize: themedButton.fontSize * uiScale
+            color: themedButton.labelColor
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    component FrostedCard: Rectangle {
+        radius: 20
+        color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
+        border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
+        border.width: 2
+    }
+
+    // Centered when it fits, scrolls when the window is too short for it.
+    ScrollView {
+        id: pageScroll
         anchors.fill: parent
+        contentWidth: availableWidth
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+        Item {
+
+            id: scrollContent
+
+            width: pageScroll.availableWidth
+            implicitHeight: Math.max(pageColumn.implicitHeight + 16, root.height)
+            height: implicitHeight
 
         ColumnLayout {
             id: pageColumn
-            anchors.top: parent.top
-            anchors.topMargin: 8
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.centerIn: parent
             width: Math.min(parent.width - 40, 900 * uiScale)
-            spacing: 18
+            spacing: 14 * uiScale
 
             // Title
             Text {
@@ -87,21 +112,17 @@ Item {
                 // Hero card: logo + matrix rain, framed like every other
                 // step's frosted card (Locale/Users/Partition) instead of
                 // floating loose on the page background.
-                Rectangle {
+                FrostedCard {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: heroColumn.implicitHeight + 48
-                    radius: 20
-                    color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
-                    border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
-                    border.width: 2
+                    Layout.preferredHeight: heroColumn.implicitHeight + 36 * uiScale
 
                     ColumnLayout {
                         id: heroColumn
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.margins: 18
-                        spacing: 14
+                        anchors.margins: 18 * uiScale
+                        spacing: 10 * uiScale
 
                 // Branded logo
                 Image {
@@ -109,8 +130,8 @@ Item {
                     source: distroLogo
                     visible: distroLogo.length > 0 && status === Image.Ready
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.height: 140
-                    height: 140
+                    sourceSize.height: height
+                    Layout.preferredHeight: 110 * uiScale
                 }
 
                 // Matrix rain animation band - transparent canvas (never
@@ -122,12 +143,12 @@ Item {
                 Canvas {
                     id: animCanvas
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 110
+                    Layout.preferredHeight: 90 * uiScale
 
                     readonly property string message: qsTr("Installing And Booting The Matrix...")
                     property var drops: []
                     property int cols: 0
-                    readonly property real colW: 18
+                    readonly property real colW: 18 * uiScale
                     property string typed: ""
                     property int typedIdx: 0
                     property int frameCount: 0
@@ -164,10 +185,10 @@ Item {
                         var colorB = Qt.color(branding.backgroundGradientEnd)
 
                         // Matrix rain, background layer - slow, gentle fall.
-                        ctx.font = "13px '" + branding.fontMonospace + "'"
+                        ctx.font = Math.round(13 * uiScale) + "px '" + branding.fontMonospace + "'"
                         for (var i = 0; i < cols; i++) {
                             var g = glyphs[Math.floor(Math.random() * glyphs.length)]
-                            var y = drops[i] * 16
+                            var y = drops[i] * 16 * uiScale
                             var lead = Math.random() < 0.1
                             var base = (i % 2 === 0) ? colorA : colorB
                             ctx.fillStyle = colorStr(base, lead ? 1.0 : 0.5)
@@ -183,7 +204,7 @@ Item {
                             typed = message.substring(0, typedIdx)
                         }
 
-                        ctx.font = "600 20px '" + branding.fontMonospace + "'"
+                        ctx.font = "600 " + Math.round(20 * uiScale) + "px '" + branding.fontMonospace + "'"
                         ctx.textAlign = "center"
                         var showCursor = typedIdx < message.length && (frameCount % 30 < 15)
                         ctx.fillStyle = colorStr(textColor, 0.85)
@@ -193,7 +214,7 @@ Item {
 
                     Timer {
                         interval: 60
-                        running: root.visible
+                        running: root.animating
                         repeat: true
                         onTriggered: animCanvas.requestPaint()
                     }
@@ -203,12 +224,10 @@ Item {
 
                 // "Did you know" card - real XeroLinux facts, rephrased in
                 // the installer's own voice, rotating while jobs run.
-                Rectangle {
+                FrostedCard {
                     id: factCard
                     Layout.fillWidth: true
-                    Layout.preferredHeight: factColumn.implicitHeight + 28
-                    radius: 16
-                    color: surfaceColor
+                    Layout.preferredHeight: factColumn.implicitHeight + 28 * uiScale
 
                     readonly property var facts: [
                         qsTr("I'm building you Arch, with the sharp edges filed off."),
@@ -224,7 +243,7 @@ Item {
 
                     Timer {
                         interval: 7000
-                        running: root.visible
+                        running: root.animating
                         repeat: true
                         onTriggered: factCard.factIndex = (factCard.factIndex + 1) % factCard.facts.length
                     }
@@ -234,21 +253,21 @@ Item {
                         anchors.top: parent.top
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.margins: 18
-                        spacing: 8
+                        anchors.margins: 14 * uiScale
+                        spacing: 6 * uiScale
 
                         Row {
-                            spacing: 10
+                            spacing: 10 * uiScale
 
                             Text {
                                 text: "\u{1F4A1}"
-                                font.pixelSize: 16
+                                font.pixelSize: 16 * uiScale
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Text {
                                 text: qsTr("Did you know?")
-                                font.pixelSize: 14
+                                font.pixelSize: 14 * uiScale
                                 font.bold: true
                                 color: textColor
                                 anchors.verticalCenter: parent.verticalCenter
@@ -258,7 +277,7 @@ Item {
                         Text {
                             width: parent.width
                             text: factCard.facts[factCard.factIndex]
-                            font.pixelSize: 13
+                            font.pixelSize: 13 * uiScale
                             font.italic: true
                             color: textMutedColor
                             wrapMode: Text.WordWrap
@@ -267,38 +286,37 @@ Item {
                 }
 
                 // Combined overall progress - single bar, single number.
-                Rectangle {
+                FrostedCard {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: overallProgressColumn.implicitHeight + 48
-                    radius: 16
-                    color: surfaceColor
+                    Layout.preferredHeight: overallProgressColumn.implicitHeight + 36 * uiScale
 
                     Column {
                         id: overallProgressColumn
-                        anchors.fill: parent
-                        anchors.margins: 26
-                        spacing: 18
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: 18 * uiScale
+                        spacing: 10 * uiScale
 
-                        Row {
+                        RowLayout {
                             width: parent.width
-                            spacing: 12
+                            spacing: 12 * uiScale
 
                             Text {
+                                Layout.fillWidth: true
                                 text: (currentJobName.length > 0 ? currentJobName : qsTr("Preparing")) + qsTr("...")
-                                font.pixelSize: 18
+                                font.pixelSize: 18 * uiScale
                                 font.bold: true
                                 color: textColor
-                                anchors.verticalCenter: parent.verticalCenter
+                                elide: Text.ElideRight
                             }
 
-                            Item { Layout.fillWidth: true }
-
                             Text {
+                                objectName: "overallPercentText"
                                 text: overallProgress + "%"
-                                font.pixelSize: 24
+                                font.pixelSize: 24 * uiScale
                                 font.bold: true
                                 color: primaryColor
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
 
@@ -309,16 +327,16 @@ Item {
                         Text {
                             width: parent.width
                             text: currentJobMessage || qsTr("Working...")
-                            font.pixelSize: 14
+                            font.pixelSize: 14 * uiScale
                             color: warningColor
                             wrapMode: Text.WordWrap
                         }
 
                         Text {
                             width: parent.width
-                            visible: root.pulsing
+                            visible: root.isStalled
                             text: qsTr("This can take several minutes; the interface may seem slow.")
-                            font.pixelSize: 13
+                            font.pixelSize: 13 * uiScale
                             font.italic: true
                             color: warningColor
                             wrapMode: Text.WordWrap
@@ -328,14 +346,14 @@ Item {
                         Rectangle {
                             id: overallTrack
                             width: parent.width
-                            height: 16
-                            radius: 8
+                            height: 16 * uiScale
+                            radius: height / 2
                             color: backgroundColor
                             clip: true
 
                             Rectangle {
                                 id: overallFill
-                                visible: !root.pulsing
+                                visible: !root.isStalled
                                 width: parent.width * (overallProgress / 100)
                                 height: parent.height
                                 radius: parent.radius
@@ -369,7 +387,7 @@ Item {
                                     }
 
                                     SequentialAnimation on x {
-                                        running: overallProgress < 100 && !root.pulsing
+                                        running: root.animating && overallProgress < 100 && !root.isStalled
                                         loops: Animation.Infinite
                                         NumberAnimation {
                                             from: -shimmer.width
@@ -384,7 +402,7 @@ Item {
 
                             Rectangle {
                                 id: indeterminateBar
-                                visible: root.pulsing
+                                visible: root.isStalled
                                 width: overallTrack.width * 0.35
                                 height: parent.height
                                 radius: parent.radius
@@ -397,7 +415,7 @@ Item {
                                 }
 
                                 SequentialAnimation on x {
-                                    running: root.pulsing
+                                    running: root.animating && root.isStalled
                                     loops: Animation.Infinite
                                     NumberAnimation {
                                         from: -indeterminateBar.width
@@ -418,54 +436,26 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     spacing: 12 * uiScale
 
-                    Button {
+                    ThemedButton {
                         text: qsTr("Show Progress Output")
-
-                        background: Rectangle {
-                            implicitWidth: 220 * uiScale
-                            implicitHeight: 42 * uiScale
-                            radius: 8
-                            color: parent.pressed ? Qt.darker(surfaceColor, 1.2) :
-                                   parent.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
-                            border.color: textMutedColor
-                            border.width: 1
-                        }
-
-                        contentItem: Text {
-                            text: parent.text
-                            font.pixelSize: 14 * uiScale
-                            color: textColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
+                        minWidth: 220
+                        minHeight: 42
+                        fontSize: 14
+                        fill: surfaceColor
                         onClicked: logPopup.open()
                     }
 
                     // Totally separate from the install itself - a pure
                     // waiting-room distraction while jobs run in the
                     // background (see SpaceInvadersGame.qml).
-                    Button {
+                    ThemedButton {
                         text: qsTr("\u{1F47E} Play a Game")
-
-                        background: Rectangle {
-                            implicitWidth: 180 * uiScale
-                            implicitHeight: 42 * uiScale
-                            radius: 8
-                            color: parent.pressed ? Qt.darker(primaryColor, 1.2) :
-                                   parent.hovered ? Qt.lighter(primaryColor, 1.1) : primaryColor
-                            border.color: Qt.rgba(1, 1, 1, 0.25)
-                            border.width: 1
-                        }
-
-                        contentItem: Text {
-                            text: parent.text
-                            font.pixelSize: 14 * uiScale
-                            color: "#ffffff"
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
+                        minWidth: 180
+                        minHeight: 42
+                        fontSize: 14
+                        fill: primaryColor
+                        borderColor: Qt.lighter(primaryColor, 1.3)
+                        labelColor: textColor
                         onClicked: gamePopup.open()
                     }
                 }
@@ -473,10 +463,13 @@ Item {
             // Info text
             Text {
                 text: qsTr("Do not turn off your computer during installation")
-                font.pixelSize: 14
+                font.pixelSize: 14 * uiScale
                 color: textMutedColor
-                Layout.alignment: Qt.AlignHCenter
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
             }
+        }
         }
     }
 
@@ -495,56 +488,37 @@ Item {
         background: Rectangle {
             radius: 16
             color: surfaceColor
-            border.color: Qt.darker(surfaceColor, 1.3)
-            border.width: 1
+            border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
+            border.width: 2
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
+            anchors.margins: 20 * uiScale
+            spacing: 14 * uiScale
 
-            Row {
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 12 * uiScale
 
                 Text {
                     text: "\u{1F4DD}"  // Memo
-                    font.pixelSize: 24
-                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 24 * uiScale
                 }
 
                 Text {
+                    Layout.fillWidth: true
                     text: qsTr("Installation Log")
-                    font.pixelSize: 20
+                    font.pixelSize: 20 * uiScale
                     font.bold: true
                     color: textColor
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { Layout.fillWidth: true }
-
-                Button {
+                ThemedButton {
                     text: qsTr("Close")
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    background: Rectangle {
-                        implicitWidth: 80
-                        implicitHeight: 32
-                        radius: 8
-                        color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
-                        border.color: textMutedColor
-                        border.width: 1
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 13
-                        color: textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
+                    minWidth: 90
+                    minHeight: 34
+                    fontSize: 13
                     onClicked: logPopup.close()
                 }
             }
@@ -559,13 +533,12 @@ Item {
                 ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
                 TextArea {
-                    id: logTextArea
                     width: logScroll.availableWidth
                     readOnly: true
                     selectByMouse: true
                     wrapMode: TextArea.Wrap
                     font.family: branding.fontMonospace
-                    font.pixelSize: 12
+                    font.pixelSize: 12 * uiScale
                     color: textColor
                     // Single source for the live log: a throttled (~5x/s)
                     // property exposed by the engine, holding the last ~300
@@ -602,8 +575,8 @@ Item {
         background: Rectangle {
             radius: 16
             color: surfaceColor
-            border.color: Qt.darker(surfaceColor, 1.3)
-            border.width: 1
+            border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
+            border.width: 2
         }
 
         onOpened: { game.initGame(); game.forceActiveFocus() }
@@ -614,14 +587,13 @@ Item {
             anchors.margins: 18 * uiScale
             spacing: 12 * uiScale
 
-            Row {
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 12 * uiScale
 
                 Text {
                     text: "\u{1F47E}"
                     font.pixelSize: 22 * uiScale
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
                 Text {
@@ -629,7 +601,6 @@ Item {
                     font.pixelSize: 18 * uiScale
                     font.bold: true
                     color: textColor
-                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
 
@@ -639,59 +610,29 @@ Item {
                 Layout.fillHeight: true
                 textColor: root.textColor
                 textMutedColor: root.textMutedColor
-                surfaceColor: root.surfaceColor
-                primaryColor: root.primaryColor
+                uiScale: root.uiScale
             }
 
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10 * uiScale
 
-                Button {
+                ThemedButton {
                     text: qsTr("Restart")
-
-                    background: Rectangle {
-                        implicitWidth: 100 * uiScale
-                        implicitHeight: 34 * uiScale
-                        radius: 8
-                        color: parent.pressed ? Qt.darker(surfaceColor, 1.2) : Qt.darker(surfaceColor, 1.0)
-                        border.color: textMutedColor
-                        border.width: 1
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 13 * uiScale
-                        color: textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
+                    minWidth: 100
+                    minHeight: 34
+                    fontSize: 13
+                    fill: surfaceColor
                     onClicked: { game.initGame(); game.forceActiveFocus() }
                 }
 
                 Item { Layout.fillWidth: true }
 
-                Button {
+                ThemedButton {
                     text: qsTr("Close")
-
-                    background: Rectangle {
-                        implicitWidth: 90 * uiScale
-                        implicitHeight: 34 * uiScale
-                        radius: 8
-                        color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
-                        border.color: textMutedColor
-                        border.width: 1
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 13 * uiScale
-                        color: textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
+                    minWidth: 90
+                    minHeight: 34
+                    fontSize: 13
                     onClicked: gamePopup.close()
                 }
             }

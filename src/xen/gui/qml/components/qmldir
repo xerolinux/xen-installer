@@ -1,12 +1,24 @@
 module XenComponents
 
-RequirementChip 1.0 RequirementChip.qml
-WelcomeView 1.0 WelcomeView.qml
-LocaleView 1.0 LocaleView.qml
-UsersView 1.0 UsersView.qml
-PartitionView 1.0 PartitionView.qml
-ManualPartitionEditor 1.0 ManualPartitionEditor.qml
-SummaryView 1.0 SummaryView.qml
-ProgressView 1.0 ProgressView.qml
+AlongsidePanel 1.0 AlongsidePanel.qml
+BtrfsSubvolumeDialog 1.0 BtrfsSubvolumeDialog.qml
 FinishedView 1.0 FinishedView.qml
+GuideAccordion 1.0 GuideAccordion.qml
+KeyboardView 1.0 KeyboardView.qml
+LocaleView 1.0 LocaleView.qml
+ManualPartitionDialog 1.0 ManualPartitionDialog.qml
+ManualPartitionPage 1.0 ManualPartitionPage.qml
+OnScreenKey 1.0 OnScreenKey.qml
+OnScreenKeyboard 1.0 OnScreenKeyboard.qml
+OptionCombo 1.0 OptionCombo.qml
+PackageChooserView 1.0 PackageChooserView.qml
+PartitionBar 1.0 PartitionBar.qml
+PartitionView 1.0 PartitionView.qml
+ProgressView 1.0 ProgressView.qml
+RequirementChip 1.0 RequirementChip.qml
+SearchableComboBox 1.0 SearchableComboBox.qml
 SpaceInvadersGame 1.0 SpaceInvadersGame.qml
+SummaryView 1.0 SummaryView.qml
+TimezoneMap 1.0 TimezoneMap.qml
+UsersView 1.0 UsersView.qml
+WelcomeView 1.0 WelcomeView.qml

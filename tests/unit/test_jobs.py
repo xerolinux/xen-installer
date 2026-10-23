@@ -1,7 +1,5 @@
 """Unit tests for Xen Jobs."""
 
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -137,15 +135,13 @@ class TestBaseJob:
 # =============================================================================
 
 try:
-    from xen.jobs import (
+    from xen.jobs.requirements import (
         RequirementCheck,
         RequirementsResult,
         RequirementStatus,
         SystemRequirementsChecker,
-        WelcomeConfig,
-        WelcomeJob,
-        WelcomeState,
     )
+    from xen.jobs.welcome import WelcomeConfig, WelcomeJob, WelcomeState
 
     HAS_WELCOME_JOB = True
 except ImportError:
@@ -399,30 +395,18 @@ class TestWelcomeConfig:
     def test_from_dict_empty(self) -> None:
         """WelcomeConfig should handle empty config."""
         config = WelcomeConfig.from_dict({})
-        assert config.show_release_notes is True
-        assert config.wallpaper_dark == ""
         assert config.requirements == {}
 
     def test_from_dict_full(self) -> None:
         """WelcomeConfig should parse full config."""
         config = WelcomeConfig.from_dict(
             {
-                "show_release_notes": False,
-                "wallpapers": {
-                    "dark": "wallpapers/welcome-dark.jpg",
-                    "light": "wallpapers/welcome-light.jpg",
-                    "fallback": "wallpapers/dark.jpg",
-                },
                 "requirements": {
                     "min_ram_gb": 4,
                     "min_disk_gb": 40,
                 },
             }
         )
-        assert config.show_release_notes is False
-        assert config.wallpaper_dark == "wallpapers/welcome-dark.jpg"
-        assert config.wallpaper_light == "wallpapers/welcome-light.jpg"
-        assert config.wallpaper_fallback == "wallpapers/dark.jpg"
         assert config.requirements["min_ram_gb"] == 4
 
 
@@ -446,42 +430,10 @@ class TestWelcomeJob:
         """WelcomeJob should parse provided config."""
         job = WelcomeJob(
             {
-                "show_release_notes": True,
-                "wallpapers": {"dark": "test.jpg"},
                 "requirements": {"min_ram_gb": 8},
             }
         )
-        assert job.welcome_config.show_release_notes is True
-        assert job.welcome_config.wallpaper_dark == "test.jpg"
         assert job.welcome_config.requirements["min_ram_gb"] == 8
-
-    def test_initialize_resolves_wallpapers(self) -> None:
-        """initialize should resolve wallpaper paths to URLs."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            theme_base = Path(tmpdir)
-            wallpaper_dir = theme_base / "wallpapers"
-            wallpaper_dir.mkdir()
-
-            # Create test wallpaper
-            dark_wallpaper = wallpaper_dir / "welcome-dark.jpg"
-            dark_wallpaper.touch()
-
-            job = WelcomeJob({"wallpapers": {"dark": "wallpapers/welcome-dark.jpg"}})
-            job.initialize(theme_base)
-
-            assert job.state.wallpaper_dark_url == f"file://{dark_wallpaper}"
-
-    def test_set_dark_mode(self) -> None:
-        """set_dark_mode should update current wallpaper."""
-        job = WelcomeJob()
-        job._state.wallpaper_dark_url = "file:///dark.jpg"
-        job._state.wallpaper_light_url = "file:///light.jpg"
-
-        job.set_dark_mode(True)
-        assert job.state.current_wallpaper_url == "file:///dark.jpg"
-
-        job.set_dark_mode(False)
-        assert job.state.current_wallpaper_url == "file:///light.jpg"
 
     def test_check_requirements_updates_state(self) -> None:
         """check_requirements should update job state."""
@@ -525,7 +477,6 @@ class TestWelcomeJob:
         assert isinstance(result, JobResult)
         if result.success:
             assert "requirements_summary" in result.data
-            assert "wallpaper_url" in result.data
             assert "can_proceed" in result.data
 
     def test_estimate_duration(self) -> None:
@@ -547,14 +498,9 @@ class TestWelcomeState:
     def test_default_values(self) -> None:
         """WelcomeState should have sensible defaults."""
         state = WelcomeState()
-        assert state.wallpaper_dark_url == ""
-        assert state.wallpaper_light_url == ""
-        assert state.current_wallpaper_url == ""
         assert state.requirements_result is None
         assert state.all_requirements_met is False
         assert state.can_proceed is False
-        assert state.is_dark_mode is True
-        assert state.show_details is False
 
 
 # =============================================================================
@@ -568,49 +514,27 @@ class TestWelcomeJobIntegration:
 
     def test_full_workflow(self) -> None:
         """Test complete welcome job workflow."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            theme_base = Path(tmpdir)
-            wallpaper_dir = theme_base / "wallpapers"
-            wallpaper_dir.mkdir()
+        job = WelcomeJob(
+            {
+                "requirements": {
+                    "ram": {"enabled": True, "min_gb": 1, "warn_gb": 4, "recommended_gb": 8},
+                    "disk": {"enabled": True, "min_gb": 1, "recommended_gb": 20},
+                    "efi": {"enabled": True, "required": False},
+                },
+            }
+        )
 
-            # Create wallpapers
-            (wallpaper_dir / "welcome-dark.jpg").touch()
-            (wallpaper_dir / "welcome-light.jpg").touch()
+        # Run requirements check
+        result = job.check_requirements()
+        assert isinstance(result, RequirementsResult)
 
-            # Create job with full config
-            job = WelcomeJob(
-                {
-                    "show_release_notes": True,
-                    "wallpapers": {
-                        "dark": "wallpapers/welcome-dark.jpg",
-                        "light": "wallpapers/welcome-light.jpg",
-                    },
-                    "requirements": {
-                        "ram": {"enabled": True, "min_gb": 1, "warn_gb": 4, "recommended_gb": 8},
-                        "disk": {"enabled": True, "min_gb": 1, "recommended_gb": 20},
-                        "efi": {"enabled": True, "required": False},
-                    },
-                }
-            )
+        # Get summary for UI
+        summary = job.get_requirements_summary()
+        assert summary["total_checks"] > 0
 
-            # Initialize with theme
-            job.initialize(theme_base)
+        # Run the job
+        context = JobContext()
+        context.on_progress = MagicMock()
+        run_result = job.run(context)
 
-            # Check wallpapers resolved
-            assert "welcome-dark.jpg" in job.state.wallpaper_dark_url
-            assert "welcome-light.jpg" in job.state.wallpaper_light_url
-
-            # Run requirements check
-            result = job.check_requirements()
-            assert isinstance(result, RequirementsResult)
-
-            # Get summary for UI
-            summary = job.get_requirements_summary()
-            assert summary["total_checks"] > 0
-
-            # Run the job
-            context = JobContext()
-            context.on_progress = MagicMock()
-            run_result = job.run(context)
-
-            assert isinstance(run_result, JobResult)
+        assert isinstance(run_result, JobResult)

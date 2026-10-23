@@ -19,6 +19,7 @@ import stat
 import urllib.error
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -99,7 +100,7 @@ class TestSecretRedactor:
         The bare-whitespace form of the fallback pattern (no ``=``/``:``)
         used to capture only a single token after the keyword. For natural
         log phrasing like "password is <secret>", that token was the filler
-        word "is", not the secret — so an *unregistered* secret survived
+        word "is", not the secret - so an *unregistered* secret survived
         redaction in plain text right next to the masked filler word. The
         fallback now masks the remainder of the line instead, which cannot
         under-redact (it may only ever hide more than strictly necessary).
@@ -222,6 +223,26 @@ class TestBridgeLogHandler:
         assert "hunter2" not in content
         assert "***" in content
         assert "second line" in content
+
+    def test_file_is_opened_once_not_per_record(self, tmp_path: Path) -> None:
+        log_file = tmp_path / "install.log"
+        handler = BridgeLogHandler(SecretRedactor(), file_path=log_file)
+        logger = self._make_logger(handler, "test.log_capture.single_open")
+
+        opened: list[Path] = []
+        real_open = Path.open
+
+        def _counting_open(self: Path, *args: Any, **kwargs: Any) -> Any:
+            opened.append(self)
+            return real_open(self, *args, **kwargs)
+
+        with patch.object(Path, "open", _counting_open):
+            for i in range(5):
+                logger.info("line %d", i)
+
+        assert opened.count(log_file) <= 1
+        handler.close()
+        assert log_file.read_text(encoding="utf-8").count("line ") == 5
 
     def test_clear_empties_buffer(self) -> None:
         redactor = SecretRedactor()

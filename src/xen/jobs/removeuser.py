@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 
 logger = logging.getLogger(__name__)
@@ -36,13 +37,15 @@ class RemoveUserJob(BaseJob):
 
     def run(self, context: JobContext) -> JobResult:
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: remove live user (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: remove live user (dry run)"))
 
         username = self._config.get("username", "liveuser")
         target_root = context.target_root
 
-        context.report_progress(10, f"Removing live user '{username}'...")
+        context.report_progress(
+            10, msg("Removing live user '{username}'...", username=username)
+        )
 
         try:
             result = subprocess.run(
@@ -53,15 +56,21 @@ class RemoveUserJob(BaseJob):
             )
         except FileNotFoundError:
             return JobResult.fail(
-                "arch-chroot not found. Cannot access target system.", error_code=110
+                msg("arch-chroot not found. Cannot access target system."), error_code=110
             )
         except subprocess.TimeoutExpired:
-            return JobResult.fail(f"userdel timed out for '{username}'", error_code=111)
+            return JobResult.fail(
+                msg("userdel timed out for '{username}'", username=username), error_code=111
+            )
 
         if result.returncode not in (0, _USERDEL_NO_SUCH_USER):
             logger.warning(f"userdel {username} exited {result.returncode}: {result.stderr}")
             return JobResult.fail(
-                f"Failed to remove live user '{username}': {result.stderr}",
+                msg(
+                    "Failed to remove live user '{username}': {error}",
+                    username=username,
+                    error=result.stderr,
+                ),
                 error_code=112,
             )
 
@@ -70,8 +79,8 @@ class RemoveUserJob(BaseJob):
         else:
             logger.info(f"Removed live user '{username}'")
 
-        context.report_progress(100, "Live user removed")
-        return JobResult.ok(f"Live user '{username}' removed")
+        context.report_progress(100, msg("Live user removed"))
+        return JobResult.ok(msg("Live user '{username}' removed", username=username))
 
     def estimate_duration(self) -> int:
         return 5

@@ -1,0 +1,12 @@
+ntfsresize v2026.7.7 (libntfs-3g)
+Device name        : /dev/vda3
+NTFS volume version: 3.1
+Cluster size       : 4096 bytes
+Current volume size: 6442447360 bytes (6443 MB)
+Current device size: 6442450944 bytes (6443 MB)
+Checking filesystem consistency ...
+Accounting clusters ...
+Space in use       : 1607 MB (24.9%)
+Collecting resizing constraints ...
+You might resize at 1606885376 bytes or 1607 MB (freeing 4836 MB).
+Please make a test run using both the -n and -s options before real resizing!

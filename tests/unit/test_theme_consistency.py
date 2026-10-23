@@ -78,7 +78,7 @@ class TestMultipleConfigs:
 
     @pytest.mark.parametrize(
         "config_name",
-        ["archlinux.yaml", "xerolinux.yaml", "xerolinux-nvidia.yaml", "minimal.yaml"],
+        ["xerolinux.yaml", "xerolinux-nvidia.yaml", "minimal.yaml"],
     )
     def test_example_config_is_valid(self, config_name: str) -> None:
         """All example configs should be valid."""

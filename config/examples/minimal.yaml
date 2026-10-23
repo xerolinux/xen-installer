@@ -12,9 +12,20 @@ branding:
 
 jobs:
   - welcome
-  - locale
-  - partition
-  - bootloader
-  - packages  # Package/flavor selection
+  - name: partition
+    config:
+      min_install_gib: 25
+      btrfs_subvolumes:
+        - {name: "@", mountpoint: "/"}
+        - {name: "@home", mountpoint: "/home"}
+        - {name: "@root", mountpoint: "/root"}
+        - {name: "@srv", mountpoint: "/srv"}
+        - {name: "@cache", mountpoint: "/var/cache"}
+        - {name: "@tmp", mountpoint: "/var/tmp"}
+        - {name: "@log", mountpoint: "/var/log"}
+        - {name: "@swap", mountpoint: "/swap"}
   - install
+  - locale
+  - packages
+  - bootloader
   - finished

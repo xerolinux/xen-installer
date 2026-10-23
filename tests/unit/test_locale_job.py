@@ -1,5 +1,6 @@
 """Unit tests for LocaleJob."""
 
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -73,8 +74,22 @@ class TestLocaleValidation:
         assert job._validate_locale("") is False
         assert job._validate_locale("invalid") is False
         assert job._validate_locale("en_US") is False  # Missing encoding
-        assert job._validate_locale("en.UTF-8") is False  # Missing country
+        assert job._validate_locale("e.UTF-8") is False  # Language too short
         assert job._validate_locale("en_U.UTF-8") is False  # Country too short
+
+    def test_every_common_locale_validates(self) -> None:
+        job = LocaleJob()
+        for locale in LocaleJob.COMMON_LOCALES:
+            assert job._validate_locale(locale) is True, locale
+
+    def test_validate_locale_without_country(self) -> None:
+        assert LocaleJob()._validate_locale("eo.UTF-8") is True
+
+    def test_validate_locale_modifier_after_encoding(self) -> None:
+        job = LocaleJob()
+        assert job._validate_locale("sr_RS.UTF-8@latin") is True
+        assert job._validate_locale("be_BY.UTF-8@latin") is True
+        assert job._validate_locale("sr_RS@latin.UTF-8") is False
 
     def test_validate_timezone_valid(self) -> None:
         """Valid timezones should pass validation."""
@@ -99,7 +114,6 @@ class TestLocaleValidation:
         job = LocaleJob()
         assert job._validate_keymap("us") is True
         assert job._validate_keymap("fr") is True
-        assert job._validate_keymap("dvorak") is True
         # Alphanumeric keymaps should be accepted
         assert job._validate_keymap("custom123") is True
 
@@ -282,6 +296,21 @@ class TestConfigureLocale:
             content = locale_gen.read_text()
             assert "fr_FR.UTF-8 UTF-8" in content  # Uncommented
             assert content.count("#fr_FR.UTF-8") == 0  # No commented version
+
+    def test_configure_locale_with_modifier_uncomments_locale_gen_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            locale_gen = Path(tmpdir) / "etc" / "locale.gen"
+            locale_gen.parent.mkdir(parents=True, exist_ok=True)
+            locale_gen.write_text("#sr_RS UTF-8\n#sr_RS@latin UTF-8\n")
+
+            context = JobContext(target_root=tmpdir, selections={"locale": "sr_RS.UTF-8@latin"})
+            with patch("xen.jobs.locale.subprocess.run"):
+                result = LocaleJob()._configure_locale(context)
+
+            assert result.success is True
+            assert locale_gen.read_text() == "#sr_RS UTF-8\nsr_RS@latin UTF-8\n"
+            conf = (Path(tmpdir) / "etc" / "locale.conf").read_text()
+            assert conf == "LANG=sr_RS.UTF-8@latin\n"
 
 
 class TestConfigureTimezone:
@@ -571,3 +600,82 @@ class TestLocaleJobIntegration:
             # Verify files exist
             assert (Path(tmpdir) / "etc" / "locale.conf").exists()
             assert (Path(tmpdir) / "etc" / "timezone").exists()
+
+
+class TestConsoleKeymap:
+    """vconsole.conf needs kbd keymap names, which differ from X11 layouts."""
+
+    @pytest.mark.parametrize(
+        ("layout", "variant", "expected"),
+        [
+            ("us", "", "us"),
+            ("gb", "", "uk"),
+            ("se", "", "sv-latin1"),
+            ("pt", "", "pt-latin1"),
+            ("br", "", "br-abnt2"),
+            ("ch", "", "sg"),
+            ("ch", "fr", "fr_CH"),
+            ("us", "dvorak", "dvorak"),
+            ("latam", "", "la-latin1"),
+            ("th", "", "us"),
+            ("jp", "", "jp106"),
+            ("kr", "", "us"),
+        ],
+    )
+    def test_maps_x11_layout_to_console_keymap(
+        self, layout: str, variant: str, expected: str
+    ) -> None:
+        assert LocaleJob._console_keymap(layout, variant) == expected
+
+    def test_every_mapped_console_keymap_exists_in_kbd(self) -> None:
+        kbd = Path("/usr/share/kbd/keymaps")
+        if not kbd.is_dir():
+            pytest.skip("kbd keymaps not installed")
+        available = {p.name.split(".")[0] for p in kbd.rglob("*.map*")}
+        for layout in LocaleJob.COMMON_KEYMAPS:
+            assert LocaleJob._console_keymap(layout, "") in available, layout
+
+    def test_common_keymaps_are_x11_layouts_not_variants(self) -> None:
+        assert "dvorak" not in LocaleJob.COMMON_KEYMAPS
+        assert "fa" not in LocaleJob.COMMON_KEYMAPS
+        assert "ir" in LocaleJob.COMMON_KEYMAPS
+
+    def test_writes_console_keymap_and_x11_layout_with_variant(self, tmp_path: Path) -> None:
+        context = JobContext(
+            target_root=str(tmp_path),
+            selections={"keymap": "ch", "keyboard_variant": "fr"},
+        )
+        result = LocaleJob()._configure_keyboard(context)
+
+        assert result.success is True
+        vconsole = (tmp_path / "etc" / "vconsole.conf").read_text()
+        assert "KEYMAP=fr_CH\n" in vconsole
+        xorg = (tmp_path / "etc" / "X11" / "xorg.conf.d" / "00-keyboard.conf").read_text()
+        assert 'Option "XkbLayout" "ch"' in xorg
+        assert 'Option "XkbVariant" "fr"' in xorg
+
+    def test_no_variant_line_without_variant(self, tmp_path: Path) -> None:
+        context = JobContext(target_root=str(tmp_path), selections={"keymap": "gb"})
+        LocaleJob()._configure_keyboard(context)
+
+        assert "KEYMAP=uk\n" in (tmp_path / "etc" / "vconsole.conf").read_text()
+        xorg = (tmp_path / "etc" / "X11" / "xorg.conf.d" / "00-keyboard.conf").read_text()
+        assert "XkbVariant" not in xorg
+
+    def test_rejects_unsafe_variant(self) -> None:
+        context = JobContext(selections={"keymap": "us", "keyboard_variant": 'x" Option "y'})
+        assert LocaleJob().validate(context).success is False
+
+
+class TestSubprocessTimeouts:
+    @patch("xen.jobs.locale.subprocess.run")
+    def test_locale_gen_timeout_is_non_fatal(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        (tmp_path / "etc").mkdir()
+        (tmp_path / "etc" / "locale.gen").write_text("#en_US.UTF-8 UTF-8\n")
+        mock_run.side_effect = subprocess.TimeoutExpired(["locale-gen"], 1)
+        context = JobContext(target_root=str(tmp_path), selections={"locale": "en_US.UTF-8"})
+
+        result = LocaleJob()._configure_locale(context)
+
+        assert result.success is True
+        assert mock_run.call_args.kwargs.get("timeout")

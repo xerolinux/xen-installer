@@ -6,8 +6,8 @@
 #   xen-cfg-xerolinux-nvidia   - job pipeline config for the nVidia ISO
 #
 # The two config packages are mutually exclusive (each installs to the same
-# /etc/xen/xerolinux.yaml filename so the live-ISO launcher never needs to
-# know which GPU profile is installed) - only the file content differs:
+# /etc/xen/xerolinux.yaml filename, which xen auto-detects, so nothing needs
+# to know which GPU profile is installed) - only the file content differs:
 # services enabled and the finalize script list (nouveau vs nvramfs). Each
 # profile runs online or offline from that one file - see xerolinux.yaml's
 # own header comment for how the offline-skip works.
@@ -21,10 +21,10 @@
 pkgbase=xen-installer
 pkgname=(xen-app xen-cfg-xerolinux xen-cfg-xerolinux-nvidia)
 pkgver=0.2.0
-pkgrel=1
+pkgrel=4
 arch=('any')
 url="https://xerolinux.xyz"
-license=('GPL3')
+license=('GPL-3.0-or-later')
 
 makedepends=(
   python-build
@@ -60,8 +60,14 @@ package_xen-app() {
 		e2fsprogs
 		xfsprogs
 		btrfs-progs
-		grub
+		ntfs-3g
+		os-prober
+		squashfs-tools
 		pciutils
+		ckbcomp
+		qt6-location
+		qt6-svg
+		qt6-wayland
 	)
 	provides=('xen')
 	conflicts=('calamares')
@@ -83,16 +89,23 @@ package_xen-app() {
 	install -dm755 "${pkgdir}/usr/share/xen/config/i18n"
 	install -Dm644 config/i18n/*.conf "${pkgdir}/usr/share/xen/config/i18n/"
 
-	# Desktop entry + its polkit launch wrapper (root, same model as
-	# XeroLinux's Calamares: the whole app runs elevated, no IPC hop).
+	# Desktop entry, its pkexec wrapper and the root-side launcher the
+	# policy's exec.path points to: the whole app runs as one elevated
+	# process, same model as XeroLinux's Calamares.
 	install -Dm644 data/xen.desktop \
 		"${pkgdir}/usr/share/applications/xen.desktop"
 	install -Dm755 data/xen-polkit \
 		"${pkgdir}/usr/bin/xen-polkit"
+	install -Dm755 data/xen-root-launch \
+		"${pkgdir}/usr/lib/xen/xen-root-launch"
 
-	# Polkit policy for pkexec elevation of the Engine process.
+	# Polkit action (admin auth by default) plus the rule that makes it
+	# passwordless for the live ISO's liveuser only. xen-app is removed
+	# from the installed system by the packages job, rule included.
 	install -Dm644 data/polkit/org.xen.installer.policy \
 		"${pkgdir}/usr/share/polkit-1/actions/org.xen.installer.policy"
+	install -Dm644 data/polkit/49-xen-installer-live.rules \
+		"${pkgdir}/usr/share/polkit-1/rules.d/49-xen-installer-live.rules"
 }
 
 package_xen-cfg-xerolinux() {
@@ -117,6 +130,8 @@ package_xen-cfg-xerolinux() {
 	# LibreOffice Suite screenshot shown on the Optional Software page.
 	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
 		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
+	install -Dm644 "${_repo_root}/config/examples/assets/ATTRIBUTION.md" \
+		"${pkgdir}${_etc_dir}/assets/ATTRIBUTION.md"
 }
 
 package_xen-cfg-xerolinux-nvidia() {
@@ -129,10 +144,10 @@ package_xen-cfg-xerolinux-nvidia() {
 	install -dm755 "${pkgdir}${_etc_dir}"
 
 	# Source file is the *-nvidia* variant, but installed under the SAME
-	# filename as xen-cfg-xerolinux so the live-ISO launcher's
-	# `--config /etc/xen/xerolinux.yaml` command is identical on both ISO
-	# profiles - only the content (nvidia-suspend/hibernate/resume services,
-	# nvramfs finalize script) differs.
+	# filename as xen-cfg-xerolinux so xen's config auto-detection
+	# (/etc/xen/xerolinux.yaml) works unchanged on both ISO profiles - only
+	# the content (nvidia-suspend/hibernate/resume services, nvramfs
+	# finalize script) differs.
 	install -Dm644 "${_repo_root}/config/examples/xerolinux-nvidia.yaml" \
 		"${pkgdir}${_etc_dir}/xerolinux.yaml"
 	install -Dm644 "${_repo_root}/config/examples/packages-optional.yaml" \
@@ -143,4 +158,6 @@ package_xen-cfg-xerolinux-nvidia() {
 
 	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
 		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
+	install -Dm644 "${_repo_root}/config/examples/assets/ATTRIBUTION.md" \
+		"${pkgdir}${_etc_dir}/assets/ATTRIBUTION.md"
 }

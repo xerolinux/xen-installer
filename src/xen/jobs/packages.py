@@ -14,10 +14,21 @@ import time
 from pathlib import Path
 from typing import Any
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 from xen.utils.network_helper import NetworkHelper
 
 logger = logging.getLogger(__name__)
+
+
+def _join_messages(messages: list[str]) -> str:
+    joined = messages[0]
+    for message in messages[1:]:
+        joined = msg("{head}; {tail}", head=joined, tail=message)
+    return joined
+
+
+_PACMAN_FAILED = 36
 
 
 class PackagesJob(BaseJob):
@@ -111,6 +122,10 @@ class PackagesJob(BaseJob):
             logger.warning(f"Unknown mode '{mode}', using essential packages")
             packages = self.ESSENTIAL_PACKAGES.copy()
 
+        for extra_pkg in self._config.get("extra_packages", []):
+            if extra_pkg not in packages:
+                packages.append(extra_pkg)
+
         for optional_pkg in context.selections.get("optional_packages", []):
             if optional_pkg not in packages:
                 packages.append(optional_pkg)
@@ -133,7 +148,7 @@ class PackagesJob(BaseJob):
             JobResult indicating validation success or failure
         """
         if not packages:
-            return JobResult.fail("Package list is empty", error_code=30)
+            return JobResult.fail(msg("Package list is empty"), error_code=30)
 
         invalid_packages = []
         for pkg in packages:
@@ -143,12 +158,12 @@ class PackagesJob(BaseJob):
 
         if invalid_packages:
             return JobResult.fail(
-                f"Invalid package names: {invalid_packages}",
+                msg("Invalid package names: {names}", names=invalid_packages),
                 error_code=31,
                 data={"invalid_packages": invalid_packages},
             )
 
-        return JobResult.ok("Package names validated")
+        return JobResult.ok(msg("Package names validated"))
 
     def _update_repositories(self, context: JobContext) -> JobResult:
         """
@@ -162,7 +177,7 @@ class PackagesJob(BaseJob):
         """
         target_root = context.target_root
 
-        context.report_progress(5, "Updating package repositories...")
+        context.report_progress(5, msg("Updating package repositories..."))
         logger.info("Updating pacman repositories")
 
         try:
@@ -185,22 +200,22 @@ class PackagesJob(BaseJob):
 
             logger.info("Repository update successful")
             logger.debug(f"Update output: {result.stdout}")
-            return JobResult.ok("Repositories updated")
+            return JobResult.ok(msg("Repositories updated"))
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Repository update failed: {e.stderr}")
             return JobResult.fail(
-                f"Failed to update repositories: {e.stderr}",
+                msg("Failed to update repositories: {error}", error=e.stderr),
                 error_code=33,
             )
         except subprocess.TimeoutExpired:
             return JobResult.fail(
-                "Repository update timed out",
+                msg("Repository update timed out"),
                 error_code=34,
             )
         except FileNotFoundError:
             return JobResult.fail(
-                "arch-chroot not found. Cannot access target system.",
+                msg("arch-chroot not found. Cannot access target system."),
                 error_code=35,
             )
 
@@ -257,33 +272,37 @@ class PackagesJob(BaseJob):
                     percent = 20 + int((installed_count / total_packages) * 70)
                     context.report_progress(
                         percent,
-                        f"Installing packages... ({installed_count}/{total_packages})",
+                        msg(
+                            "Installing packages... ({installed}/{total})",
+                            installed=installed_count,
+                            total=total_packages,
+                        ),
                     )
 
             return_code = process.wait()
 
             if return_code != 0:
                 return JobResult.fail(
-                    f"pacman failed with exit code {return_code}",
-                    error_code=36,
+                    msg("pacman failed with exit code {code}", code=return_code),
+                    error_code=_PACMAN_FAILED,
                     data={"return_code": return_code},
                 )
 
             self._packages_installed.extend(packages)
             return JobResult.ok(
-                f"Installed {len(packages)} packages",
+                msg("Installed {count} packages", count=len(packages)),
                 data={"packages": packages},
             )
 
         except FileNotFoundError:
             return JobResult.fail(
-                "pacman or arch-chroot not found",
+                msg("pacman or arch-chroot not found"),
                 error_code=35,
             )
         except Exception as e:
             logger.exception("Unexpected error during package installation")
             return JobResult.fail(
-                f"Package installation failed: {e}",
+                msg("Package installation failed: {error}", error=e),
                 error_code=37,
                 data={"exception": str(e)},
             )
@@ -336,7 +355,9 @@ class PackagesJob(BaseJob):
         else:
             to_remove = [p for p in packages if p in installed]
             if not to_remove:
-                return JobResult.ok("Nothing to remove (none of the configured packages present)")
+                return JobResult.ok(
+                    msg("Nothing to remove (none of the configured packages present)")
+                )
 
         logger.info(f"Removing {len(to_remove)} live-only packages")
         cmd = ["arch-chroot", target_root, "pacman", "-R", "--noconfirm", *to_remove]
@@ -350,14 +371,19 @@ class PackagesJob(BaseJob):
                 timeout=300,
             )
             logger.debug(f"Remove output: {result.stdout}")
-            return JobResult.ok(f"Removed {len(to_remove)} packages", data={"packages": to_remove})
+            return JobResult.ok(
+                msg("Removed {count} packages", count=len(to_remove)),
+                data={"packages": to_remove},
+            )
         except subprocess.CalledProcessError as e:
-            return JobResult.fail(f"Failed to remove packages: {e.stderr}", error_code=41)
+            return JobResult.fail(
+                msg("Failed to remove packages: {error}", error=e.stderr), error_code=41
+            )
         except subprocess.TimeoutExpired:
-            return JobResult.fail("Package removal timed out", error_code=42)
+            return JobResult.fail(msg("Package removal timed out"), error_code=42)
         except FileNotFoundError:
             return JobResult.fail(
-                "arch-chroot not found. Cannot access target system.",
+                msg("arch-chroot not found. Cannot access target system."),
                 error_code=35,
             )
 
@@ -389,25 +415,28 @@ class PackagesJob(BaseJob):
 
             last_result = result
 
-            # Check if error is network-related and retry possible
-            if result.error_code in (33, 34) and attempt < self.MAX_RETRIES:
+            # pacman exits 1 for every failure, transient download errors
+            # included; a missing tool or an internal error won't heal on retry.
+            if result.error_code != _PACMAN_FAILED:
+                return result
+
+            if attempt < self.MAX_RETRIES:
                 logger.warning(
                     f"Installation failed (attempt {attempt}), retrying in {self.RETRY_DELAY}s..."
                 )
                 context.report_progress(
                     15,
-                    f"Installation failed, retrying... (attempt {attempt + 1}/{self.MAX_RETRIES})",
+                    msg(
+                        "Installation failed, retrying... (attempt {attempt}/{total})",
+                        attempt=attempt + 1,
+                        total=self.MAX_RETRIES,
+                    ),
                 )
                 time.sleep(self.RETRY_DELAY)
-                continue
-
-            # Non-network error - don't retry
-            if result.error_code not in (33, 34):
-                return result
 
         # Max retries reached
         return JobResult.fail(
-            f"Package installation failed after {self.MAX_RETRIES} attempts",
+            msg("Package installation failed after {count} attempts", count=self.MAX_RETRIES),
             error_code=39,
             data={
                 "attempts": self.MAX_RETRIES,
@@ -438,13 +467,15 @@ class PackagesJob(BaseJob):
         mode = self._get_installation_mode(context)
         valid_modes = [self.MODE_ESSENTIAL, self.MODE_DESKTOP, self.MODE_CUSTOM]
         if mode not in valid_modes:
-            errors.append(f"Invalid mode: {mode}. Valid modes: {valid_modes}")
+            errors.append(
+                msg("Invalid mode: {mode}. Valid modes: {modes}", mode=mode, modes=valid_modes)
+            )
 
         # Validate custom packages if in custom mode
         if mode == self.MODE_CUSTOM:
             packages = context.selections.get("packages", [])
             if not packages:
-                errors.append("Custom mode requires 'packages' list in selections")
+                errors.append(msg("Custom mode requires 'packages' list in selections"))
             else:
                 validation = self._validate_package_names(packages)
                 if not validation.success:
@@ -453,19 +484,19 @@ class PackagesJob(BaseJob):
         # Validate target root exists
         target_path = Path(context.target_root)
         if not target_path.exists():
-            errors.append(f"Target directory not found: {context.target_root}")
+            errors.append(msg("Target directory not found: {path}", path=context.target_root))
         elif not target_path.is_dir():
-            errors.append(f"Target path is not a directory: {context.target_root}")
+            errors.append(msg("Target path is not a directory: {path}", path=context.target_root))
 
         if errors:
             return JobResult.fail(
-                message=f"Validation errors: {'; '.join(errors)}",
+                message=msg("Validation errors: {errors}", errors=_join_messages(errors)),
                 error_code=40,
                 data={"errors": errors},
             )
 
         logger.info("Package installation prerequisites validated")
-        return JobResult.ok("Package installation validated")
+        return JobResult.ok(msg("Package installation validated"))
 
     def run(self, context: JobContext) -> JobResult:
         """
@@ -477,11 +508,11 @@ class PackagesJob(BaseJob):
         Returns:
             JobResult indicating success or failure
         """
-        context.report_progress(0, "Starting package installation...")
+        context.report_progress(0, msg("Starting package installation..."))
 
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: package installation (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: package installation (dry run)"))
 
         # Validate first
         validation = self.validate(context)
@@ -493,7 +524,7 @@ class PackagesJob(BaseJob):
         mode = self._get_installation_mode(context)
 
         logger.info(f"Installing packages in {mode} mode: {packages}")
-        context.report_progress(2, f"Installing {len(packages)} packages...")
+        context.report_progress(2, msg("Installing {count} packages...", count=len(packages)))
 
         has_internet = context.selections.get("has_internet")
         if has_internet is None:
@@ -507,37 +538,37 @@ class PackagesJob(BaseJob):
             # install.py's squashfs extraction, so skip straight to the
             # remove step, matching how a purely offline install has
             # nothing new to add, only leftovers to strip.
-            context.report_progress(10, "Offline, nothing new to install")
+            context.report_progress(10, msg("Offline, nothing new to install"))
         else:
             if context.selections.get("repos_synced"):
-                context.report_progress(10, "Repositories already synced, skipping")
+                context.report_progress(10, msg("Repositories already synced, skipping"))
             else:
                 update_result = self._update_repositories(context)
                 if not update_result.success:
                     logger.warning("Repository update failed, continuing with installation...")
                     # Non-critical: continue with installation
-                    context.report_progress(10, "Repository update failed")
+                    context.report_progress(10, msg("Repository update failed"))
                 else:
-                    context.report_progress(10, "Repositories updated")
+                    context.report_progress(10, msg("Repositories updated"))
 
             install_result = self._install_packages_with_retry(packages, context)
             if not install_result.success:
                 return install_result
 
-            context.report_progress(95, "Package installation complete")
+            context.report_progress(95, msg("Package installation complete"))
             logger.info(f"Successfully installed {len(self._packages_installed)} packages")
 
         remove_list = self._config.get("remove", [])
         if remove_list:
-            context.report_progress(96, "Removing live-only packages...")
+            context.report_progress(96, msg("Removing live-only packages..."))
             remove_result = self._remove_packages(remove_list, context.target_root, context)
             if not remove_result.success:
                 logger.warning(f"Package removal failed (non-fatal): {remove_result.message}")
 
-        context.report_progress(100, "Package installation finished")
+        context.report_progress(100, msg("Package installation finished"))
 
         return JobResult.ok(
-            "Packages installed successfully",
+            msg("Packages installed successfully"),
             data={
                 "mode": mode,
                 "packages_installed": self._packages_installed,

@@ -225,7 +225,7 @@ class TestTakeFreshInstallSnapshot:
 
     @patch("subprocess.run")
     def test_runs_even_with_no_commands_configured(self, mock_run: Mock) -> None:
-        """Regression: archlinux.yaml has no finalize commands configured
+        """Regression: a profile with no finalize commands configured
         at all - the snapshot step must still run when filesystem=btrfs."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_run.return_value = Mock(returncode=0, stdout="", stderr="")

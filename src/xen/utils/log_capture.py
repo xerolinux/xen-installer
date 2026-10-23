@@ -1,8 +1,8 @@
 """
 In-process log capture for the installation logs/diagnostics feature.
 
-Installation jobs run inside the UI process (QThread worker), so there is no
-IPC channel to relay log lines to the GUI. This module provides:
+Installation jobs run inside the UI process (QThread worker). This module
+provides:
 
 - ``SecretRedactor``: strips known secret values (and common password-like
   patterns) from log text before it ever reaches a buffer, file, or upload.
@@ -27,6 +27,7 @@ from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 from threading import Lock
+from typing import TextIO
 
 _SECRET_PATTERN_KEYWORDS = ("password", "passphrase", "passwd")
 
@@ -96,6 +97,7 @@ class BridgeLogHandler(logging.Handler):
         self._on_line = on_line
         self._buffer: deque[str] = deque(maxlen=max_lines)
         self._lock = Lock()
+        self._file: TextIO | None = None
         self.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%H:%M:%S")
         )
@@ -110,11 +112,13 @@ class BridgeLogHandler(logging.Handler):
 
         with self._lock:
             self._buffer.append(msg)
-
-        if self._file_path is not None:
-            # Best-effort file mirroring: I/O errors must never break logging.
-            with contextlib.suppress(Exception), self._file_path.open("a", encoding="utf-8") as f:
-                f.write(msg + "\n")
+            if self._file_path is not None:
+                # Best-effort file mirroring: I/O errors must never break logging.
+                with contextlib.suppress(Exception):
+                    if self._file is None:
+                        self._file = self._file_path.open("a", encoding="utf-8")
+                    self._file.write(msg + "\n")
+                    self._file.flush()
 
         if self._on_line is not None:
             # Best-effort UI notification: callback errors must never crash logging.
@@ -142,6 +146,14 @@ class BridgeLogHandler(logging.Handler):
         """Clear the in-memory ring buffer."""
         with self._lock:
             self._buffer.clear()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._file is not None:
+                with contextlib.suppress(Exception):
+                    self._file.close()
+                self._file = None
+        super().close()
 
 
 def resolve_log_path() -> Path:

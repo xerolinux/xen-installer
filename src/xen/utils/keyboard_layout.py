@@ -6,11 +6,10 @@ only handles the best-effort, cosmetic affordance of switching the *live*
 session's keyboard layout so the on-screen keyboard test field (and every
 other input in the installer) immediately reflects the user's choice.
 
-On GNOME Wayland — the live session used by this installer — ``setxkbmap`` has no
-effect because layout switching is owned by the compositor via
-``org.gnome.desktop.input-sources``. This module therefore prefers
-``gsettings`` and falls back to ``setxkbmap`` for X11 sessions or when
-``gsettings`` is unavailable.
+On Wayland ``setxkbmap`` has no effect: the compositor owns the layout. KDE
+Plasma (the XeroLinux live session) reloads ``kxkbrc`` when KConfig notifies
+a change to it; GNOME uses
+``org.gnome.desktop.input-sources``. ``setxkbmap`` is the X11 fallback.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ import os
 import pwd
 import shutil
 import subprocess
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +29,18 @@ _COMMAND_TIMEOUT = 5  # seconds
 def _session_user() -> tuple[str, dict[str, str]] | None:
     """Utilisateur de la session graphique + env DBus, quand on tourne en root.
 
-    L'installeur s'exécute en root (sudo) ; ``gsettings`` doit viser le dconf de
+    L'installeur s'exécute en root (pkexec ou sudo) ; ``gsettings`` doit viser le dconf de
     la session GNOME de l'utilisateur, pas celui de root. Retourne ``None`` si on
     n'est pas root (on est déjà l'utilisateur) ou si l'uid est introuvable.
     """
     if os.geteuid() != 0:
         return None
     uid: int | None = None
-    sudo_uid = os.environ.get("SUDO_UID", "")
-    if sudo_uid.isdigit() and int(sudo_uid) != 0:
-        uid = int(sudo_uid)
+    for var in ("PKEXEC_UID", "SUDO_UID"):
+        value = os.environ.get(var, "")
+        if value.isdigit() and int(value) != 0:
+            uid = int(value)
+            break
     if uid is None:
         runtime = os.environ.get("XDG_RUNTIME_DIR", "")
         if runtime.startswith("/run/user/"):
@@ -49,10 +51,12 @@ def _session_user() -> tuple[str, dict[str, str]] | None:
     if uid is None:
         uid = 1000
     try:
-        user = pwd.getpwuid(uid).pw_name
+        entry = pwd.getpwuid(uid)
     except KeyError:
         return None
+    user = entry.pw_name
     env = {
+        "HOME": entry.pw_dir,
         "XDG_RUNTIME_DIR": f"/run/user/{uid}",
         "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{uid}/bus",
     }
@@ -94,6 +98,9 @@ def apply_keyboard_layout_live(layout: str, variant: str = "") -> bool:
     if not layout:
         return False
 
+    if _kwin_running() and shutil.which("kwriteconfig6"):
+        return _apply_via_kwin(layout, variant)
+
     session_type = os.environ.get("XDG_SESSION_TYPE", "").lower()
 
     if session_type != "x11" and shutil.which("gsettings"):
@@ -109,6 +116,34 @@ def apply_keyboard_layout_live(layout: str, variant: str = "") -> bool:
 
     logger.warning("No supported keyboard layout tool found (gsettings/setxkbmap)")
     return False
+
+
+def _kwin_running() -> bool:
+    for comm in Path("/proc").glob("[0-9]*/comm"):
+        try:
+            if comm.read_text().strip() in ("kwin_wayland", "kwin_x11"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _apply_via_kwin(layout: str, variant: str) -> bool:
+    # KWin's KConfigWatcher reloads the layout only on --notify writes
+    write = ["kwriteconfig6", "--notify", "--file", "kxkbrc", "--group", "Layout", "--key"]
+    cmds = [[*write, "Use", "true"], [*write, "LayoutList", layout], [*write, "VariantList", variant]]
+    wrapped = [_in_session(cmd) for cmd in cmds]
+    if any(cmd is None for cmd in wrapped):
+        logger.warning("Cannot reach the user session (runuser missing) for kwriteconfig6")
+        return False
+    try:
+        for cmd in wrapped:
+            subprocess.run(cmd, check=True, timeout=_COMMAND_TIMEOUT)
+        logger.info(f"Applied live keyboard layout via KWin: {layout} {variant}")
+        return True
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning(f"Failed to apply keyboard layout via KWin: {exc}")
+        return False
 
 
 def _apply_via_gsettings(xkb_layout: str) -> bool:

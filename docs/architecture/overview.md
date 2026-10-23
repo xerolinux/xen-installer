@@ -4,45 +4,26 @@
 
 ---
 
-## Concept Fondamental : Séparation UI / Engine
+## Concept Fondamental : un seul processus élevé
 
-Xen repose sur une séparation stricte entre deux processus :
-
-| Composant | Contexte | Responsabilité |
-|-----------|----------|----------------|
-| **UI** | User (non-root) | Affichage, interactions utilisateur, collecte des choix |
-| **Engine** | Root (privilégié) | Exécution des Jobs, opérations système |
-
-Cette séparation garantit :
-- **Sécurité** : L'UI n'a jamais accès root
-- **Isolation** : Un crash UI ne corrompt pas l'installation
-- **Auditabilité** : Seul l'Engine exécute des commandes privilégiées
-
----
-
-## Communication IPC
+Xen tourne dans **un seul processus** : l'interface QML (PySide6) et
+l'exécution des Jobs partagent le même processus Python, lancé en root via
+polkit. C'est le même modèle que Calamares sur XeroLinux.
 
 ```
-┌──────────────┐                    ┌──────────────┐
-│     UI       │◄──── Socket ──────►│    Engine    │
-│  (PySide6)   │      Unix          │   (Python)   │
-└──────────────┘                    └──────────────┘
-       │                                   │
-       ▼                                   ▼
-   QML Views                          Job Runner
+xen.desktop ──► xen-polkit ──► pkexec ──► /usr/lib/xen/xen-root-launch ──► /usr/bin/xen
+ (liveuser)                     (polkit)     (rétablit la session Wayland)     (root)
 ```
 
-### Protocole
+| Composant | Rôle |
+|-----------|------|
+| `data/xen-polkit` | Lanceur côté utilisateur : appelle `pkexec` en passant `WAYLAND_DISPLAY` et `XDG_RUNTIME_DIR` en arguments (pkexec les supprime de l'environnement) |
+| `data/xen-root-launch` | Lanceur côté root (cible `exec.path` de l'action polkit) : valide ces deux arguments, les exporte avec `QT_QPA_PLATFORM="wayland;xcb"`, puis exécute `/usr/bin/xen` |
+| `xen.main` | Charge la configuration, crée l'application Qt et le `EngineBridge` |
+| `EngineBridge` | Expose l'état au QML et exécute les Jobs dans un thread de travail du même processus |
 
-Messages JSON sur socket Unix :
-
-```json
-// UI → Engine : Requête
-{"type": "start_job", "job": "partition", "params": {...}}
-
-// Engine → UI : Réponse/Événement
-{"type": "progress", "job": "partition", "percent": 45, "message": "..."}
-```
+`xen` refuse de démarrer sans root, sauf avec `--dry-run` (aucune commande
+système n'est alors exécutée). Voir [`docs/deployment/polkit.md`](../deployment/polkit.md).
 
 ---
 
@@ -59,7 +40,7 @@ class BaseJob(ABC):
         """Exécute le job. Retourne succès ou erreur."""
 
     @abstractmethod
-    def estimate_time(self) -> int:
+    def estimate_duration(self) -> int:
         """Estimation en secondes pour l'UI."""
 
     def validate(self, context: JobContext) -> JobResult:
@@ -81,11 +62,10 @@ class BaseJob(ABC):
 
 | Job | Rôle | Status |
 |-----|------|--------|
-| `welcome` | Écran d'accueil, vérifications pré-installation | ✅ Implémenté |
-| `requirements` | Checks système (RAM, Disk, CPU, EFI, Internet, GPU) | ✅ Implémenté |
+| `welcome` | Écran d'accueil, vérifications pré-installation (RAM, disque, CPU, EFI, Internet, GPU via `xen.jobs.requirements`) | ✅ Implémenté |
 | `locale` | Sélection langue, timezone, clavier + détection auto | ✅ Implémenté |
 | `packagechooser` | Sélection de paquets optionnels par groupes (mode online) | ✅ Implémenté |
-| `partition` | Partitionnement disque avec sécurité critique | ✅ Implémenté |
+| `partition` | Partitionnement disque (Effacer, Installer à côté, Manuel) : un plan unique validé puis exécuté par `xen.partitioning` | ✅ Implémenté |
 | `users` | Création utilisateurs, hostname, mot de passe | ✅ Implémenté |
 | `services` | Activation/désactivation d'unités systemd sur la cible | ✅ Implémenté |
 | `systemupdate` | Mise à jour complète du système avant paquets (mode online) | ✅ Implémenté |
@@ -107,7 +87,6 @@ config/
 ├── examples/                # Configurations par distribution
 │   ├── xerolinux.yaml         # XeroLinux (online + offline)
 │   ├── xerolinux-nvidia.yaml  # XeroLinux nVidia (online + offline)
-│   ├── archlinux.yaml         # Arch Linux générique
 │   └── minimal.yaml           # Template minimal
 └── themes/                  # Assets visuels (optionnel, thème séparé)
 ```
@@ -140,7 +119,7 @@ jobs:
       default_filesystem: ext4
   - name: bootloader
     config:
-      type: systemd-boot
+      type: grub
   - name: finished
 ```
 
@@ -170,7 +149,8 @@ Documentation complète : [`docs/branding/theming.md`](../branding/theming.md)
 ### Résolution des Jobs
 
 1. L'Engine lit `jobs` dans l'ordre
-2. Chaque `name` est résolu vers `xen.jobs.<name>.Job`
+2. Chaque `name` est résolu vers le module `xen.jobs.<name>`, dont la première
+   sous-classe de `BaseJob` au nom finissant par `Job` est instanciée
 3. Le bloc `config` est injecté dans le constructeur du Job
 
 ---
@@ -178,24 +158,17 @@ Documentation complète : [`docs/branding/theming.md`](../branding/theming.md)
 ## Flux d'Exécution
 
 ```
-1. main.py démarre
+1. xen-polkit ──► pkexec ──► xen-root-launch ──► xen (root)
    │
-2. ├─► Fork UI (user context)
-   │     └── Charge QML, affiche branding
+2. ├── main.py charge xen.yaml et instancie les Jobs
    │
-3. └─► Fork Engine (root context)
-         │
-4.       ├── Charge xen.yaml
-         │
-5.       ├── Instancie les Jobs
-         │
-6.       └── Attend commandes IPC
-                │
-7.              ├── UI envoie "start"
-                │
-8.              └── Engine exécute Jobs séquentiellement
-                      │
-9.                    └── Chaque Job émet progress → UI
+3. ├── Création de l'application Qt, du EngineBridge, chargement du QML
+   │
+4. ├── L'utilisateur parcourt les écrans ; les choix vont dans les selections
+   │
+5. └── "Installer" : le EngineBridge exécute les Jobs séquentiellement
+         │          dans un thread de travail
+6.       └── Chaque Job émet sa progression ──► signaux Qt ──► QML
 ```
 
 ---

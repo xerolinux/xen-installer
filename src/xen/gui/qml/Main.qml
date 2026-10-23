@@ -5,20 +5,20 @@
  * Colors and text are loaded from branding configuration.
  *
  * Wizard Steps:
- * 0 - Welcome (requirements check)
- * 1 - Locale (language, timezone, keyboard)
- * 2 - Packages (optional software; skipped entirely when offline)
- * 3 - Users (username, password, options)
- * 4 - Partition (disk selection)
- * 5 - Summary (review selections)
- * 6 - Progress (installation)
- * 7 - Finished (reboot/shutdown)
+ * 0 - Welcome (requirements check, system language)
+ * 1 - Locale (timezone)
+ * 2 - Keyboard (layout, variant)
+ * 3 - Packages (optional software; skipped entirely when offline)
+ * 4 - Users (username, password, options)
+ * 5 - Partition (disk selection)
+ * 6 - Summary (review selections)
+ * 7 - Progress (installation)
+ * 8 - Finished (reboot/shutdown)
  */
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "components"
 
 ApplicationWindow {
@@ -32,15 +32,19 @@ ApplicationWindow {
     minimumWidth: 1024
     minimumHeight: 640
     visible: true
-    title: branding.name + " Installer"
+    title: qsTr("%1 Installer").arg(branding.name)
+
+    readonly property bool rightToLeft: Qt.locale(translator.currentLocale).textDirection === Qt.RightToLeft
+    LayoutMirroring.enabled: rightToLeft
+    LayoutMirroring.childrenInherit: true
 
     // Global scale for font sizes/card widths, used by every step view.
-    // Bounded by BOTH window width and height against the baseline design
-    // size (1200x760 content area), so it never grows past what actually
-    // fits vertically - a width-only or height-only scale either left
-    // content cut off on a short window or barely grew on a wide one.
+    // The height term is calibrated on the tallest page (Partition with a
+    // disk selected: ~140px fixed + ~420px per unit of scale, inside a
+    // viewport of height - 80 - 80 * scale); tests/integration/
+    // test_page_fit.py fails if any page stops fitting.
     readonly property real uiScale: Math.min(2.0, Math.max(0.8,
-        Math.min((width - 40) / 1200, (height - 150) / 480)))
+        Math.min((width - 40) / 1200, (height - 230) / 510)))
 
     // System font for non-Latin languages (CJK, Arabic, Hebrew, etc.)
     // Uses Noto Sans when a non-Latin locale is selected, otherwise system default
@@ -57,41 +61,26 @@ ApplicationWindow {
     palette.text: "#d1d5db"
     palette.placeholderText: "#9CA3AF"
 
-    // React to font changes when locale changes
-    Connections {
-        target: engine
-        function onSystemFontChanged() {
-            console.log("System font changed to:", engine.systemFontFamily || "system default")
-        }
-    }
-
-    // Dynamic color palette: system theme takes priority (live palette sync)
-    // for generic chrome, but primary/accent always come from branding -
-    // that's the installer's own distro identity (Intel/AMD blue-to-red
-    // gradient, nVidia green), not something that should follow the
-    // user's desktop theme.
-    readonly property bool hasSystemTheme: systemTheme != null && systemTheme.available
+    // Always the branding's dark palette; the desktop color scheme is ignored.
     readonly property color primaryColor: branding.primaryColor
-    readonly property color secondaryColor: hasSystemTheme ? systemTheme.buttonColor : branding.secondaryColor
     readonly property color accentColor: branding.accentColor
     readonly property color accentGradientEnd: branding.accentGradientEnd
     readonly property color backgroundGradientStart: branding.backgroundGradientStart
     readonly property color backgroundGradientEnd: branding.backgroundGradientEnd
-    readonly property color backgroundColor: hasSystemTheme ? systemTheme.windowColor : branding.backgroundColor
-    readonly property color surfaceColor: hasSystemTheme ? systemTheme.baseColor : branding.surfaceColor
-    readonly property color textColor: hasSystemTheme ? systemTheme.windowTextColor : branding.textColor
-    readonly property color textMutedColor: hasSystemTheme ? systemTheme.disabledTextColor : branding.textMutedColor
+    readonly property color backgroundColor: branding.backgroundColor
+    readonly property color surfaceColor: branding.surfaceColor
+    readonly property color textColor: branding.textColor
+    readonly property color textMutedColor: branding.textMutedColor
     readonly property color successColor: branding.successColor || "#10B981"
     readonly property color warningColor: branding.warningColor || "#F59E0B"
     readonly property color errorColor: branding.errorColor || "#EF4444"
 
     // Wizard state
     property int currentStep: 0
-    readonly property int totalSteps: 8  // 0-7
-    readonly property var stepNames: ["Welcome", "Locale", "Packages", "Users", "Partition", "Summary", "Installing", "Finished"]
+    readonly property int totalSteps: 9  // 0-8
+    readonly property var stepNames: [qsTr("Welcome"), qsTr("Locale"), qsTr("Keyboard"), qsTr("Packages"), qsTr("Users"),
+                                      qsTr("Partition"), qsTr("Summary"), qsTr("Installing"), qsTr("Finished")]
 
-    // Installation state
-    property bool isInstalling: false
     property bool installationSuccess: false
 
     // Semi-transparent so KWin's blur-behind hint has something to blur;
@@ -128,9 +117,9 @@ ApplicationWindow {
         }
     }
 
-    // Main content. Welcome (0) and Finished (7) are full-bleed screens with
+    // Main content. Welcome (0) and Finished (8) are full-bleed screens with
     // their own internal padding; the other steps need room for the header.
-    readonly property bool isFullBleedStep: currentStep === 0 || currentStep === 7
+    readonly property bool isFullBleedStep: currentStep === 0 || currentStep === 8
 
     ColumnLayout {
         anchors.fill: parent
@@ -141,12 +130,12 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             spacing: 16
-            visible: currentStep > 0 && currentStep < 6  // hidden on Welcome, Progress(6), Finished(7)
+            visible: currentStep > 0 && currentStep < 7  // hidden on Welcome, Progress(7), Finished(8)
 
             // Logo
             Item {
-                width: 48 * uiScale
-                height: 48 * uiScale
+                Layout.preferredWidth: 48 * uiScale
+                Layout.preferredHeight: 48 * uiScale
 
                 Image {
                     id: headerLogo
@@ -178,7 +167,7 @@ ApplicationWindow {
                 spacing: 4
 
                 Text {
-                    text: branding.name + " Installer"
+                    text: qsTr("%1 Installer").arg(branding.name)
                     font.pixelSize: 20 * uiScale
                     font.bold: true
                     color: textColor
@@ -191,20 +180,21 @@ ApplicationWindow {
                 }
             }
 
-            // Step indicator (steps 1-5 only)
+            // Step indicator (steps 1-6 only; Packages is skipped offline)
             Row {
                 spacing: 8
-                visible: currentStep >= 1 && currentStep <= 5
+                visible: currentStep >= 1 && currentStep <= 6
 
                 Repeater {
-                    model: 5  // Steps 1-5
+                    model: engine.hasInternet ? [1, 2, 3, 4, 5, 6] : [1, 2, 4, 5, 6]
 
                     Rectangle {
+                        required property int modelData
                         width: 40 * uiScale
                         height: 4
                         radius: 2
-                        color: (index + 1) < currentStep ? primaryColor :
-                               (index + 1) === currentStep ? accentColor : Qt.darker(surfaceColor, 1.2)
+                        color: modelData < currentStep ? primaryColor :
+                               modelData === currentStep ? accentColor : Qt.darker(surfaceColor, 1.2)
 
                         Behavior on color {
                             ColorAnimation { duration: 300 }
@@ -221,12 +211,11 @@ ApplicationWindow {
 
             // Step 0: Welcome
             WelcomeView {
-                id: welcomeView
                 anchors.fill: parent
                 visible: currentStep === 0
                 opacity: visible ? 1 : 0
 
-                welcomeWallpaper: branding.welcomeWallpaperUrl || branding.backgroundUrl
+                welcomeWallpaper: branding.backgroundUrl
                 logoUrl: branding.logoUrl
                 welcomeTitle: branding.welcomeTitle
                 welcomeSubtitle: branding.welcomeSubtitle
@@ -240,6 +229,13 @@ ApplicationWindow {
                 canProceed: engine.canProceed
                 isCheckingRequirements: engine.isCheckingRequirements
                 hasInternet: engine.hasInternet
+
+                localesModel: engine.localesModel
+                localesModelNative: engine.localesModelNative
+                // Installer language only: the system locale and keyboard have their own pages
+                onLocaleSelected: function(locale) {
+                    translator.setLocale(locale.split(".")[0])
+                }
 
                 uiScale: root.uiScale
                 primaryColor: root.primaryColor
@@ -278,19 +274,11 @@ ApplicationWindow {
 
             // Step 1: Locale
             LocaleView {
-                id: localeView
                 anchors.fill: parent
                 visible: currentStep === 1
                 opacity: visible ? 1 : 0
 
-                localesModel: engine.localesModel
-                localesModelNative: engine.localesModelNative
                 timezonesModel: engine.timezonesModel
-                keymapsModel: engine.keymapsModel
-                keyboardVariantsModel: engine.keyboardVariantsModel
-                // Les sélections (selectedLocale/Timezone/Keymap/Variant) sont
-                // désormais lues directement depuis engine par la vue (miroirs
-                // readonly), plus besoin de les passer ici.
 
                 uiScale: root.uiScale
                 primaryColor: root.primaryColor
@@ -299,36 +287,35 @@ ApplicationWindow {
                 textColor: root.textColor
                 textMutedColor: root.textMutedColor
                 accentColor: root.accentColor
-                accentGradientEnd: root.accentGradientEnd
 
-                // Auto-detect and apply UI language when LocaleView opens
-                onVisibleChanged: {
-                    if (visible && engine.detectedLocale) {
-                        // Extract base locale (e.g., "fr_FR" from "fr_FR.UTF-8")
-                        var detectedBase = engine.detectedLocale.split(".")[0]
-                        var currentBase = translator.currentLocale.split(".")[0]
-
-                        // Only switch if different and translator is available
-                        if (detectedBase !== currentBase && translator) {
-                            console.log("Auto-switching UI language to:", detectedBase)
-                            translator.setLocale(detectedBase)
-                        }
-                    }
-                }
-
-                onLocaleSelected: function(locale) {
-                    engine.setSelectedLocale(locale)
-                    // Trigger live language switching
-                    if (translator) {
-                        // Normalize locale for translator (remove .UTF-8 suffix)
-                        var normalizedLocale = locale.split(".")[0]
-                        translator.setLocale(normalizedLocale)
-                    }
-                    engine.applyKeyboardLayout(engine.selectedKeymap, engine.selectedKeyboardVariant)
-                }
                 onTimezoneSelected: function(timezone) {
                     engine.setSelectedTimezone(timezone)
                 }
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 300 }
+                }
+            }
+
+            // Step 2: Keyboard
+            KeyboardView {
+                anchors.fill: parent
+                visible: currentStep === 2
+                opacity: visible ? 1 : 0
+
+                keymapsModel: engine.keymapsModel
+                keyboardVariantsModel: engine.keyboardVariantsModel
+                // selectedKeymap/selectedKeyboardVariant sont lus directement
+                // depuis engine par la vue (miroirs readonly).
+
+                uiScale: root.uiScale
+                primaryColor: root.primaryColor
+                backgroundColor: root.backgroundColor
+                surfaceColor: root.surfaceColor
+                textColor: root.textColor
+                textMutedColor: root.textMutedColor
+                accentColor: root.accentColor
+
                 onKeymapSelected: function(keymap) {
                     engine.setSelectedKeymap(keymap)
                     engine.applyKeyboardLayout(engine.selectedKeymap, engine.selectedKeyboardVariant)
@@ -343,11 +330,10 @@ ApplicationWindow {
                 }
             }
 
-            // Step 2: Packages (skipped entirely when offline - see navigateNext/Back)
+            // Step 3: Packages (skipped entirely when offline - see navigateNext/Back)
             PackageChooserView {
-                id: packageChooserView
                 anchors.fill: parent
-                visible: currentStep === 2
+                visible: currentStep === 3
                 opacity: visible ? 1 : 0
 
                 groups: engine.packageGroupsModel
@@ -364,11 +350,11 @@ ApplicationWindow {
                 }
             }
 
-            // Step 3: Users
+            // Step 4: Users
             UsersView {
                 id: usersView
                 anchors.fill: parent
-                visible: currentStep === 3
+                visible: currentStep === 4
                 opacity: visible ? 1 : 0
 
                 branding: branding
@@ -385,20 +371,21 @@ ApplicationWindow {
                 surfaceColor: root.surfaceColor
                 textColor: root.textColor
                 textMutedColor: root.textMutedColor
-                accentColor: root.accentColor
                 errorColor: root.errorColor
                 successColor: root.successColor
+                warningColor: root.warningColor
 
                 Behavior on opacity {
                     NumberAnimation { duration: 300 }
                 }
             }
 
-            // Step 4: Partition
+            // Step 5: Partition
             PartitionView {
                 id: partitionView
+                objectName: "partitionView"
                 anchors.fill: parent
-                visible: currentStep === 4
+                visible: currentStep === 5
                 opacity: visible ? 1 : 0
 
                 disksModel: engine.disksModel
@@ -412,7 +399,7 @@ ApplicationWindow {
                 surfaceColor: root.surfaceColor
                 textColor: root.textColor
                 textMutedColor: root.textMutedColor
-                accentColor: root.accentColor
+                successColor: root.successColor
                 warningColor: root.warningColor
                 errorColor: root.errorColor
 
@@ -431,20 +418,17 @@ ApplicationWindow {
                 onEncryptionPassphraseSet: function(passphrase) {
                     engine.setEncryptionPassphrase(passphrase)
                 }
-                onEfiSizeChanged: function(sizeMb) {
-                    engine.setEfiSizeMb(sizeMb)
-                }
 
                 Behavior on opacity {
                     NumberAnimation { duration: 300 }
                 }
             }
 
-            // Step 5: Summary
+            // Step 6: Summary
             SummaryView {
                 id: summaryView
                 anchors.fill: parent
-                visible: currentStep === 5
+                visible: currentStep === 6
                 opacity: visible ? 1 : 0
 
                 // Bind chaque champ du résumé aux getters SCALAIRES notifiés du
@@ -467,47 +451,6 @@ ApplicationWindow {
                 confirmed: engine.confirmed
                 onConfirmedToggled: function(value) { engine.setConfirmed(value) }
 
-                distroName: branding.name
-                distroVersion: branding.version
-                distroLogo: branding.logoSmallUrl
-
-                uiScale: root.uiScale
-                primaryColor: root.primaryColor
-                backgroundColor: root.backgroundColor
-                surfaceColor: root.surfaceColor
-                textColor: root.textColor
-                textMutedColor: root.textMutedColor
-                accentColor: root.accentColor
-                warningColor: root.warningColor
-
-                onEditLocale: currentStep = 1
-                onEditUsers: currentStep = 3
-                onEditPartition: currentStep = 4
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 300 }
-                }
-            }
-
-            // Step 6: Progress
-            ProgressView {
-                id: progressView
-                anchors.fill: parent
-                visible: currentStep === 6
-                opacity: visible ? 1 : 0
-
-                overallProgress: engine.overallProgress
-                currentJobName: engine.currentJobName
-                currentJobMessage: engine.currentJobMessage
-                jobsList: engine.jobsList
-                installationStatus: engine.installationStatus
-                errorMessage: engine.errorMessage
-                isStalled: engine.isStalled
-                indeterminate: engine.indeterminate
-
-                distroName: branding.name
-                distroLogo: branding.logoSmallUrl
-
                 uiScale: root.uiScale
                 primaryColor: root.primaryColor
                 backgroundColor: root.backgroundColor
@@ -516,18 +459,49 @@ ApplicationWindow {
                 textMutedColor: root.textMutedColor
                 accentColor: root.accentColor
                 successColor: root.successColor
-                errorColor: root.errorColor
+                warningColor: root.warningColor
+
+                onEditLocale: currentStep = 1
+                onEditUsers: currentStep = 4
+                onEditPartition: currentStep = 5
 
                 Behavior on opacity {
                     NumberAnimation { duration: 300 }
                 }
             }
 
-            // Step 7: Finished
+            // Step 7: Progress
+            ProgressView {
+                id: progressView
+                anchors.fill: parent
+                visible: currentStep === 7
+                opacity: visible ? 1 : 0
+
+                overallProgress: engine.overallProgress
+                currentJobName: engine.currentJobName
+                currentJobMessage: engine.currentJobMessage
+                isStalled: engine.isStalled
+
+                distroLogo: branding.logoSmallUrl
+
+                uiScale: root.uiScale
+                primaryColor: root.primaryColor
+                backgroundColor: root.backgroundColor
+                surfaceColor: root.surfaceColor
+                textColor: root.textColor
+                textMutedColor: root.textMutedColor
+                warningColor: root.warningColor
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 300 }
+                }
+            }
+
+            // Step 8: Finished
             FinishedView {
                 id: finishedView
                 anchors.fill: parent
-                visible: currentStep === 7
+                visible: currentStep === 8
                 opacity: visible ? 1 : 0
 
                 success: installationSuccess
@@ -536,7 +510,6 @@ ApplicationWindow {
 
                 distroName: branding.name
                 distroLogo: branding.logoUrl
-                backgroundUrl: branding.backgroundUrl
                 websiteUrl: branding.websiteUrl
                 websiteLabel: branding.websiteLabel
 
@@ -550,6 +523,7 @@ ApplicationWindow {
                 surfaceColor: root.surfaceColor
                 textColor: root.textColor
                 textMutedColor: root.textMutedColor
+                accentColor: root.accentColor
                 successColor: root.successColor
                 errorColor: root.errorColor
 
@@ -558,10 +532,13 @@ ApplicationWindow {
                 onContinueClicked: Qt.quit()
                 onViewLogsClicked: fullLogDialog.open()
                 onRetryClicked: {
-                    // Repart d'un état propre : réinitialise le moteur/journal
-                    // puis relance l'installation depuis le début.
                     engine.resetInstallation()
-                    progressView.logMessages = []
+                    // Alongside and Manual choices describe the disk as it was before this attempt.
+                    if (engine.partitionMode !== "auto") {
+                        engine.refreshDisks()
+                        currentStep = 5
+                        return
+                    }
                     startInstallation()
                 }
 
@@ -575,7 +552,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             spacing: 16
-            visible: currentStep >= 1 && currentStep <= 5
+            visible: currentStep >= 1 && currentStep <= 6
 
             Text {
                 text: qsTr("Powered by Xen Installer")
@@ -619,6 +596,7 @@ ApplicationWindow {
 
             // Back button (bottom-right, before Next/Install)
             Button {
+                id: backButton
                 text: qsTr("Back")
                 onClicked: navigateBack()
 
@@ -626,14 +604,14 @@ ApplicationWindow {
                     implicitWidth: 100 * uiScale
                     implicitHeight: 40 * uiScale
                     radius: 8
-                    color: parent.pressed ? Qt.darker(surfaceColor, 1.2) :
-                           parent.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
+                    color: backButton.pressed ? Qt.darker(surfaceColor, 1.2) :
+                           backButton.hovered ? Qt.lighter(surfaceColor, 1.1) : surfaceColor
                     border.color: textMutedColor
                     border.width: 1
                 }
 
                 contentItem: Text {
-                    text: parent.text
+                    text: backButton.text
                     font.pixelSize: 14 * uiScale
                     color: textColor
                     horizontalAlignment: Text.AlignHCenter
@@ -643,24 +621,25 @@ ApplicationWindow {
 
             // Next/Install button (bottom-right corner)
             Button {
+                id: nextButton
                 objectName: "nextInstallButton"
-                text: currentStep === 5 ? qsTr("Install") : qsTr("Next")
+                text: currentStep === 6 ? qsTr("Install") : qsTr("Next")
                 enabled: canProceedToNext()
 
                 background: Rectangle {
                     implicitWidth: 120 * uiScale
                     implicitHeight: 40 * uiScale
                     radius: 8
-                    color: !parent.enabled ? Qt.darker(surfaceColor, 1.3) :
-                           parent.pressed ? Qt.darker(primaryColor, 1.2) :
-                           parent.hovered ? Qt.lighter(primaryColor, 1.1) : primaryColor
+                    color: !nextButton.enabled ? Qt.darker(surfaceColor, 1.3) :
+                           nextButton.pressed ? Qt.darker(primaryColor, 1.2) :
+                           nextButton.hovered ? Qt.lighter(primaryColor, 1.1) : primaryColor
                 }
 
                 contentItem: Text {
-                    text: parent.text
+                    text: nextButton.text
                     font.pixelSize: 14 * uiScale
                     font.bold: true
-                    color: parent.enabled ? textColor : textMutedColor
+                    color: nextButton.enabled ? textColor : textMutedColor
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -672,11 +651,17 @@ ApplicationWindow {
 
     // Navigation functions
     function navigateBack() {
-        if (currentStep > 0 && currentStep <= 5) {
+        // Calamares' PartitionViewStep::back(): Back from the manual editor
+        // returns to the choice page, it does not leave the Partition step.
+        if (currentStep === 5 && partitionView.manualEditorActive) {
+            partitionView.exitManualEditor()
+            return
+        }
+        if (currentStep > 0 && currentStep <= 6) {
             if (currentStep === 1) {
                 currentStep = 0  // Back to Welcome
-            } else if (currentStep === 3 && !engine.hasInternet) {
-                currentStep = 1  // Skip Packages (2): nothing to change offline
+            } else if (currentStep === 4 && !engine.hasInternet) {
+                currentStep = 2  // Skip Packages (3): nothing to change offline
             } else {
                 currentStep--
             }
@@ -684,37 +669,58 @@ ApplicationWindow {
     }
 
     function navigateNext() {
-        if (currentStep === 5) {
+        // Calamares' PartitionViewStep::next(): Next on the choice page,
+        // with Manual selected, swaps in the editor instead of leaving the
+        // step - see PartitionView.qml's enterManualEditor().
+        if (currentStep === 5 && engine.partitionMode === "manual" && !partitionView.manualEditorActive) {
+            partitionView.enterManualEditor()
+            return
+        }
+        if (currentStep === 6) {
             // Start installation
             startInstallation()
-        } else if (currentStep < 5) {
-            if (currentStep === 1 && !engine.hasInternet) {
-                currentStep = 3  // Skip Packages (2): nothing to fetch offline
+        } else if (currentStep < 6) {
+            // The pre-selected layout too, so the Users page types with it
+            if (currentStep === 2)
+                engine.applyKeyboardLayout(engine.selectedKeymap, engine.selectedKeyboardVariant)
+            if (currentStep === 2 && !engine.hasInternet) {
+                currentStep = 4  // Skip Packages (3): nothing to fetch offline
                 return
             }
             // Load data for next step if needed
-            if (currentStep === 3) {
-                engine.refreshDisks()  // Load disks before partition step (4)
+            if (currentStep === 4) {
+                engine.refreshDisks()  // Load disks before partition step (5)
             }
             currentStep++
         }
     }
 
     function canProceedToNext() {
+        // The scan mounts and checks the partitions the install is about to change.
+        if ((currentStep === 5 || currentStep === 6) && engine.disksScanning)
+            return false
         if (engine.skipValidation)
             return true
         switch (currentStep) {
             case 1:  // Locale
                 return engine.selectedLocale !== "" &&
-                       engine.selectedTimezone !== "" &&
-                       engine.selectedKeymap !== ""
-            case 3:  // Users
+                       engine.selectedTimezone !== ""
+            case 2:  // Keyboard
+                return engine.selectedKeymap !== ""
+            case 4:  // Users
                 return usersView.isValid
-            case 4:  // Partition
-                if (engine.partitionMode === "manual")
-                    return engine.selectedDisk !== "" && engine.manualPlanValid
-                return engine.selectedDisk !== ""
-            case 5:  // Summary
+            case 5:  // Partition
+                if (engine.partitionMode === "manual") {
+                    // Mirrors Calamares' PartitionViewStep::isNextEnabled():
+                    // on the choice page, Next just needs a disk picked (it
+                    // enters the editor); once the editor itself is active,
+                    // Next needs a valid plan to actually proceed.
+                    if (!partitionView.manualEditorActive)
+                        return engine.selectedDisk !== ""
+                    return engine.selectedDisk !== "" && engine.planValid
+                }
+                return partitionView.canProceed
+            case 6:  // Summary
                 // ITEM 2: n'arme l'installation que si l'utilisateur a coché la
                 // case de confirmation (garde-fou destructif côté backend aussi).
                 return engine.confirmed
@@ -725,8 +731,7 @@ ApplicationWindow {
 
     function startInstallation() {
         engine.applySelectionsToContext()
-        currentStep = 6  // Progress view
-        isInstalling = true
+        currentStep = 7  // Progress view
         engine.startInstallation()
     }
 
@@ -739,18 +744,9 @@ ApplicationWindow {
     Connections {
         target: engine
 
-        function onInstallationStarted() {
-            isInstalling = true
-        }
-
         function onInstallationFinished(success) {
-            isInstalling = false
             installationSuccess = success
-            currentStep = 7  // Go to Finished view
-        }
-
-        function onJobProgress(jobName, percent, message) {
-            console.log("Progress:", jobName, percent + "%", message)
+            currentStep = 8  // Go to Finished view
         }
 
         function onErrorOccurred(jobName, errorMessage) {
@@ -768,22 +764,18 @@ ApplicationWindow {
             // Also retranslate branding strings from Python translator
             branding.retranslate()
         }
-
-        function onLocaleChanged(locale) {
-            console.log("Locale updated:", locale)
-        }
     }
 
     // Keyboard shortcuts
     Shortcut {
         sequence: "Escape"
-        enabled: currentStep > 0 && currentStep <= 5
+        enabled: currentStep > 0 && currentStep <= 6
         onActivated: navigateBack()
     }
 
     Shortcut {
         sequence: "Return"
-        enabled: currentStep >= 1 && currentStep <= 5 && canProceedToNext()
+        enabled: currentStep >= 1 && currentStep <= 6 && canProceedToNext()
         onActivated: navigateNext()
     }
 
@@ -833,7 +825,7 @@ ApplicationWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.leftMargin: 24
                 text: fullLogDialog.title
-                font.pixelSize: 20
+                font.pixelSize: 20 * uiScale
                 font.bold: true
                 color: textColor
             }
@@ -873,7 +865,7 @@ ApplicationWindow {
                     selectByMouse: true
                     wrapMode: TextArea.Wrap
                     font.family: branding.fontMonospace
-                    font.pixelSize: 12
+                    font.pixelSize: 12 * uiScale
                     color: textColor
                     text: engine.installationLog
 
@@ -894,7 +886,7 @@ ApplicationWindow {
                     visible: fullLogDialog.uploadInProgress
                     text: qsTr("Sending…")
                     color: textMutedColor
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
                 }
 
                 TextField {
@@ -905,7 +897,7 @@ ApplicationWindow {
                     selectByMouse: true
                     text: fullLogDialog.uploadUrl
                     color: textColor
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
 
                     // Le style Fusion par défaut affiche un fond clair pour
                     // les TextField (palette embossée), ce qui rend le texte
@@ -920,20 +912,21 @@ ApplicationWindow {
                 }
 
                 Button {
+                    id: copyUrlButton
                     text: qsTr("Copy")
                     visible: !fullLogDialog.uploadInProgress && fullLogDialog.uploadUrl.length > 0
-                    height: 32
+                    Layout.preferredHeight: 32 * uiScale
 
                     background: Rectangle {
                         radius: 8
-                        color: parent.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
+                        color: copyUrlButton.pressed ? Qt.darker(backgroundColor, 1.2) : backgroundColor
                         border.color: textMutedColor
                         border.width: 1
                     }
 
                     contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 13
+                        text: copyUrlButton.text
+                        font.pixelSize: 13 * uiScale
                         color: textColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
@@ -950,7 +943,7 @@ ApplicationWindow {
                     visible: !fullLogDialog.uploadInProgress && fullLogDialog.uploadError.length > 0
                     text: qsTr("Sending failed: ") + fullLogDialog.uploadError
                     color: errorColor
-                    font.pixelSize: 13
+                    font.pixelSize: 13 * uiScale
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
@@ -1006,8 +999,8 @@ ApplicationWindow {
         engine.loadLocaleData()
 
         // Apply detected locale for UI translation
-        if (engine.detectedLocale && translator) {
-            var detectedBase = engine.detectedLocale.split(".")[0]
+        if (engine.detectedLocale && engine.isUiLanguageAvailable(engine.detectedLocale)) {
+            const detectedBase = engine.detectedLocale.split(".")[0]
             console.log("Early locale detection - applying UI language:", detectedBase)
             translator.setLocale(detectedBase)
         }

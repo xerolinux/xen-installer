@@ -327,7 +327,7 @@ class TestInstallWithRetry:
         with tempfile.TemporaryDirectory() as tmpdir:
             # First attempt fails, second succeeds
             mock_install.side_effect = [
-                JobResult.fail("Network error", error_code=33),
+                JobResult.fail("pacman failed with exit code 1", error_code=36),
                 JobResult.ok("Installed"),
             ]
 
@@ -347,7 +347,7 @@ class TestInstallWithRetry:
     def test_install_retry_max_attempts(self, _mock_sleep: Mock, mock_install: Mock) -> None:
         """Should fail after max retries."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            mock_install.return_value = JobResult.fail("Network error", error_code=33)
+            mock_install.return_value = JobResult.fail("pacman failed", error_code=36)
 
             job = PackagesJob()
             context = JobContext(target_root=tmpdir)
@@ -890,6 +890,15 @@ class TestGetPackageListBtrfsMerge:
         packages = job._get_package_list(context)
 
         assert packages == PackagesJob.ESSENTIAL_PACKAGES
+
+
+class TestExtraPackages:
+    @pytest.mark.parametrize("mode", ["essential", "desktop"])
+    def test_extra_packages_merged_in_every_mode(self, mode: str) -> None:
+        job = PackagesJob({"extra_packages": ["os-prober", "ntfs-3g", "base"]})
+        packages = job._get_package_list(JobContext(selections={"mode": mode}))
+        assert packages.count("base") == 1
+        assert {"os-prober", "ntfs-3g"} <= set(packages)
 
 
 # =============================================================================

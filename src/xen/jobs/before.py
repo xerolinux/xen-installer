@@ -9,6 +9,7 @@ after install and before systemconfig rebuilds the initramfs.
 
 from __future__ import annotations
 
+from xen.jobs.base import JobContext
 from xen.jobs.finalize import FinalizeJob
 
 
@@ -20,3 +21,7 @@ class BeforeJob(FinalizeJob):
     name = "before"
     description = "Run XeroLinux pre-configuration scripts"
     _label = "pre-configuration"
+
+    def _after_commands(self, target_root: str, context: JobContext) -> None:
+        # GRUB and snapper aren't configured yet at this point of the install.
+        return

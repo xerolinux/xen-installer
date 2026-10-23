@@ -203,7 +203,7 @@ class TestSelectionSourceOfTruth:
         """
         Chaque changement de sélection émet `selectionsChanged`. C'est le signal
         de notification qui, côté QML, rafraîchit les bindings descendants des
-        vues (username: engine.username, etc.) — donc la valeur re-apparaît au
+        vues (username: engine.username, etc.), donc la valeur re-apparaît au
         retour arrière et dans le résumé.
         """
         received: list[int] = []

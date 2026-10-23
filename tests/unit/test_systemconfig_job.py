@@ -15,6 +15,9 @@ def _write_conf(tmp_path: Path, hooks_line: str) -> str:
     return str(target_root)
 
 
+ENC_ROOT = {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoint": "/"}
+
+
 class TestGenerateCrypttab:
     """Mirrors Calamares's fstab module (crypttabOptions: luks): a
     crypttab entry for the encrypted root, alongside the kernel cmdline
@@ -28,7 +31,7 @@ class TestGenerateCrypttab:
         job = SystemConfigJob()
 
         result = job._generate_crypttab(
-            str(target), {"encryption": True, "root_partition": "/dev/vda2"}
+            str(target), {"partition_assignments": [ENC_ROOT]}
         )
 
         assert result.success is True
@@ -43,7 +46,9 @@ class TestGenerateCrypttab:
         worth failing on loudly."""
         job = SystemConfigJob()
 
-        result = job._generate_crypttab(str(tmp_path), {"encryption": True})
+        result = job._generate_crypttab(
+            str(tmp_path), {"partition_assignments": [{**ENC_ROOT, "raw_path": ""}]}
+        )
 
         assert result.success is False
         assert result.error_code == 107
@@ -68,7 +73,7 @@ class TestGenerateCrypttab:
         job = SystemConfigJob()
 
         result = job._generate_crypttab(
-            str(tmp_path), {"encryption": True, "root_partition": "/dev/vda2"}
+            str(tmp_path), {"partition_assignments": [ENC_ROOT]}
         )
 
         assert result.success is False
@@ -83,7 +88,7 @@ class TestGenerateCrypttab:
         job = SystemConfigJob()
 
         result = job._generate_crypttab(
-            str(target), {"encryption": True, "root_partition": "/dev/vda2"}
+            str(target), {"partition_assignments": [ENC_ROOT]}
         )
 
         assert result.success is True
@@ -153,6 +158,7 @@ class TestGenerateCrypttab:
             check=True,
             capture_output=True,
             text=True,
+            timeout=30,
         )
 
     @patch("subprocess.run")
@@ -185,7 +191,7 @@ class TestGenerateCrypttab:
                     "raw_path": "/dev/sda3",
                 },
             ],
-            "manual_luks_passphrases": {"sda3": "generated-pass"},
+            "luks_passphrases": {"sda3": "generated-pass"},
         }
 
         result = job._generate_crypttab(str(target), selections)
@@ -253,6 +259,7 @@ class TestGenerateCrypttab:
             check=True,
             capture_output=True,
             text=True,
+            timeout=30,
         )
         fstab_content = (target / "etc" / "fstab").read_text()
         assert fstab_content == "/dev/mapper/cryptswap none swap defaults 0 0\n"
@@ -398,7 +405,7 @@ class TestGenerateCrypttab:
                     "raw_path": "/dev/sda3",
                 },
             ],
-            # No manual_luks_passphrases - the /home entry fails.
+            # No luks_passphrases - the /home entry fails.
         }
 
         result = job._generate_crypttab(str(target), selections)
@@ -470,7 +477,7 @@ class TestConfigureMkinitcpioHooks:
         meaningless (and breaking mkinitcpio -P) on an installed target."""
         target = _write_conf(
             tmp_path,
-            "HOOKS=(base udev modconf kms memdisk archiso archiso_loop_mnt "
+            "HOOKS=(base udev microcode modconf kms memdisk archiso archiso_loop_mnt "
             "archiso_pxe_common archiso_pxe_nbd archiso_pxe_http "
             "archiso_pxe_nfs block filesystems keyboard)",
         )
@@ -482,19 +489,19 @@ class TestConfigureMkinitcpioHooks:
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
         for hook in SystemConfigJob._LIVE_ONLY_HOOKS:
             assert hook not in content
-        assert "HOOKS=(base udev modconf kms block filesystems keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf kms block filesystems keyboard)" in content
 
     def test_inserts_encrypt_before_filesystems_when_encryption_selected(
         self, tmp_path: Path
     ) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
-        result = job._configure_mkinitcpio_hooks(target, {"encryption": True})
+        result = job._configure_mkinitcpio_hooks(target, {"partition_assignments": [ENC_ROOT]})
 
         assert result.success is True
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf block encrypt filesystems keyboard)" in content
 
     def test_inserts_encrypt_for_manual_mode_encrypted_root(self, tmp_path: Path) -> None:
         """Regression: manual mode never sets the top-level "encryption"
@@ -504,7 +511,7 @@ class TestConfigureMkinitcpioHooks:
         "encrypt" hook never got added, and the initramfs had no way to
         unlock root at boot at all. Must resolve the same way
         bootloader.py's _resolve_root_encryption does."""
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(
@@ -523,26 +530,12 @@ class TestConfigureMkinitcpioHooks:
 
         assert result.success is True
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
-
-    def test_auto_mode_encryption_selection_still_inserts_encrypt(self, tmp_path: Path) -> None:
-        """AUTO mode's existing selections={"encryption": True} behavior
-        must be unchanged by routing through _resolve_root_encryption."""
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
-        job = SystemConfigJob()
-
-        result = job._configure_mkinitcpio_hooks(
-            target, {"encryption": True, "root_partition": "/dev/vda2"}
-        )
-
-        assert result.success is True
-        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf block encrypt filesystems keyboard)" in content
 
     def test_manual_mode_unencrypted_root_does_not_insert_encrypt(self, tmp_path: Path) -> None:
         """A manual-mode root that isn't itself encrypted (e.g. only /home
         is) must not spuriously get the "encrypt" hook."""
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(
@@ -563,17 +556,27 @@ class TestConfigureMkinitcpioHooks:
     def test_inserts_resume_after_filesystems_when_hibernate_selected(
         self, tmp_path: Path
     ) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(target, {"swap_strategy": "hibernate"})
 
         assert result.success is True
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block filesystems resume keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf block filesystems resume keyboard)" in content
+
+    def test_inserts_resume_for_an_unencrypted_swap_partition(self, tmp_path: Path) -> None:
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode block filesystems fsck)")
+        swap = {"path": "/dev/sdx3", "raw_path": "/dev/sdx3", "mountpoint": "swap", "fstype": "swap"}
+        result = SystemConfigJob()._configure_mkinitcpio_hooks(
+            target, {"swap_strategy": "none", "partition_assignments": [swap]}
+        )
+        assert result.success is True
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "HOOKS=(base udev microcode block filesystems resume fsck)" in content
 
     def test_noop_when_hooks_already_correct(self, tmp_path: Path) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(target, {})
@@ -618,7 +621,7 @@ class TestAddLuksKeyfileToFiles:
 
     def test_appends_keyfile_to_empty_files(self, tmp_path: Path) -> None:
         target = _write_conf_with_files(
-            tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)", "FILES=()"
+            tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)", "FILES=()"
         )
         job = SystemConfigJob()
 
@@ -633,7 +636,7 @@ class TestAddLuksKeyfileToFiles:
     def test_appends_keyfile_to_existing_files(self, tmp_path: Path) -> None:
         target = _write_conf_with_files(
             tmp_path,
-            "HOOKS=(base udev modconf block filesystems keyboard)",
+            "HOOKS=(base udev microcode modconf block filesystems keyboard)",
             "FILES=(/etc/some-other-file)",
         )
         job = SystemConfigJob()
@@ -649,7 +652,7 @@ class TestAddLuksKeyfileToFiles:
     def test_noop_when_keyfile_already_present(self, tmp_path: Path) -> None:
         target = _write_conf_with_files(
             tmp_path,
-            "HOOKS=(base udev modconf block filesystems keyboard)",
+            "HOOKS=(base udev microcode modconf block filesystems keyboard)",
             "FILES=(/etc/cryptsetup-keys.d/root.key)",
         )
         job = SystemConfigJob()
@@ -663,7 +666,7 @@ class TestAddLuksKeyfileToFiles:
 
     def test_noop_when_no_keyfile_configured(self, tmp_path: Path) -> None:
         target = _write_conf_with_files(
-            tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)", "FILES=()"
+            tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)", "FILES=()"
         )
         job = SystemConfigJob()
 
@@ -675,18 +678,18 @@ class TestAddLuksKeyfileToFiles:
 
     def test_combines_with_encrypt_hook_insertion(self, tmp_path: Path) -> None:
         target = _write_conf_with_files(
-            tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)", "FILES=()"
+            tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)", "FILES=()"
         )
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(
             target,
-            {"encryption": True, "luks_keyfile_path": "/etc/cryptsetup-keys.d/root.key"},
+            {"partition_assignments": [ENC_ROOT], "luks_keyfile_path": "/etc/cryptsetup-keys.d/root.key"},
         )
 
         assert result.success is True
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf block encrypt filesystems keyboard)" in content
         assert "FILES=(/etc/cryptsetup-keys.d/root.key)" in content
 
 
@@ -695,7 +698,7 @@ class TestAddBtrfsModule:
     for the initramfs to be able to mount a Btrfs root."""
 
     def test_adds_btrfs_module_when_filesystem_is_btrfs(self, tmp_path: Path) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(target, {"filesystem": "btrfs"})
@@ -705,7 +708,7 @@ class TestAddBtrfsModule:
         assert "MODULES=(btrfs)" in content
 
     def test_noop_when_filesystem_is_not_btrfs(self, tmp_path: Path) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(target, {"filesystem": "ext4"})
@@ -720,7 +723,7 @@ class TestAddBtrfsModule:
         conf_path.parent.mkdir(parents=True)
         conf_path.write_text(
             "MODULES=(btrfs)\n"
-            "HOOKS=(base udev modconf block filesystems keyboard)\n"
+            "HOOKS=(base udev microcode modconf block filesystems keyboard)\n"
             'COMPRESSION="zstd"\n'
         )
         job = SystemConfigJob()
@@ -736,7 +739,7 @@ class TestAddBtrfsModule:
         conf_path.parent.mkdir(parents=True)
         conf_path.write_text(
             "MODULES=(i915)\n"
-            "HOOKS=(base udev modconf block filesystems keyboard)\n"
+            "HOOKS=(base udev microcode modconf block filesystems keyboard)\n"
             'COMPRESSION="zstd"\n'
         )
         job = SystemConfigJob()
@@ -748,16 +751,16 @@ class TestAddBtrfsModule:
         assert "MODULES=(i915 btrfs)" in content
 
     def test_combines_with_encrypt_hook_insertion(self, tmp_path: Path) -> None:
-        target = _write_conf(tmp_path, "HOOKS=(base udev modconf block filesystems keyboard)")
+        target = _write_conf(tmp_path, "HOOKS=(base udev microcode modconf block filesystems keyboard)")
         job = SystemConfigJob()
 
         result = job._configure_mkinitcpio_hooks(
-            target, {"encryption": True, "filesystem": "btrfs"}
+            target, {"partition_assignments": [ENC_ROOT], "filesystem": "btrfs"}
         )
 
         assert result.success is True
         content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
-        assert "HOOKS=(base udev modconf block encrypt filesystems keyboard)" in content
+        assert "HOOKS=(base udev microcode modconf block encrypt filesystems keyboard)" in content
         assert "MODULES=(btrfs)" in content
 
 
@@ -793,12 +796,42 @@ class TestCheckKernelReadable:
         (boot_dir / "initramfs-linux.img").write_bytes(b"not a kernel")
         job = SystemConfigJob()
 
-        with patch.object(SystemConfigJob, "_find_live_kernel_image", return_value=None):
-            result = job._check_kernel_readable(str(target_root))
+        result = job._check_kernel_readable(str(target_root))
 
         assert result.success is False
         assert result.error_code == 106
         assert "initramfs-linux.img" in result.message
+
+    def test_recovers_the_kernel_matching_the_target_modules(self, tmp_path: Path) -> None:
+        """Regression: the kernel came from the live boot medium, whose version need not match
+        the extracted squashfs's modules (an explicit squashfs_path on another medium); mkinitcpio
+        then failed with "'/lib/modules/<live version>' is not a valid kernel module directory"."""
+        target_root = tmp_path / "target"
+        (target_root / "boot").mkdir(parents=True)
+        modules = target_root / "usr" / "lib" / "modules" / "7.2.10-arch1-1"
+        modules.mkdir(parents=True)
+        (modules / "vmlinuz").write_bytes(b"target kernel")
+        (modules / "pkgbase").write_text("linux\n")
+
+        result = SystemConfigJob()._check_kernel_readable(str(target_root))
+
+        assert result.success is True
+        assert (target_root / "boot" / "vmlinuz-linux").read_bytes() == b"target kernel"
+
+    def test_recovers_every_installed_kernel(self, tmp_path: Path) -> None:
+        target_root = tmp_path / "target"
+        (target_root / "boot").mkdir(parents=True)
+        for version, pkgbase in (("7.2.10-arch1-1", "linux"), ("6.18.9-1-lts", "linux-lts")):
+            modules = target_root / "usr" / "lib" / "modules" / version
+            modules.mkdir(parents=True)
+            (modules / "vmlinuz").write_bytes(pkgbase.encode())
+            (modules / "pkgbase").write_text(pkgbase)
+
+        assert SystemConfigJob()._check_kernel_readable(str(target_root)).success is True
+
+        boot = target_root / "boot"
+        assert (boot / "vmlinuz-linux").read_bytes() == b"linux"
+        assert (boot / "vmlinuz-linux-lts").read_bytes() == b"linux-lts"
 
 
 class TestRemoveLiveOnlyPresets:
@@ -873,3 +906,117 @@ class TestRebuildInitramfs:
         assert result.success is False
         assert "must be readable" in result.message
         assert result.error_code == 101
+
+
+def test_blkid_partuuid_has_timeout() -> None:
+    import subprocess
+
+    with patch(
+        "xen.jobs.systemconfig.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(["blkid"], 30),
+    ) as mock_run:
+        assert SystemConfigJob()._blkid_partuuid("/dev/sda3") is None
+    assert mock_run.call_args.kwargs.get("timeout")
+
+
+def test_snapshots_and_systemconfig_share_the_hooks_regex() -> None:
+    from xen.jobs import snapshots, systemconfig
+
+    assert snapshots.HOOKS_LINE is systemconfig.HOOKS_LINE
+
+
+GENFSTAB_WITH_ENCRYPTED_SWAP = """\
+# /dev/mapper/cryptroot
+UUID=1111-root	/         	ext4      	rw,relatime	0 1
+
+# /dev/vda1
+UUID=AB12-CD34      	/boot/efi 	vfat      	rw,relatime	0 2
+
+# /dev/mapper/cryptswap
+UUID=2222-install-time-swap	none      	swap      	defaults  	0 0
+
+# /dev/vda5
+UUID=3333-plain-swap	none      	swap      	defaults  	0 0
+
+"""
+CRYPT_SWAP = {"path": "/dev/mapper/cryptswap", "raw_path": "/dev/vda4", "mountpoint": "swap",
+              "fstype": "swap"}  # fmt: skip
+
+
+class TestGenerateFstab:
+    def _run(self, tmp_path: Path, output: str, selections: dict) -> str:
+        (tmp_path / "etc").mkdir()
+        with patch("xen.jobs.systemconfig.subprocess.run") as run:
+            run.return_value = Mock(stdout=output, returncode=0)
+            result = SystemConfigJob()._generate_fstab(str(tmp_path), selections)
+        assert result.success is True
+        return (tmp_path / "etc" / "fstab").read_text()
+
+    def test_drops_genfstab_entry_of_an_encrypted_swap_mapper(self, tmp_path: Path) -> None:
+        fstab = self._run(
+            tmp_path, GENFSTAB_WITH_ENCRYPTED_SWAP, {"partition_assignments": [CRYPT_SWAP]}
+        )
+        assert "2222-install-time-swap" not in fstab
+        assert "# /dev/mapper/cryptswap" not in fstab
+        assert "UUID=1111-root" in fstab and "UUID=AB12-CD34" in fstab
+        assert "UUID=3333-plain-swap" in fstab
+
+    def test_drops_entry_named_by_the_mappers_dm_node(self, tmp_path: Path) -> None:
+        output = GENFSTAB_WITH_ENCRYPTED_SWAP.replace("# /dev/mapper/cryptswap", "# /dev/dm-2")
+        real = {"/dev/mapper/cryptswap": "/dev/dm-2"}
+        with patch("xen.jobs.systemconfig.os.path.realpath", side_effect=lambda p: real.get(p, p)):
+            fstab = self._run(tmp_path, output, {"partition_assignments": [CRYPT_SWAP]})
+        assert "2222-install-time-swap" not in fstab and "UUID=3333-plain-swap" in fstab
+
+    @patch("xen.jobs.systemconfig.SystemConfigJob._blkid_partuuid", return_value="pu-4")
+    def test_one_mapper_swap_line_after_crypttab(self, _pu: Mock, tmp_path: Path) -> None:
+        selections = {"partition_assignments": [CRYPT_SWAP]}
+        self._run(tmp_path, GENFSTAB_WITH_ENCRYPTED_SWAP, selections)
+        SystemConfigJob()._generate_crypttab(str(tmp_path), selections)
+        swaps = [
+            line for line in (tmp_path / "etc" / "fstab").read_text().splitlines()
+            if line.strip() and not line.startswith("#") and line.split()[2] == "swap"
+        ]  # fmt: skip
+        assert [line.split()[0] for line in swaps] == [
+            "UUID=3333-plain-swap",
+            "/dev/mapper/cryptswap",
+        ]
+
+
+class TestMicrocodeHook:
+    def test_adds_microcode_right_after_autodetect(self, tmp_path: Path) -> None:
+        target = _write_conf(tmp_path, "HOOKS=(base udev autodetect modconf block filesystems)")
+        result = SystemConfigJob()._configure_mkinitcpio_hooks(target, {})
+        assert result.success is True
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "HOOKS=(base udev autodetect microcode modconf block filesystems)" in content
+
+    def test_adds_microcode_after_udev_without_autodetect(self, tmp_path: Path) -> None:
+        target = _write_conf(tmp_path, "HOOKS=(base udev modconf kms block encrypt filesystems keyboard)")
+        SystemConfigJob()._configure_mkinitcpio_hooks(target, {})
+        content = (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+        assert "HOOKS=(base udev microcode modconf kms block encrypt filesystems keyboard)" in content
+
+    def test_keeps_an_existing_microcode_hook(self, tmp_path: Path) -> None:
+        line = "HOOKS=(base microcode udev autodetect modconf block filesystems)"
+        target = _write_conf(tmp_path, line)
+        result = SystemConfigJob()._configure_mkinitcpio_hooks(target, {})
+        assert "already correct" in result.message
+        assert line in (Path(target) / "etc" / "mkinitcpio.conf").read_text()
+
+
+def test_restores_the_missing_kernel_when_another_one_is_present(tmp_path: Path) -> None:
+    target_root = tmp_path / "target"
+    boot = target_root / "boot"
+    boot.mkdir(parents=True)
+    (boot / "vmlinuz-linux").write_bytes(b"linux")
+    for version, pkgbase in (("7.2.10-arch1-1", "linux"), ("6.18.9-1-lts", "linux-lts")):
+        modules = target_root / "usr" / "lib" / "modules" / version
+        modules.mkdir(parents=True)
+        (modules / "vmlinuz").write_bytes(f"{pkgbase} from modules".encode())
+        (modules / "pkgbase").write_text(pkgbase)
+
+    assert SystemConfigJob()._check_kernel_readable(str(target_root)).success is True
+
+    assert (boot / "vmlinuz-linux").read_bytes() == b"linux"
+    assert (boot / "vmlinuz-linux-lts").read_bytes() == b"linux-lts from modules"

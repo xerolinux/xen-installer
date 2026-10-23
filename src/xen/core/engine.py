@@ -2,7 +2,7 @@
 Xen Engine - Core installation orchestrator.
 
 Handles configuration loading, job management, and execution pipeline.
-Runs in root context, separated from UI process.
+Runs in-process with the UI; the bridge drives run_all() from a worker thread.
 """
 
 import logging
@@ -27,11 +27,9 @@ class BrandingColors(BaseModel):
     secondary: str = "#A78BFA"
     accent: str = "#F59E0B"
     background: str = "#1F2937"
-    background_light: str = "#374151"
     surface: str = "#374151"
     text: str = "#F9FAFB"
     text_muted: str = "#9CA3AF"
-    text_on_primary: str = "#FFFFFF"
     success: str = "#10B981"
     warning: str = "#F59E0B"
     error: str = "#EF4444"
@@ -41,11 +39,9 @@ class BrandingColors(BaseModel):
         "secondary",
         "accent",
         "background",
-        "background_light",
         "surface",
         "text",
         "text_muted",
-        "text_on_primary",
         "success",
         "warning",
         "error",
@@ -62,20 +58,13 @@ class BrandingAssets(BaseModel):
     """Asset paths for UI branding."""
 
     logo: str = ""
-    logo_light: str = ""
     logo_small: str = ""
-    logo_256: str = ""
     background: str = ""
-    background_alt: str = ""
-    icon: str = ""
-    bootloader: str = ""
-    efi_icon: str = ""
     # Users view icons (configurable via theme)
     icon_user: str = ""
     icon_fullname: str = ""
     icon_hostname: str = ""
     icon_password: str = ""
-    icon_settings: str = ""
     icon_check: str = ""
     icon_cross: str = ""
 
@@ -84,7 +73,6 @@ class BrandingFonts(BaseModel):
     """Typography configuration."""
 
     primary: str = "Noto Sans"
-    display: str = "Noto Sans"
     monospace: str = "Noto Sans Mono"
 
 
@@ -103,9 +91,6 @@ class BrandingLinks(BaseModel):
 
     website: str = ""  # Main distribution website
     website_label: str = ""  # Display text for website link
-    git: str = ""  # Git repository URL
-    documentation: str = ""  # Documentation URL
-    support: str = ""  # Support/forum URL
 
 
 class BrandingConfig(BaseModel):
@@ -119,9 +104,6 @@ class BrandingConfig(BaseModel):
     strings: BrandingStrings = Field(default_factory=BrandingStrings)
     fonts: BrandingFonts = Field(default_factory=BrandingFonts)
     links: BrandingLinks = Field(default_factory=BrandingLinks)
-    # Category -> theme-relative SVG path for requirement icons, set from
-    # theme.yaml; falls back to the icons/requirements/cat-<name>.svg convention.
-    requirement_icons: dict[str, str] = Field(default_factory=dict)
 
 
 class JobDefinition(BaseModel):
@@ -131,16 +113,6 @@ class JobDefinition(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
-class AdvancedConfig(BaseModel):
-    """Advanced engine configuration."""
-
-    log_level: str = "info"
-    log_file: str = "/var/log/xen-install.log"
-    ipc_socket: str = "/run/xen/ipc.sock"
-    job_timeout: int = 3600
-    debug_mode: bool = False
-
-
 class XenConfig(BaseModel):
     """Root configuration model."""
 
@@ -148,7 +120,6 @@ class XenConfig(BaseModel):
     theme: str = ""  # Path to theme directory containing assets
     branding: BrandingConfig = Field(default_factory=BrandingConfig)
     jobs: list[JobDefinition | str] = Field(default_factory=list)
-    advanced: AdvancedConfig = Field(default_factory=AdvancedConfig)
 
     def normalize_jobs(self) -> list[JobDefinition]:
         """Convert all job entries to JobDefinition objects."""
@@ -179,8 +150,6 @@ class EngineState:
 
     current_job_index: int = -1
     total_jobs: int = 0
-    is_running: bool = False
-    is_finished: bool = False
     last_error: str | None = None
 
 
@@ -197,7 +166,7 @@ class Engine:
 
     Example:
         engine = Engine.from_config_file("xen.yaml")
-        engine.on_progress = lambda job, pct, msg: print(f"{job}: {pct}%")
+        engine.on_job_progress = lambda job, pct, msg: print(f"{job}: {pct}%")
         result = engine.run_all()
     """
 
@@ -213,7 +182,6 @@ class Engine:
     on_job_progress: Any | None = None  # (job_name: str, percent: int, msg: str) -> None
     on_job_complete: Any | None = None  # (job_name: str, result: JobResult) -> None
     on_error: Any | None = None  # (job_name: str, error: str) -> None
-    on_job_indeterminate: Any | None = None  # (job_name: str, active: bool) -> None
 
     def set_selections(self, selections: dict[str, Any]) -> None:
         """
@@ -235,9 +203,8 @@ class Engine:
         the fallback for anything the theme does not define. A missing, empty or
         invalid theme file is ignored (inline branding is used as-is).
 
-        Note: keys unknown to the branding models (e.g. ``colors.success``) are
-        accepted here but dropped at validation time, since those models only
-        expose a subset of fields.
+        Note: keys unknown to the branding models are accepted here but
+        dropped at validation time.
         """
         theme_rel = raw_config.get("theme")
         if not theme_rel:
@@ -264,7 +231,7 @@ class Engine:
             raw_config["branding"] = branding
 
         # Sub-sections whose keys map 1:1 onto the branding sub-models.
-        for section in ("colors", "fonts", "strings", "requirement_icons"):
+        for section in ("colors", "fonts", "strings"):
             values = theme.get(section)
             if isinstance(values, dict):
                 target = branding.get(section)
@@ -436,19 +403,15 @@ class Engine:
         """Get ordered list of job names."""
         return [job.name for job in self.jobs]
 
-    def get_job_descriptions(self) -> list[str]:
-        """Get ordered list of human-readable job descriptions (UI display labels)."""
-        return [job.description for job in self.jobs]
-
     def bootloader_type(self) -> str:
         """The bootloader this run installs: the bootloader job's own yaml
-        `type:` wins, then selections["bootloader"], then systemd-boot."""
+        `type:` wins, then selections["bootloader"], then GRUB."""
         for job in self.jobs:
             if job.name == BootloaderJob.name:
                 configured = job.config.get("type")
                 if configured:
                     return str(configured)
-        return str(self._selections.get("bootloader", BootloaderJob.SYSTEMD_BOOT))
+        return str(self._selections.get("bootloader", BootloaderJob.GRUB))
 
     def run_all(self, context: JobContext | None = None) -> bool:
         """
@@ -469,8 +432,6 @@ class Engine:
         # LUKS KDF choice) only see selections, not the bootloader job config.
         context.selections["bootloader"] = self.bootloader_type()
 
-        self.state.is_running = True
-        self.state.is_finished = False
         self.state.last_error = None
 
         for index, job in enumerate(self.jobs):
@@ -480,21 +441,8 @@ class Engine:
 
             if not result.success:
                 self.state.last_error = result.message
-                self.state.is_running = False
                 return False
 
-            layout = result.data.get("layout")
-            if isinstance(layout, dict):
-                for src_key, dst_key in (
-                    ("root", "root_partition"),
-                    ("efi", "efi_partition"),
-                    ("swap", "swap_partition"),
-                ):
-                    if layout.get(src_key):
-                        context.selections[dst_key] = str(layout[src_key])
-
-        self.state.is_running = False
-        self.state.is_finished = True
         return True
 
     def _run_single_job(self, job: BaseJob, context: JobContext) -> JobResult:
@@ -518,12 +466,7 @@ class Engine:
             if self.on_job_progress:
                 self.on_job_progress(job.name, percent, message)
 
-        def indeterminate_callback(active: bool) -> None:
-            if self.on_job_indeterminate:
-                self.on_job_indeterminate(job.name, active)
-
         context.on_progress = progress_callback
-        context.on_indeterminate = indeterminate_callback
         context.config = job._config
 
         # Validate. Skipped in dry-run: validate() checks real target-system

@@ -1,12 +1,4 @@
-"""
-Xen Installer - Entry point.
-
-This module handles:
-- Argument parsing
-- Process separation (UI vs Engine)
-- Application initialization
-- IPC between UI (unprivileged) and Engine (root)
-"""
+"""Xen Installer entry point."""
 
 from __future__ import annotations
 
@@ -18,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from xen import __version__
-from xen.core.engine import ConfigurationError
+from xen.core.engine import ConfigurationError, JobLoadError
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QGuiApplication, QIcon
@@ -67,26 +59,6 @@ def parse_args() -> argparse.Namespace:
         help="Display Qt platform information and exit",
     )
 
-    # IPC-related arguments
-    parser.add_argument(
-        "--engine",
-        action="store_true",
-        help="Run as engine server (requires root privileges)",
-    )
-
-    parser.add_argument(
-        "--socket",
-        type=Path,
-        default=None,
-        help="Path to IPC socket (default: /run/xen/ipc.sock)",
-    )
-
-    parser.add_argument(
-        "--no-fork",
-        action="store_true",
-        help="Run without forking engine process (for development/testing)",
-    )
-
     parser.add_argument(
         "--skip-requirements",
         action="store_true",
@@ -99,8 +71,6 @@ def parse_args() -> argparse.Namespace:
 
 def print_platform_info() -> None:
     """Display Qt platform and environment information."""
-    import os
-
     from PySide6.QtCore import QLibraryInfo, qVersion
     from PySide6.QtGui import QGuiApplication
 
@@ -156,7 +126,9 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
     Search order:
     1. Explicit path from --config
     2. xen.yaml in current directory
-    3. config/examples/xerolinux.yaml (development fallback)
+    3. config/examples/xerolinux.yaml relative to the current directory
+    4. /etc/xen/xerolinux.yaml (installed by the xen-cfg-* packages)
+    5. config/examples/xerolinux.yaml in the source checkout containing this module
     """
     if explicit_path is not None:
         if explicit_path.exists():
@@ -166,9 +138,6 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
             f"Create one with: cp xen.yaml.example xen.yaml"
         )
 
-    # Search locations: CWD, /etc, puis la config embarquée avec le paquet
-    # (paquet Arch : <prefix>/share/xen/config ; dépôt : <repo>/config),
-    # résolue en remontant depuis ce module.
     candidates = [
         Path("xen.yaml"),
         Path("config/examples/xerolinux.yaml"),
@@ -176,7 +145,6 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
     ]
     here = Path(__file__).resolve()
     for base in list(here.parents)[:6]:
-        candidates.append(base / "share" / "xen" / "config" / "examples" / "xerolinux.yaml")
         candidates.append(base / "config" / "examples" / "xerolinux.yaml")
 
     for candidate in candidates:
@@ -192,11 +160,9 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
 
 def find_qml_file() -> Path:
     """Locate the main QML file."""
-    # Check multiple possible locations
     candidates = [
         Path(__file__).parent / "gui" / "qml" / "Main.qml",
         Path("src/xen/gui/qml/Main.qml"),
-        Path("/usr/share/xen/qml/Main.qml"),
     ]
 
     for candidate in candidates:
@@ -294,21 +260,20 @@ def run_ui_mode(
     skip_requirements: bool = False,
 ) -> int:
     """
-    Run the UI process.
+    Run the installer.
 
-    Runs as a single process: the whole app (GUI + job execution) is
-    launched elevated via pkexec (see data/xen-polkit) - no separate
-    engine process or IPC hop.
-
-    Args:
-        config_path: Path to configuration file
-        debug: Enable debug mode
-        dry_run: Enable dry-run mode
-
-    Returns:
-        Exit code
+    The whole app (GUI and job execution) is a single process launched
+    elevated via pkexec (see data/xen-polkit), so it must be root unless
+    nothing is actually executed (--dry-run).
     """
-    # Import Qt modules here to avoid loading in engine mode
+    if os.geteuid() != 0 and not dry_run:
+        print(
+            "Error: Xen must run as root to install. Launch it through xen-polkit, "
+            "or pass --dry-run to try the interface without making changes.",
+            file=sys.stderr,
+        )
+        return 1
+
     from PySide6.QtCore import QUrl
     from PySide6.QtGui import QWindow
     from PySide6.QtQml import QQmlApplicationEngine
@@ -316,11 +281,13 @@ def run_ui_mode(
     from xen.core.engine import Engine
     from xen.gui.blur_behind import enable_blur_behind
     from xen.gui.bridge import EngineBridge
-    from xen.gui.theme_bridge import SystemThemeBridge
     from xen.gui.translator_proxy import TranslatorProxy
 
-    # Load configuration for branding info
-    engine = Engine.from_config_file(config_path)
+    try:
+        engine = Engine.from_config_file(config_path)
+    except (ConfigurationError, JobLoadError) as e:
+        print(f"Error: invalid configuration {config_path}: {e}", file=sys.stderr)
+        return 1
     branding = engine.get_branding()
 
     # Resolve theme path
@@ -351,15 +318,12 @@ def run_ui_mode(
 
     # Create translator proxy for live language switching
     translator_proxy = TranslatorProxy(engine=qml_engine)
-
-    # Live system palette (KDE color scheme, etc.), synced to QML
-    system_theme = SystemThemeBridge()
+    translator_proxy.languageChanged.connect(bridge.retranslate)
 
     # Expose bridge and translator to QML
     qml_engine.rootContext().setContextProperty("engine", bridge)
     qml_engine.rootContext().setContextProperty("branding", bridge.branding_proxy)
     qml_engine.rootContext().setContextProperty("translator", translator_proxy)
-    qml_engine.rootContext().setContextProperty("systemTheme", system_theme)
 
     # Load QML
     try:
@@ -383,18 +347,7 @@ def run_ui_mode(
 
 
 def main() -> int:
-    """
-    Application entry point.
-
-    Handles two modes:
-    1. --engine: Run as a standalone engine server over IPC (legacy;
-       nothing in the shipped app invokes this - see run_ui_mode's
-       docstring for the actual, single-process elevation model)
-    2. Normal: Run the GUI (elevated via pkexec/sudo, no forking)
-
-    Returns:
-        Exit code (0 = success)
-    """
+    """Application entry point. Returns the process exit code."""
     args = parse_args()
 
     # Qt Quick software backend by default: the installer runs on arbitrary
@@ -423,23 +376,6 @@ def main() -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Engine mode: run as IPC server
-    if args.engine:
-        from xen.launcher import DEFAULT_SOCKET_PATH, run_engine_server
-
-        socket_path = args.socket or DEFAULT_SOCKET_PATH
-        return run_engine_server(
-            config_path=config_path,
-            socket_path=socket_path,
-            debug=args.debug,
-            dry_run=args.dry_run,
-        )
-
-    # UI mode: run graphical interface. The whole process runs elevated via
-    # pkexec/sudo (see data/xen-polkit) - single process, no fork/IPC hop.
-    # --no-fork is accepted but has no effect: that was always the only
-    # correct way to run this (see run_ui_mode's docstring); kept as a
-    # no-op flag so existing invocations (data/xen-polkit) don't break.
     return run_ui_mode(
         config_path=config_path,
         debug=args.debug,

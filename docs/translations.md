@@ -16,11 +16,11 @@ This guide covers the translation workflow for Xen, including file generation, e
 ./scripts/compile_translations.sh --check-encoding
 ```
 
-### Generate Translation Templates
+### Update Translation Sources
 
 ```bash
-# Generate .ts files for all supported locales
-python scripts/generate_translations.py
+# Extract qsTr() strings from the QML into every xen_*.ts file
+python scripts/update_translations.py
 ```
 
 ### Fix Encoding Issues
@@ -40,19 +40,29 @@ python scripts/generate_translations.py
 
 ## Translation Workflow
 
-### 1. Update Translation Templates
+### 1. Update Translation Sources
 
-When you add new translatable strings in QML files:
+When you add or change translatable strings in QML files:
 
 ```bash
-# This script creates/updates .ts files for all supported locales
-python scripts/generate_translations.py
+python scripts/update_translations.py
 ```
 
-The script:
-- Creates new `.ts` files for locales that don't exist yet
-- Skips existing files to preserve translations
-- Uses UTF-8 encoding to prevent character issues
+Messages built in Python (partition errors, scan reasons, system checks, install
+progress) are wrapped in `msg("Template with {name}", name=value)` from
+`xen.i18n.messages`. The bridge translates them when QML reads them, so they follow
+the language picked on the Welcome page. The script collects every `msg("...")`
+literal into `build/python_messages.js` (context `Messages`) for lupdate.
+
+The script runs `lupdate` (`pyside6-lupdate`, `lupdate6` or Qt 6's `lupdate`,
+whichever is found first) over `src/xen/gui/qml` and updates every
+`src/xen/gui/translations/xen_*.ts` in place:
+- New strings are added as unfinished
+- Existing translations are preserved
+- Strings that no longer exist are kept as vanished; pass `--no-obsolete` to drop them
+
+To add a new locale, create `xen_<locale>.ts` with an empty `<TS version="2.1" language="<locale>">`,
+add `config/i18n/<locale>.conf` (the Welcome/Finish texts), and run the script.
 
 ### 2. Edit Translations
 
@@ -117,24 +127,12 @@ python -m xen.main --debug
 
 ## Supported Locales
 
-### Major Languages
-- **English:** `en_US`, `en_GB`
-- **French:** `fr_FR`
-- **German:** `de_DE`
-- **Spanish:** `es_ES`
-- **Italian:** `it_IT`
-- **Portuguese:** `pt_BR`, `pt_PT`
-- **Russian:** `ru_RU`
-- **Chinese:** `zh_CN`, `zh_TW`
-- **Japanese:** `ja_JP`
-- **Korean:** `ko_KR`
+One locale per `src/xen/gui/translations/xen_<locale>.ts` file (67 locales):
 
-### Other Languages
-- **Arabic:** `ar_SA`, `ar_EG`
-- **European:** `pl_PL`, `nl_NL`, `sv_SE`, `da_DK`, `nb_NO`, `fi_FI`, `cs_CZ`, `sk_SK`, `hu_HU`, `ro_RO`, `el_GR`, `tr_TR`, `uk_UA`, `bg_BG`
-- **Other:** `he_IL`, `hi_IN`, `th_TH`, `vi_VN`, `id_ID`, `ca_ES`, `eu_ES`, `gl_ES`
+`af_ZA`, `ar_SA`, `be_BY`, `bg_BG`, `bn_IN`, `bs_BA`, `ca_ES`, `cs_CZ`, `cy_GB`, `da_DK`, `de_DE`, `el_GR`, `en_US`, `eo`, `es_ES`, `et_EE`, `eu_ES`, `fa_IR`, `fi_FI`, `fil_PH`, `fr_FR`, `ga_IE`, `gl_ES`, `gu_IN`, `he_IL`, `hi_IN`, `hr_HR`, `hu_HU`, `hy_AM`, `id_ID`, `is_IS`, `it_IT`, `ja_JP`, `ka_GE`, `kk_KZ`, `kn_IN`, `ko_KR`, `lt_LT`, `lv_LV`, `mk_MK`, `ml_IN`, `mr_IN`, `ms_MY`, `nb_NO`, `nl_NL`, `nn_NO`, `pa_IN`, `pl_PL`, `pt_BR`, `pt_PT`, `ro_RO`, `ru_RU`, `sk_SK`, `sl_SI`, `sq_AL`, `sr_RS`, `sv_SE`, `sw_KE`, `ta_IN`, `te_IN`, `th_TH`, `tr_TR`, `uk_UA`, `uz_UZ`, `vi_VN`, `zh_CN`, `zh_TW`
 
-Total: **37 locales**
+Regional variants without their own file (`en_GB`, `fr_BE`, `ar_EG`, ...) fall back to
+the base language's file.
 
 ---
 
@@ -248,8 +246,7 @@ Text {
 ### 2. Update Translation Files
 
 ```bash
-# Regenerate templates (preserves existing translations)
-python scripts/generate_translations.py
+python scripts/update_translations.py
 ```
 
 ### 3. Add Translations
@@ -303,8 +300,8 @@ python -m xen.main --debug
    - Add to CI/CD pipeline
 2. **Version control .ts files**
    - Track translation progress
-3. **Don't commit .qm files to git**
-   - Generated files, rebuild from .ts
+3. **Commit .qm files together with their .ts changes**
+   - The wheel ships them as-is; nothing recompiles them at package build time
 4. **Document translation notes**
    - Add comments in .ts for context
 
@@ -342,15 +339,18 @@ Examples:
   ./scripts/compile_translations.sh --check-encoding
 ```
 
-### generate_translations.py
+### update_translations.py
 
 ```
-Usage: python scripts/generate_translations.py
+Usage: python scripts/update_translations.py [OPTIONS]
+
+Options:
+  --ts-dir DIR       Directory holding the xen_*.ts files (default: src/xen/gui/translations)
+  --no-obsolete      Drop strings that no longer appear in the QML
 
 Notes:
-  - Skips existing files to preserve translations
-  - Creates new .ts files for missing locales
-  - Automatically compiles to .qm after generation
+  - Requires lupdate (qt6-tools on Arch)
+  - Does not compile; run ./scripts/compile_translations.sh afterwards
 ```
 
 ---
@@ -438,13 +438,13 @@ rm src/xen/gui/translations/*.qm
 ### Tools
 
 - **Qt Linguist:** GUI editor for .ts files
-- **lrelease:** Compiler for .ts → .qm
-- **lupdate:** Extracts strings from source code (not used in Xen)
+- **lrelease:** Compiler for .ts to .qm
+- **lupdate:** Extracts strings from the QML (`scripts/update_translations.py`)
 
 ### Related Files
 
 - `src/xen/gui/translator_proxy.py` - Translation system implementation
 - `src/xen/gui/bridge.py` - Language switching logic
-- `scripts/generate_translations.py` - Template generator
+- `scripts/update_translations.py` - Updates .ts files from the QML
 - `scripts/compile_translations.sh` - Compilation script
 - `scripts/fix_translation_encoding.py` - Encoding fixer

@@ -14,15 +14,14 @@ picks up the grub-btrfs integration).
 from __future__ import annotations
 
 import logging
-import re
 import subprocess
 from pathlib import Path
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
+from xen.jobs.systemconfig import HOOKS_LINE
 
 logger = logging.getLogger(__name__)
-
-_HOOKS_LINE = re.compile(r"^HOOKS=\((?P<hooks>.*)\)\s*$", re.MULTILINE)
 
 # grub-btrfs's 41_snapshots-btrfs mounts root via /dev/disk/by-uuid to
 # enumerate snapshots for the boot menu - unreliable mid-install, and
@@ -124,44 +123,44 @@ class SnapshotsJob(BaseJob):
 
     def run(self, context: JobContext) -> JobResult:
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: snapshot configuration (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: snapshot configuration (dry run)"))
 
         if context.selections.get("filesystem") != "btrfs":
-            context.report_progress(100, "Not Btrfs, nothing to configure")
-            return JobResult.ok("Not Btrfs, skipping snapshot configuration")
+            context.report_progress(100, msg("Not Btrfs, nothing to configure"))
+            return JobResult.ok(msg("Not Btrfs, skipping snapshot configuration"))
 
         target_root = context.target_root
 
-        context.report_progress(10, "Writing Snapper config template...")
+        context.report_progress(10, msg("Writing Snapper config template..."))
         result = self._write_snapper_template(target_root)
         if not result.success:
             return result
 
-        context.report_progress(30, "Creating Snapper root config...")
+        context.report_progress(30, msg("Creating Snapper root config..."))
         result = self._create_snapper_config(target_root)
         if not result.success:
             return result
 
-        context.report_progress(50, "Installing grub-btrfs boot-menu units...")
+        context.report_progress(50, msg("Installing grub-btrfs boot-menu units..."))
         result = self._write_grub_btrfs_units(target_root)
         if not result.success:
             return result
 
-        context.report_progress(70, "Enabling snapshot services...")
+        context.report_progress(70, msg("Enabling snapshot services..."))
         result = self._enable_units(target_root)
         if not result.success:
             return result
 
-        context.report_progress(85, "Adding grub-btrfs-overlayfs hook...")
+        context.report_progress(85, msg("Adding grub-btrfs-overlayfs hook..."))
         result = self._add_overlayfs_hook(target_root)
         if not result.success:
             return result
 
         self._disable_snapshot_detection_script(target_root)
 
-        context.report_progress(100, "Snapshot configuration complete")
-        return JobResult.ok("Snapper and grub-btrfs configured")
+        context.report_progress(100, msg("Snapshot configuration complete"))
+        return JobResult.ok(msg("Snapper and grub-btrfs configured"))
 
     def _disable_snapshot_detection_script(self, target_root: str) -> None:
         """Renamed and stripped of its executable bit (see module comment
@@ -187,8 +186,11 @@ class SnapshotsJob(BaseJob):
             template_path.parent.mkdir(parents=True, exist_ok=True)
             template_path.write_text(_SNAPPER_TEMPLATE_CONTENT, encoding="utf-8")
         except OSError as e:
-            return JobResult.fail(f"Failed to write {template_path}: {e}", error_code=130)
-        return JobResult.ok("Snapper template written")
+            return JobResult.fail(
+                msg("Failed to write {path}: {error}", path=template_path, error=e),
+                error_code=130,
+            )
+        return JobResult.ok(msg("Snapper template written"))
 
     def _create_snapper_config(self, target_root: str) -> JobResult:
         # --no-dbus: snapperd isn't running inside arch-chroot.
@@ -211,15 +213,16 @@ class SnapshotsJob(BaseJob):
                 timeout=30,
             )
         except subprocess.TimeoutExpired:
-            return JobResult.fail("snapper create-config timed out", error_code=131)
+            return JobResult.fail(msg("snapper create-config timed out"), error_code=131)
         except FileNotFoundError:
-            return JobResult.fail("arch-chroot not found", error_code=132)
+            return JobResult.fail(msg("arch-chroot not found"), error_code=132)
 
         if result.returncode != 0:
             return JobResult.fail(
-                f"snapper create-config failed: {result.stderr}", error_code=133
+                msg("snapper create-config failed: {error}", error=result.stderr),
+                error_code=133,
             )
-        return JobResult.ok("Snapper root config created")
+        return JobResult.ok(msg("Snapper root config created"))
 
     def _write_grub_btrfs_units(self, target_root: str) -> JobResult:
         systemd_dir = Path(target_root) / "etc" / "systemd" / "system"
@@ -232,8 +235,10 @@ class SnapshotsJob(BaseJob):
                 _GRUB_BTRFS_SERVICE_UNIT, encoding="utf-8"
             )
         except OSError as e:
-            return JobResult.fail(f"Failed to write grub-btrfs units: {e}", error_code=134)
-        return JobResult.ok("grub-btrfs units written")
+            return JobResult.fail(
+                msg("Failed to write grub-btrfs units: {error}", error=e), error_code=134
+            )
+        return JobResult.ok(msg("grub-btrfs units written"))
 
     def _enable_units(self, target_root: str) -> JobResult:
         for unit in ("snapper-cleanup.timer", "grub-btrfs-snapper.path"):
@@ -245,13 +250,15 @@ class SnapshotsJob(BaseJob):
                     timeout=30,
                 )
             except subprocess.TimeoutExpired:
-                return JobResult.fail(f"systemctl enable {unit} timed out", error_code=135)
+                return JobResult.fail(
+                    msg("systemctl enable {unit} timed out", unit=unit), error_code=135
+                )
             except FileNotFoundError:
-                return JobResult.fail("arch-chroot not found", error_code=136)
+                return JobResult.fail(msg("arch-chroot not found"), error_code=136)
 
             if result.returncode != 0:
                 logger.warning(f"systemctl enable {unit} failed: {result.stderr}")
-        return JobResult.ok("Snapshot services enabled")
+        return JobResult.ok(msg("Snapshot services enabled"))
 
     def _add_overlayfs_hook(self, target_root: str) -> JobResult:
         """Lets you boot directly into a read-only snapshot via an
@@ -263,15 +270,19 @@ class SnapshotsJob(BaseJob):
         try:
             content = conf_path.read_text(encoding="utf-8")
         except OSError as e:
-            return JobResult.fail(f"Failed to read {conf_path}: {e}", error_code=137)
+            return JobResult.fail(
+                msg("Failed to read {path}: {error}", path=conf_path, error=e), error_code=137
+            )
 
-        match = _HOOKS_LINE.search(content)
+        match = HOOKS_LINE.search(content)
         if not match:
-            return JobResult.fail(f"No HOOKS=(...) line found in {conf_path}", error_code=138)
+            return JobResult.fail(
+                msg("No HOOKS=(...) line found in {path}", path=conf_path), error_code=138
+            )
 
         hooks = match.group("hooks").split()
         if "grub-btrfs-overlayfs" in hooks:
-            return JobResult.ok("grub-btrfs-overlayfs hook already present")
+            return JobResult.ok(msg("grub-btrfs-overlayfs hook already present"))
 
         hooks.append("grub-btrfs-overlayfs")
         new_line = f"HOOKS=({' '.join(hooks)})"
@@ -280,7 +291,9 @@ class SnapshotsJob(BaseJob):
         try:
             conf_path.write_text(new_content, encoding="utf-8")
         except OSError as e:
-            return JobResult.fail(f"Failed to write {conf_path}: {e}", error_code=139)
+            return JobResult.fail(
+                msg("Failed to write {path}: {error}", path=conf_path, error=e), error_code=139
+            )
 
         try:
             result = subprocess.run(
@@ -290,14 +303,16 @@ class SnapshotsJob(BaseJob):
                 timeout=180,
             )
         except subprocess.TimeoutExpired:
-            return JobResult.fail("mkinitcpio -P timed out", error_code=140)
+            return JobResult.fail(msg("mkinitcpio -P timed out"), error_code=140)
         except FileNotFoundError:
-            return JobResult.fail("arch-chroot not found", error_code=141)
+            return JobResult.fail(msg("arch-chroot not found"), error_code=141)
 
         if result.returncode != 0:
-            return JobResult.fail(f"mkinitcpio -P failed: {result.stderr}", error_code=142)
+            return JobResult.fail(
+                msg("mkinitcpio -P failed: {error}", error=result.stderr), error_code=142
+            )
 
-        return JobResult.ok("grub-btrfs-overlayfs hook added")
+        return JobResult.ok(msg("grub-btrfs-overlayfs hook added"))
 
     def estimate_duration(self) -> int:
         return 30

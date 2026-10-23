@@ -21,122 +21,16 @@ from xen.i18n.translator import Translator
 # Translations directory
 TRANSLATIONS_DIR = Path(__file__).parent.parent.parent / "src" / "xen" / "gui" / "translations"
 
-# All locales declared in the bridge.py LOCALE_NATIVE_NAMES
-# This list should match the locales defined in bridge.py
-DECLARED_LOCALES = [
-    "en_US",
-    "en_GB",
-    "en_CA",
-    "en_AU",
-    "en_NZ",
-    "en_IE",
-    "en_ZA",
-    "en_IN",
-    "fr_FR",
-    "fr_CA",
-    "fr_BE",
-    "fr_CH",
-    "fr_LU",
-    "de_DE",
-    "de_AT",
-    "de_CH",
-    "de_LU",
-    "de_LI",
-    "es_ES",
-    "es_MX",
-    "es_AR",
-    "es_CO",
-    "es_CL",
-    "es_PE",
-    "es_VE",
-    "it_IT",
-    "it_CH",
-    "pt_BR",
-    "pt_PT",
-    "ru_RU",
-    "uk_UA",
-    "be_BY",
-    "bg_BG",
-    "sr_RS",
-    "mk_MK",
-    "zh_CN",
-    "zh_TW",
-    "zh_HK",
-    "zh_SG",
-    "ja_JP",
-    "ko_KR",
-    "ar_SA",
-    "ar_EG",
-    "ar_MA",
-    "ar_DZ",
-    "ar_TN",
-    "ar_AE",
-    "he_IL",
-    "fa_IR",
-    "hi_IN",
-    "bn_IN",
-    "bn_BD",
-    "ta_IN",
-    "te_IN",
-    "mr_IN",
-    "gu_IN",
-    "kn_IN",
-    "ml_IN",
-    "pa_IN",
-    "th_TH",
-    "vi_VN",
-    "id_ID",
-    "ms_MY",
-    "tr_TR",
-    "el_GR",
-    "el_CY",
-    "pl_PL",
-    "nl_NL",
-    "nl_BE",
-    "sv_SE",
-    "sv_FI",
-    "da_DK",
-    "nb_NO",
-    "nn_NO",
-    "fi_FI",
-    "is_IS",
-    "cs_CZ",
-    "sk_SK",
-    "hu_HU",
-    "ro_RO",
-    "ro_MD",
-    "lt_LT",
-    "lv_LV",
-    "et_EE",
-    "sl_SI",
-    "hr_HR",
-    "bs_BA",
-    "ca_ES",
-    "eu_ES",
-    "gl_ES",
-    "cy_GB",
-    "ga_IE",
-    "sq_AL",
-]
+I18N_DIR = Path(__file__).parent.parent.parent / "config" / "i18n"
 
-# Core locales that must have full translations
-# Currently only EN and FR are complete - others are placeholders
-CORE_LOCALES = [
-    "en_US",
-    "fr_FR",
-]
+# Every language the Welcome page offers ships a .conf and a complete .ts
+CORE_LOCALES = sorted(conf.stem for conf in I18N_DIR.glob("*.conf"))
 
-# Extended locales that should have .ts files (may be incomplete)
-EXTENDED_LOCALES = [
-    "de_DE",
-    "es_ES",
-    "it_IT",
-    "pt_BR",
-    "ru_RU",
-    "zh_CN",
-    "ja_JP",
-    "ko_KR",
-]
+def _edges(text: str) -> tuple[str, str]:
+    return text[: len(text) - len(text.lstrip())], text[len(text.rstrip()) :]
+
+
+PLACEHOLDER = re.compile(r"%L?\d+|%n|\{[A-Za-z_][A-Za-z0-9_]*\}|<[^>]+>|&[a-z]+;")
 
 
 def get_existing_ts_locales() -> set[str]:
@@ -212,15 +106,6 @@ class TestTranslationFileExistence:
             f"Empty .qm files for core locales: {empty_files}. Add translations to .ts files."
         )
 
-    def test_extended_locales_have_ts_files(self) -> None:
-        """Verify extended locales have .ts files (may be incomplete)."""
-        existing = get_existing_ts_locales()
-        missing = []
-        for locale in EXTENDED_LOCALES:
-            if locale not in existing:
-                missing.append(locale)
-        assert not missing, f"Missing .ts files for extended locales: {missing}"
-
 
 class TestTranslationFileFormat:
     """Tests for translation file format and encoding."""
@@ -293,12 +178,36 @@ class TestTranslationContent:
             if translation is not None and translation.get("type") == "unfinished":
                 unfinished_count += 1
 
-        # Allow some unfinished for development, but not too many
-        max_allowed = 5 if locale != "en_US" else 0  # en_US should have no unfinished
-        assert unfinished_count <= max_allowed, (
-            f"xen_{locale}.ts has {unfinished_count} unfinished translations "
-            f"(max allowed: {max_allowed})"
-        )
+        assert unfinished_count == 0, f"xen_{locale}.ts has {unfinished_count} unfinished translations"
+
+    @pytest.mark.parametrize("locale", CORE_LOCALES)
+    def test_placeholders_and_markup_survive_translation(self, locale: str) -> None:
+        broken = []
+        for message in ET.parse(TRANSLATIONS_DIR / f"xen_{locale}.ts").getroot().iter("message"):
+            translation = message.find("translation")
+            if translation is None or translation.get("type") in ("vanished", "obsolete"):
+                continue
+            source = message.findtext("source") or ""
+            forms = [n.text or "" for n in translation.findall("numerusform")] or [translation.text or ""]
+            want = sorted(PLACEHOLDER.findall(source))
+            broken += [
+                source
+                for form in forms
+                if sorted(PLACEHOLDER.findall(form)) != want or _edges(form) != _edges(source)
+            ]
+        assert not broken, f"xen_{locale}.ts changes placeholders or markup in: {broken[:5]}"
+
+    def test_every_offered_language_is_translated(self) -> None:
+        from xen.gui.bridge import LOCALE_NATIVE_NAMES
+
+        translator = Translator()
+        untranslated = [
+            code
+            for code in LOCALE_NATIVE_NAMES
+            if not code.startswith("en")
+            and translator.resolve_locale(code).split("_")[0] != code.split(".")[0].split("_")[0]
+        ]
+        assert not untranslated, f"Offered but shown in English: {untranslated}"
 
     def test_en_us_has_source_equals_translation(self) -> None:
         """Verify en_US translation equals source (identity translation)."""
@@ -380,7 +289,8 @@ class TestRegionalLocaleFallback:
             ("de_CH", "de_DE"),
             ("de_AT", "de_DE"),
             ("en_GB", "en_US"),
-            ("pt_PT", "pt_BR"),
+            ("pt_AO", "pt_PT"),
+            ("nl_BE", "nl_NL"),
             ("es_MX", "es_ES"),
         ],
     )
@@ -390,14 +300,24 @@ class TestRegionalLocaleFallback:
         translator = Translator()
         assert translator.resolve_locale(requested) == expected
 
+    @pytest.mark.parametrize(
+        ("requested", "expected"),
+        [("zh_HK", "zh_TW"), ("zh_MO", "zh_TW"), ("zh_SG", "zh_CN"), ("zh_TW", "zh_TW")],
+    )
+    def test_chinese_regions_get_their_script(
+        self, tmp_path: Path, requested: str, expected: str
+    ) -> None:
+        for code in ("en_US", "zh_CN", "zh_TW"):
+            (tmp_path / f"{code}.conf").write_text("[common]\n")
+        assert Translator(i18n_dir=tmp_path).resolve_locale(requested) == expected
+
     def test_exact_locale_wins(self) -> None:
         translator = Translator()
         assert translator.resolve_locale("fr_FR") == "fr_FR"
 
     def test_unsupported_language_falls_back_to_english(self) -> None:
-        """GeoIP on a Belgian IP yields nl_BE; Xen ships no Dutch .conf."""
         translator = Translator()
-        assert translator.resolve_locale("nl_BE") == "en_US"
+        assert translator.resolve_locale("yo_NG") == "en_US"
 
     def test_encoding_suffix_is_ignored(self) -> None:
         """The kernel cmdline carries kbd.locale=fr_BE.UTF-8."""
@@ -406,7 +326,7 @@ class TestRegionalLocaleFallback:
 
     def test_belgian_boot_choice_loads_french_strings(self) -> None:
         translator = Translator(locale="fr_BE")
-        assert translator.get("next", section="buttons") != ""
-        assert translator.get("next", section="buttons") == Translator(locale="fr_FR").get(
-            "next", section="buttons"
+        assert translator.get("title", section="finished") != ""
+        assert translator.get("title", section="finished") == Translator(locale="fr_FR").get(
+            "title", section="finished"
         )

@@ -10,13 +10,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
+import "Units.js" as Units
 
 Item {
     id: root
+    objectName: "summaryView"
 
     // Signals
-    signal editSection(string section)
     signal editLocale()
     signal editUsers()
     signal editPartition()
@@ -51,16 +51,59 @@ Item {
     property string partitionModeValue: "auto"
     property string filesystemValue: ""
     property bool encryptionValue: false
+    readonly property bool manualMode: partitionModeValue === "manual"
 
-    // Distro info
-    property string distroName: ""
-    property string distroVersion: ""
-    property string distroLogo: ""
+    readonly property bool alongsideMode: partitionModeValue === "alongside"
+    readonly property string partitionModeText: manualMode ? qsTr("Manual")
+        : alongsideMode ? qsTr("Install alongside") : qsTr("Erase disk")
+
+    function fsName(fs) {
+        var names = { vfat: "fat32", fat: "fat32", swap: "linuxswap" }
+        return names[fs] || fs || ""
+    }
+
+    // What Install will do to each partition, from the bridge's simulated plan.
+    readonly property var manualPlanRows: {
+        var rows = []
+        if (!manualMode) return rows
+        if (engine.manualNewTable)
+            rows.push({ device: qsTr("Partition table:"), target: qsTr("new GPT table, every existing partition is removed") })
+        var segments = engine.planPreview
+        for (var i = 0; i < segments.length; i++) {
+            var seg = segments[i]
+            if (seg.kind !== "partition") continue
+            var device = seg.newRef ? qsTr("New partition") : (seg.path || "/dev/" + seg.name)
+            if (seg.pendingDelete) {
+                if (!engine.manualNewTable) rows.push({ device: device, target: qsTr("delete") })
+                continue
+            }
+            if (!seg.mountpoint && !seg.format && !seg.pending) continue
+            var parts = []
+            if (seg.mountpoint) parts.push(seg.mountpoint)
+            parts.push(seg.format ? qsTr("format as %1").arg(fsName(seg.fstype)) : qsTr("keep %1").arg(fsName(seg.fstype)))
+            if (seg.pending && !seg.format && !seg.newRef) parts.push(qsTr("resize to %1").arg(Units.humanSize(seg.sizeBytes)))
+            rows.push({ device: device, target: parts[0] + (parts.length > 1 ? "  (" + parts.slice(1).join(", ") + ")" : "") })
+        }
+        return rows
+    }
+
+    readonly property string alongsideText: {
+        if (!alongsideMode) return ""
+        var kept = null, created = null
+        var segments = engine.planPreview
+        for (var i = 0; i < segments.length; i++) {
+            if (segments[i].newRef) created = segments[i]
+            else if (segments[i].pending && segments[i].kind === "partition") kept = segments[i]
+        }
+        if (!kept || !created) return ""
+        return qsTr("%1 will be shrunk to %2 and a new %3 partition will be created for %4.")
+            .arg(kept.path).arg(Units.humanSize(kept.sizeBytes))
+            .arg(Units.humanSize(created.sizeBytes)).arg(branding.name)
+    }
 
     // Theme colors
     property real uiScale: 1.0
     property color primaryColor: "#5597e6"
-    property color secondaryColor: "#3a7bc8"
     property color accentColor: "#6b9ce8"
     property color backgroundColor: "#1a1a1a"
     property color surfaceColor: "#32373c"
@@ -68,10 +111,10 @@ Item {
     property color textMutedColor: "#9CA3AF"
     property color successColor: "#10B981"
     property color warningColor: "#F59E0B"
-    property color errorColor: "#EF4444"
 
     // Reusable "Edit" button - styling only, callers own onClicked.
     component EditButton: Button {
+        id: editButton
         text: qsTr("Edit")
         implicitWidth: 64 * root.uiScale
         implicitHeight: 30 * root.uiScale
@@ -79,7 +122,7 @@ Item {
 
         background: Rectangle {
             radius: 8
-            color: parent.pressed ? Qt.darker(root.backgroundColor, 1.2) : root.backgroundColor
+            color: editButton.pressed ? Qt.darker(root.backgroundColor, 1.2) : root.backgroundColor
             border.color: root.accentColor
             border.width: 1
 
@@ -89,7 +132,7 @@ Item {
         }
 
         contentItem: Text {
-            text: parent.text
+            text: editButton.text
             font.pixelSize: 13 * root.uiScale
             color: root.textColor
             horizontalAlignment: Text.AlignHCenter
@@ -98,17 +141,19 @@ Item {
     }
 
     // Reusable "Label:   Value" row used inside every section card.
-    component FieldRow: Row {
+    component FieldRow: RowLayout {
         property string fieldLabel: ""
         property string fieldValue: ""
         Layout.fillWidth: true
-        spacing: 10
+        spacing: 10 * root.uiScale
 
         Text {
             text: fieldLabel
             font.pixelSize: 12 * root.uiScale
             color: root.textMutedColor
-            width: 128
+            Layout.preferredWidth: 140 * root.uiScale
+            Layout.alignment: Qt.AlignTop
+            elide: Text.ElideRight
         }
 
         Text {
@@ -116,6 +161,8 @@ Item {
             font.pixelSize: 12 * root.uiScale
             font.bold: true
             color: root.textColor
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
         }
     }
 
@@ -123,7 +170,6 @@ Item {
     // disk/options cards, nested inside the mega card below.
     component SectionCard: Rectangle {
         default property alias content: sectionColumn.children
-        property alias sectionColumn: sectionColumn
 
         Layout.fillWidth: true
         Layout.preferredHeight: sectionColumn.implicitHeight + 18
@@ -155,7 +201,7 @@ Item {
         WheelHandler {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: function(event) {
-                var flickable = scrollView.contentItem
+                var flickable = scrollView.contentItem as Flickable
                 var multiplier = 3.0
                 var deltaY = event.angleDelta.y * multiplier
                 var newY = flickable.contentY - (deltaY / 120.0 * 40)
@@ -168,13 +214,15 @@ Item {
         // centers vertically instead of hugging the top with dead space
         // below on tall windows; taller content still scrolls normally.
         Item {
+            id: scrollContent
             width: scrollView.availableWidth
-            height: Math.max(pageColumn.implicitHeight, scrollView.availableHeight)
+            implicitHeight: Math.max(pageColumn.implicitHeight, root.height - 2 * scrollView.anchors.margins)
+            height: implicitHeight
 
             ColumnLayout {
                 id: pageColumn
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 24, 940 * uiScale)
+                width: Math.min(parent.width - 80, 940 * uiScale)
                 spacing: 8
 
                 // Title
@@ -204,9 +252,23 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: megaCardColumn.implicitHeight + 20
                     radius: 20
-                    color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.32)
-                    border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.4)
+                    color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, 0.55)
+                    border.color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.5)
                     border.width: 2
+
+                    // Ambient glow (z: -1 draws it behind the card itself).
+                    Repeater {
+                        model: 4
+                        delegate: Rectangle {
+                            readonly property int step: index + 1
+                            z: -1
+                            anchors.centerIn: parent
+                            width: megaCard.width + step * 18
+                            height: megaCard.height + step * 18
+                            radius: megaCard.radius + step * 9
+                            color: Qt.rgba(primaryColor.r, primaryColor.g, primaryColor.b, 0.05)
+                        }
+                    }
 
                     ColumnLayout {
                         id: megaCardColumn
@@ -331,7 +393,7 @@ Item {
                                     FieldRow {
                                         fieldLabel: qsTr("Installation Disk:")
                                         fieldValue: diskValue
-                                            ? (filesystemValue ? diskValue + " > " + filesystemValue.toUpperCase() : diskValue)
+                                            ? (filesystemValue && !manualMode ? diskValue + " > " + filesystemValue.toUpperCase() : diskValue)
                                             : qsTr("Not set")
                                     }
                                     FieldRow {
@@ -341,11 +403,24 @@ Item {
                                     }
                                     FieldRow {
                                         fieldLabel: qsTr("Partitioning:")
-                                        fieldValue: partitionModeValue === "auto" ? qsTr("Automatic") : qsTr("Manual")
+                                        fieldValue: partitionModeText
                                     }
                                     FieldRow {
+                                        visible: alongsideText !== ""
+                                        fieldLabel: qsTr("Changes:")
+                                        fieldValue: alongsideText
+                                    }
+                                    FieldRow {
+                                        visible: !manualMode
                                         fieldLabel: qsTr("Encryption:")
                                         fieldValue: encryptionValue ? qsTr("Enabled") : qsTr("Disabled")
+                                    }
+                                    Repeater {
+                                        model: manualPlanRows
+                                        FieldRow {
+                                            fieldLabel: modelData.device
+                                            fieldValue: modelData.target
+                                        }
                                     }
                                 }
 
@@ -429,8 +504,10 @@ Item {
                                     }
 
                                     contentItem: Text {
-                                        text: qsTr("I understand that the selected disk (%1) will be modified and erased.")
-                                            .arg(diskValue || qsTr("target disk"))
+                                        text: manualMode || alongsideMode
+                                            ? qsTr("I understand that the partitions listed above will be used as shown, and any partition marked for formatting will be erased.")
+                                            : qsTr("I understand that the selected disk (%1) will be modified and erased.")
+                                                .arg(diskValue || qsTr("target disk"))
                                         font.pixelSize: 12 * root.uiScale
                                         font.bold: true
                                         color: textColor
@@ -444,7 +521,6 @@ Item {
                     }
                 }
 
-                Item { height: 8 }
             }
         }
     }

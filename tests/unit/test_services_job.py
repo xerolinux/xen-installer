@@ -97,6 +97,32 @@ class TestRun:
             assert mock_run.call_count == 2
 
     @patch("subprocess.run")
+    def test_progress_uses_one_whole_sentence_per_action(self, mock_run: Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_run.return_value = Mock(stdout="", stderr="")
+            job = ServicesJob(
+                {"units": [{"name": "sshd", "action": "enable"}, {"name": "reflector", "action": "disable"}]}
+            )
+            context = JobContext(target_root=tmpdir)
+            context.on_progress = MagicMock()
+
+            job.run(context)
+
+            templates = [c.args[1].template for c in context.on_progress.call_args_list]
+            assert "Enabling {name}..." in templates
+            assert "Disabling {name}..." in templates
+
+    @patch("subprocess.run")
+    def test_mandatory_failure_names_the_service(self, mock_run: Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_run.side_effect = subprocess.CalledProcessError(1, "systemctl", stderr="fail")
+            job = ServicesJob({"units": [{"name": "sshd", "action": "enable", "mandatory": True}]})
+
+            result = job.run(JobContext(target_root=tmpdir))
+
+            assert result.message.template == "Required service {name} could not be enabled: {error}"
+
+    @patch("subprocess.run")
     def test_mandatory_failure_fails_job(self, mock_run: Mock) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_run.side_effect = subprocess.CalledProcessError(1, "systemctl", stderr="fail")

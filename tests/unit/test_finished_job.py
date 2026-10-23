@@ -20,6 +20,13 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_FINISHED_JOB, reason="FinishedJob not available")
 
 
+@pytest.fixture(autouse=True)
+def _no_host_swaps() -> object:
+    """Never let cleanup see (and swapoff) the test machine's own swaps."""
+    with patch("xen.jobs.finished._active_swaps", return_value=[]):
+        yield
+
+
 # =============================================================================
 # FinishedJob Initialization Tests
 # =============================================================================
@@ -75,8 +82,9 @@ class TestGenerateSummary:
                 "hostname": "testhost",
                 "disk": "/dev/sda",
                 "filesystem": "xfs",
-                "mode": "auto",
-                "swap_size": 4,
+                "partition_mode": "manual",
+                "mode": "essential",
+                "swap_strategy": "hibernate",
                 "username": "testuser",
                 "fullname": "Test User",
                 "locale": "fr_FR.UTF-8",
@@ -93,8 +101,8 @@ class TestGenerateSummary:
         # Verify partition info
         assert summary["partitions"]["disk"] == "/dev/sda"
         assert summary["partitions"]["filesystem"] == "xfs"
-        assert summary["partitions"]["mode"] == "auto"
-        assert summary["partitions"]["swap_size_gb"] == 4
+        assert summary["partitions"]["mode"] == "manual"
+        assert summary["partitions"]["swap"] == "hibernate"
 
         # Verify user info (no sensitive data)
         assert summary["user"]["username"] == "testuser"
@@ -124,21 +132,6 @@ class TestGenerateSummary:
         assert summary["locale"]["locale"] == "en_US.UTF-8"
         assert summary["partitions"] == {}
         assert summary["user"] == {}
-
-    def test_generate_summary_no_swap(self) -> None:
-        """Should omit swap_size_gb when swap is not used."""
-        job = FinishedJob()
-        context = JobContext(
-            selections={
-                "disk": "/dev/sda",
-                "swap_size": 0,  # No swap
-            }
-        )
-
-        summary = job._generate_summary(context)
-
-        assert "swap_size_gb" not in summary["partitions"]
-
 
 # =============================================================================
 # Log Saving Tests
@@ -210,35 +203,6 @@ class TestSaveLogs:
             summary_data = json.loads(summary_file.read_text())
             assert summary_data["timestamp"] == "2024-01-01T00:00:00"
             assert summary_data["system"]["hostname"] == "testhost"
-
-    def test_save_logs_copies_existing_logs(self) -> None:
-        """Should copy existing log files if available."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a fake log file
-            fake_log = Path("/tmp/xen.log")
-            try:
-                fake_log.write_text("Test log content", encoding="utf-8")
-
-                job = FinishedJob()
-                job._summary = {"test": "data"}
-                context = JobContext(
-                    target_root=tmpdir,
-                    selections={"save_logs": True},
-                )
-
-                result = job._save_logs(context)
-
-                assert result.success is True
-
-                # Verify log was copied
-                log_dir = Path(tmpdir) / "var" / "log" / "xen-installer"
-                log_files = list(log_dir.glob("xen-*.log"))
-                assert len(log_files) >= 1
-
-            finally:
-                # Cleanup
-                if fake_log.exists():
-                    fake_log.unlink()
 
     def test_save_logs_handles_errors_gracefully(self) -> None:
         """Should handle log saving errors gracefully (non-critical)."""
@@ -365,108 +329,44 @@ class TestCleanupMounts:
             # Both EFI and root should be unmounted
             assert mock_unmount.call_count >= 1
 
-    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
     @patch("subprocess.run")
-    def test_cleanup_deactivates_swap(self, mock_run: Mock, mock_unmount: Mock) -> None:
-        """Should deactivate swap partition if present."""
-        mock_unmount.return_value = True
+    def test_cleanup_closes_every_opened_mapper_including_swap(
+        self, mock_run: Mock, _unmount: Mock
+    ) -> None:
         mock_run.return_value = MagicMock(returncode=0)
-
         with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
             context = JobContext(
                 target_root=tmpdir,
-                selections={"swap_partition": "/dev/sda3"},
+                selections={"opened_mappers": ["cryptroot", "crypthome", "cryptswap"]},
             )
+            result = FinishedJob()._cleanup_mounts(context)
 
-            result = job._cleanup_mounts(context)
+        assert result.success is True
+        closes = [c[0][0] for c in mock_run.call_args_list if c[0][0][:2] == ["cryptsetup", "close"]]
+        assert closes == [
+            ["cryptsetup", "close", "cryptswap"],
+            ["cryptsetup", "close", "crypthome"],
+            ["cryptsetup", "close", "cryptroot"],
+        ]
 
-            assert result.success is True
-
-            # Verify swapoff was called
-            swapoff_calls = [call for call in mock_run.call_args_list if "swapoff" in call[0][0]]
-            assert len(swapoff_calls) >= 1
-
-    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
     @patch("subprocess.run")
-    def test_cleanup_closes_cryptroot_for_auto_mode(
-        self, mock_run: Mock, mock_unmount: Mock
+    def test_cleanup_closes_nothing_without_opened_mappers(
+        self, mock_run: Mock, _unmount: Mock
     ) -> None:
-        """AUTO mode's encrypted root must still get its mapper closed."""
-        mock_unmount.return_value = True
         mock_run.return_value = MagicMock(returncode=0)
-
         with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
-            context = JobContext(target_root=tmpdir, selections={"encryption": True})
-
-            result = job._cleanup_mounts(context)
-
-            assert result.success is True
-            luks_calls = [call for call in mock_run.call_args_list if "luksClose" in call[0][0]]
-            assert len(luks_calls) == 1
-            assert luks_calls[0][0][0] == ["cryptsetup", "luksClose", "cryptroot"]
-
-    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
-    @patch("subprocess.run")
-    def test_cleanup_closes_manual_mode_mapper(
-        self, mock_run: Mock, mock_unmount: Mock
-    ) -> None:
-        """A manual-mode encrypted partition (e.g. /home) must also get its
-        mapper closed on successful install, same as AUTO mode's root."""
-        mock_unmount.return_value = True
-        mock_run.return_value = MagicMock(returncode=0)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
-            context = JobContext(
-                target_root=tmpdir,
-                selections={
-                    "partition_assignments": [
-                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
-                        {"path": "/dev/sda1", "mountpoint": "/boot"},
-                    ]
-                },
-            )
-
-            result = job._cleanup_mounts(context)
-
-            assert result.success is True
-            luks_calls = [call for call in mock_run.call_args_list if "luksClose" in call[0][0]]
-            assert len(luks_calls) == 1
-            assert luks_calls[0][0][0] == ["cryptsetup", "luksClose", "crypthome"]
-
-    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
-    @patch("subprocess.run")
-    def test_cleanup_closes_both_auto_root_and_manual_mapper(
-        self, mock_run: Mock, mock_unmount: Mock
-    ) -> None:
-        """A mixed install (AUTO-style encrypted root plus a manually
-        encrypted non-root partition) must close both mappers."""
-        mock_unmount.return_value = True
-        mock_run.return_value = MagicMock(returncode=0)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
             context = JobContext(
                 target_root=tmpdir,
                 selections={
                     "encryption": True,
-                    "partition_assignments": [
-                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
-                    ],
+                    "partition_assignments": [{"path": "/dev/mapper/crypthome"}],
                 },
             )
+            FinishedJob()._cleanup_mounts(context)
 
-            result = job._cleanup_mounts(context)
-
-            assert result.success is True
-            closed_names = {
-                call[0][0][2]
-                for call in mock_run.call_args_list
-                if "luksClose" in call[0][0]
-            }
-            assert closed_names == {"cryptroot", "crypthome"}
+        assert not [c for c in mock_run.call_args_list if c[0][0][0] == "cryptsetup"]
 
     @patch("xen.jobs.finished.FinishedJob._safe_unmount")
     @patch("xen.jobs.finished.os.path.ismount")
@@ -474,54 +374,37 @@ class TestCleanupMounts:
     def test_cleanup_recursively_unmounts_before_closing_mappers(
         self, mock_run: Mock, mock_ismount: Mock, mock_unmount: Mock
     ) -> None:
-        """A manual non-root mount (e.g. /home) still active under
-        target_root must come down - via a recursive unmount covering
-        every submount, not just the hardcoded /boot/efi + root two-step -
-        BEFORE any LUKS mapper gets closed, or the close can race a
-        still-busy mount."""
         mock_unmount.return_value = True
         mock_ismount.return_value = True
         mock_run.return_value = MagicMock(returncode=0)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
-            context = JobContext(
-                target_root=tmpdir,
-                selections={
-                    "partition_assignments": [
-                        {"path": "/dev/mapper/crypthome", "mountpoint": "/home"},
-                    ]
-                },
-            )
-
-            result = job._cleanup_mounts(context)
+            context = JobContext(target_root=tmpdir, selections={"opened_mappers": ["crypthome"]})
+            result = FinishedJob()._cleanup_mounts(context)
 
         assert result.success is True
         calls = [call[0][0] for call in mock_run.call_args_list]
         recursive_unmount_index = next(
             i for i, cmd in enumerate(calls) if cmd[:2] == ["umount", "-R"]
         )
-        luks_close_index = next(i for i, cmd in enumerate(calls) if "luksClose" in cmd)
-        assert recursive_unmount_index < luks_close_index
+        close_index = calls.index(["cryptsetup", "close", "crypthome"])
+        assert recursive_unmount_index < close_index
 
     @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
     @patch("xen.jobs.finished.FinishedJob._safe_unmount_recursive", return_value=True)
     @patch("subprocess.run")
-    def test_cleanup_logs_failure_not_false_success_when_luks_close_fails(
+    def test_cleanup_logs_failure_not_false_success_when_close_fails(
         self,
         mock_run: Mock,
         mock_unmount_recursive: Mock,
         mock_unmount: Mock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A failed luksClose (e.g. mapper still busy) must be logged as a
-        failure, not unconditionally claimed as "Closed LUKS mapper ..."
-        regardless of whether the command actually succeeded."""
         mock_run.return_value = MagicMock(returncode=1, stderr="device is busy")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             job = FinishedJob()
-            context = JobContext(target_root=tmpdir, selections={"encryption": True})
+            context = JobContext(target_root=tmpdir, selections={"opened_mappers": ["cryptroot"]})
 
             with caplog.at_level(logging.WARNING, logger="xen.jobs.finished"):
                 result = job._cleanup_mounts(context)
@@ -531,11 +414,11 @@ class TestCleanupMounts:
         # visible, not silently claimed as success.
         assert result.success is True
         assert any(
-            "Failed to close LUKS mapper cryptroot" in record.message
+            "Failed to close mapper cryptroot" in record.message
             for record in caplog.records
         )
         assert not any(
-            "Closed LUKS mapper cryptroot" in record.message for record in caplog.records
+            "Closed mapper cryptroot" in record.message for record in caplog.records
         )
 
     @patch("xen.jobs.finished.FinishedJob._safe_unmount")
@@ -557,29 +440,6 @@ class TestCleanupMounts:
             assert result.error_code == 50
             assert "errors" in result.data
             assert len(result.data["errors"]) > 0
-
-    @patch("xen.jobs.finished.FinishedJob._safe_unmount")
-    @patch("subprocess.run")
-    def test_cleanup_handles_missing_swap_gracefully(
-        self, mock_run: Mock, mock_unmount: Mock
-    ) -> None:
-        """Should handle missing swapoff command gracefully."""
-        mock_unmount.return_value = True
-        mock_run.side_effect = FileNotFoundError("swapoff not found")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            job = FinishedJob()
-            context = JobContext(
-                target_root=tmpdir,
-                selections={"swap_partition": "/dev/sda3"},
-            )
-
-            result = job._cleanup_mounts(context)
-
-            # Should not fail completely due to missing swapoff
-            # (unmount succeeded, only swap deactivation failed)
-            assert result.success is True
-
 
 # =============================================================================
 # Action Preparation Tests
@@ -622,7 +482,6 @@ class TestPrepareAction:
 
         assert result.success is True
         assert result.data["action"] == "continue"
-        assert "message" in result.data
 
     def test_prepare_action_default(self) -> None:
         """Should default to continue if no action specified."""
@@ -910,3 +769,63 @@ class TestFinishedJobIntegration:
             assert result.success is False
             assert result.error_code == 50
             assert "cleanup_errors" in result.data
+
+
+class TestReviewFixes:
+    def test_save_logs_copies_the_resolved_install_log(self, tmp_path: Path) -> None:
+        log_file = tmp_path / "install.log"
+        log_file.write_text("Test log content", encoding="utf-8")
+        target = tmp_path / "target"
+        job = FinishedJob()
+        job._summary = {}
+
+        with patch("xen.jobs.finished.resolve_log_path", return_value=log_file):
+            result = job._save_logs(JobContext(target_root=str(target)))
+
+        assert result.success is True
+        copied = list((target / "var" / "log" / "xen-installer").glob("xen-*.log"))
+        assert [p.read_text(encoding="utf-8") for p in copied] == ["Test log content"]
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
+    def test_cleanup_swaps_off_this_installs_swaps_before_unmounting(self, _unmount: Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            order: list[str] = []
+            context = JobContext(
+                target_root=tmpdir,
+                selections={"target_swap_devices": ["/dev/mapper/cryptswap"]},
+            )
+            job = FinishedJob()
+            active = [f"{tmpdir}/swapfile", "/dev/mapper/cryptswap", "/dev/zram0"]
+
+            def run(cmd: list[str], **_kw: object) -> MagicMock:
+                order.append(" ".join(cmd))
+                return MagicMock(returncode=0)
+
+            with (
+                patch("xen.jobs.finished._active_swaps", return_value=active),
+                patch("xen.jobs.finished.subprocess.run", side_effect=run),
+                patch.object(
+                    job,
+                    "_safe_unmount_recursive",
+                    side_effect=lambda *_a: order.append("umount") or True,
+                ),
+            ):
+                result = job._cleanup_mounts(context)
+
+        assert result.success is True
+        assert order == [f"swapoff {tmpdir}/swapfile", "swapoff /dev/mapper/cryptswap", "umount"]
+
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount", return_value=True)
+    @patch("xen.jobs.finished.FinishedJob._safe_unmount_recursive", return_value=True)
+    def test_cleanup_reports_swap_that_could_not_be_deactivated(
+        self, _recursive: Mock, _unmount: Mock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir, (
+            patch("xen.jobs.finished._active_swaps", return_value=[f"{tmpdir}/swapfile"])
+        ), patch(
+            "xen.jobs.finished.subprocess.run", return_value=MagicMock(returncode=1, stderr="busy")
+        ):
+            result = FinishedJob()._cleanup_mounts(JobContext(target_root=tmpdir))
+
+        assert result.success is False
+        assert any("swap" in e for e in result.data["errors"])

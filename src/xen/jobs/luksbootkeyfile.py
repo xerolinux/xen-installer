@@ -18,6 +18,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from xen.i18n.messages import msg
 from xen.jobs.base import BaseJob, JobContext, JobResult
 from xen.jobs.partition import manual_has_separate_boot, resolve_root_encryption
 
@@ -35,57 +36,47 @@ class LuksBootKeyfileJob(BaseJob):
 
     def run(self, context: JobContext) -> JobResult:
         if context.selections.get("dry_run"):
-            context.report_progress(100, "Skipped (dry run)")
-            return JobResult.ok("Skipped: LUKS keyfile (dry run)")
+            context.report_progress(100, msg("Skipped (dry run)"))
+            return JobResult.ok(msg("Skipped: LUKS keyfile (dry run)"))
 
         selections = context.selections
-        if selections.get("partition_mode") == "manual":
-            is_encrypted, raw_partition = resolve_root_encryption(selections)
-            # Only GRUB decrypting root directly prompts twice. Anywhere else
-            # (systemd-boot, or GRUB with a plain /boot) the initramfs sits
-            # unencrypted, so embedding root's key there would expose it.
-            grub_decrypts_root = selections.get("bootloader") == "grub" and not (
-                manual_has_separate_boot(selections.get("partition_assignments", []))
+        is_encrypted, raw_partition = resolve_root_encryption(selections)
+        # Only GRUB decrypting root directly prompts twice. Anywhere else
+        # (systemd-boot, or GRUB with a plain /boot) the initramfs sits
+        # unencrypted, so embedding root's key there would expose it.
+        grub_decrypts_root = selections.get("bootloader") == "grub" and not (
+            manual_has_separate_boot(selections.get("partition_assignments", []))
+        )
+        if not is_encrypted or not grub_decrypts_root:
+            context.report_progress(100, msg("No LUKS boot keyfile needed"))
+            return JobResult.ok(msg("No LUKS boot keyfile needed"))
+        if not raw_partition:
+            return JobResult.fail(
+                msg("encrypted root but no raw root partition recorded"), error_code=110
             )
-            if not is_encrypted or not grub_decrypts_root:
-                context.report_progress(100, "No LUKS boot keyfile needed")
-                return JobResult.ok("No LUKS boot keyfile needed")
-            if not raw_partition:
-                return JobResult.fail(
-                    "encrypted root but no raw root partition recorded", error_code=110
-                )
-            # Root's own typed passphrase, carried forward from the live Apply.
-            root_name = raw_partition.rsplit("/", 1)[-1]
-            passphrase = str(selections.get("manual_luks_passphrases", {}).get(root_name, ""))
-        else:
-            if not selections.get("encryption"):
-                context.report_progress(100, "Encryption not enabled")
-                return JobResult.ok("Encryption not enabled, skipping LUKS keyfile")
-            raw_partition = selections.get("root_partition")
-            if not raw_partition:
-                return JobResult.fail(
-                    "encryption selected but no root_partition recorded", error_code=110
-                )
-            passphrase = str(selections.get("encryption_passphrase", ""))
+        root_name = raw_partition.rsplit("/", 1)[-1]
+        passphrase = str(selections.get("luks_passphrases", {}).get(root_name, ""))
 
         target_root = context.target_root
         if not passphrase:
-            return JobResult.fail("LUKS passphrase missing", error_code=111)
+            return JobResult.fail(msg("LUKS passphrase missing"), error_code=111)
 
         try:
-            context.report_progress(20, "Generating LUKS keyfile...")
+            context.report_progress(20, msg("Generating LUKS keyfile..."))
             write_result = self._write_keyfile(target_root)
             if not write_result.success:
                 return write_result
 
-            context.report_progress(60, "Adding keyfile to LUKS keyslots...")
+            context.report_progress(60, msg("Adding keyfile to LUKS keyslots..."))
             add_result = self._add_keyfile_to_luks(target_root, raw_partition, passphrase)
             if not add_result.success:
                 return add_result
 
             context.selections["luks_keyfile_path"] = self.KEYFILE_PATH
-            context.report_progress(100, "LUKS keyfile configured")
-            return JobResult.ok("LUKS keyfile added", data={"keyfile": self.KEYFILE_PATH})
+            context.report_progress(100, msg("LUKS keyfile configured"))
+            return JobResult.ok(
+                msg("LUKS keyfile added"), data={"keyfile": self.KEYFILE_PATH}
+            )
         finally:
             # SECURITY: clear the passphrase from memory in all cases.
             passphrase = ""  # noqa: F841
@@ -103,8 +94,10 @@ class LuksBootKeyfileJob(BaseJob):
             finally:
                 os.close(fd)
         except OSError as e:
-            return JobResult.fail(f"Failed to write LUKS keyfile: {e}", error_code=112)
-        return JobResult.ok("Keyfile written")
+            return JobResult.fail(
+                msg("Failed to write LUKS keyfile: {error}", error=e), error_code=112
+            )
+        return JobResult.ok(msg("Keyfile written"))
 
     def _add_keyfile_to_luks(
         self, target_root: str, raw_partition: str, passphrase: str
@@ -131,16 +124,16 @@ class LuksBootKeyfileJob(BaseJob):
                 timeout=300,
             )
         except subprocess.TimeoutExpired:
-            return JobResult.fail("cryptsetup luksAddKey timed out", error_code=113)
+            return JobResult.fail(msg("cryptsetup luksAddKey timed out"), error_code=113)
         except FileNotFoundError:
-            return JobResult.fail("cryptsetup not found", error_code=114)
+            return JobResult.fail(msg("cryptsetup not found"), error_code=114)
 
         if result.returncode != 0:
             logger.error(f"cryptsetup luksAddKey failed (exit code: {result.returncode})")
-            return JobResult.fail("Failed to add LUKS keyfile keyslot", error_code=115)
+            return JobResult.fail(msg("Failed to add LUKS keyfile keyslot"), error_code=115)
 
         logger.info("Added LUKS keyfile keyslot")
-        return JobResult.ok("Keyfile added to LUKS keyslots")
+        return JobResult.ok(msg("Keyfile added to LUKS keyslots"))
 
     def estimate_duration(self) -> int:
         return 10

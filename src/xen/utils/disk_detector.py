@@ -15,18 +15,41 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
+import tempfile
+from contextlib import suppress
 from typing import Any
+
+from xen.partitioning import fscaps, probe
 
 logger = logging.getLogger(__name__)
 
 # lsblk columns requested (bytes for SIZE, plus topology/identity fields).
-_LSBLK_COLUMNS = "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL,RM,HOTPLUG,TRAN,ROTA,PARTTYPENAME,START"
+_LSBLK_COLUMNS = (
+    "NAME,SIZE,TYPE,FSTYPE,MODEL,RM,HOTPLUG,TRAN,ROTA,PARTTYPENAME,START,LOG-SEC,PTTYPE,"
+    "PATH,PKNAME,PARTN,PARTTYPE,PARTUUID,PARTLABEL,LABEL,UUID,MOUNTPOINTS"
+)
+ESP_TYPE_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+LINUX_TYPE_GUID = "0fc63daf-8483-4772-8e79-3d69d8477de4"
+SWAP_TYPE_GUID = "0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
 
-# Disk geometry constants (lsblk reports START in 512-byte sectors).
+# lsblk START is always in 512-byte units, whatever the disk's logical sector
+# size; geometry handed to callers is in the disk's own logical sectors
+# (parted's "s" unit), see "sectorSize".
 _SECTOR_SIZE = 512
-_ALIGN = 2048  # 1 MiB alignment / first usable sector
 _GPT_TAIL = 34  # sectors reserved for the GPT secondary header
+_COMMAND_TIMEOUT = 10
+_GPT_ENTRIES_BYTES = 128 * 128
+
+
+def align_sectors(sector_size: int) -> int:
+    return 1024 * 1024 // sector_size
+
+
+def last_usable_sector(disk_sectors: int, sector_size: int) -> int:
+    backup = 1 + -(-_GPT_ENTRIES_BYTES // sector_size)
+    return max(0, disk_sectors - 1 - backup)
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -75,6 +98,41 @@ def _classify_part_type(fstype: str, parttypename: str) -> str:
     return "other"
 
 
+def _fallback_partition_path(disk: str, number: int) -> str:
+    base = disk.rsplit("/", 1)[-1]
+    sep = "p" if base[-1:].isdigit() else ""
+    return f"/dev/{base}{sep}{number}"
+
+
+def partition_path(disk: str, number: int) -> str:
+    base = disk.rsplit("/", 1)[-1]
+    try:
+        result = subprocess.run(
+            ["lsblk", "-J", "-l", "-o", "PATH,PKNAME,PARTN"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_COMMAND_TIMEOUT,
+        )
+        rows = json.loads(result.stdout).get("blockdevices", []) if result.returncode == 0 else []
+    except (json.JSONDecodeError, OSError, subprocess.TimeoutExpired):
+        rows = []
+    for row in rows:
+        if row.get("pkname") == base and row.get("partn") == number and row.get("path"):
+            return row["path"]
+    return _fallback_partition_path(base, number)
+
+
+def _resize_fields(fstype: str, mounted: bool) -> dict[str, Any]:
+    caps = fscaps.caps_for(fstype)
+    return {
+        "canShrink": caps.can_shrink and not mounted,
+        "canGrow": caps.can_grow and not mounted,
+        "minSizeBytes": 0,
+        "resizeBlockedReason": probe.REASON_IN_USE if mounted else caps.blocked_reason,
+    }
+
+
 def _live_source() -> str | None:
     """
     Return the block-device source backing the live root filesystem.
@@ -89,8 +147,9 @@ def _live_source() -> str | None:
             check=False,
             capture_output=True,
             text=True,
+            timeout=_COMMAND_TIMEOUT,
         )
-    except (FileNotFoundError, OSError) as exc:
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         logger.warning("findmnt unavailable, cannot detect live disk: %s", exc)
         return None
 
@@ -139,79 +198,43 @@ def _is_live_disk(device: dict[str, Any], live_source: str | None) -> bool:
     return False
 
 
-def _finalize_mock_disk(disk: dict[str, Any]) -> dict[str, Any]:
-    """Lay mock partitions out sequentially and attach geometry + segments."""
-    disk_sectors = int(disk["sizeBytes"]) // _SECTOR_SIZE
-    cursor = _ALIGN
-    for part in disk["partitions"]:
-        size_sectors = int(part["sizeBytes"]) // _SECTOR_SIZE
-        part["startSector"] = cursor
-        part["sizeSectors"] = size_sectors
-        part["endSector"] = cursor + size_sectors - 1
-        cursor += size_sectors
-    disk["sizeSectors"] = disk_sectors
-    disk["sectorSize"] = _SECTOR_SIZE
-    disk["segments"] = _compute_segments(disk_sectors, disk["partitions"])
-    return disk
-
-
-def _mock_disks() -> list[dict[str, Any]]:
-    """Return a deterministic mock disk list using the shared UI contract."""
-    _disks = [
-        {
-            "name": "sda",
-            "model": "Mock SSD 500G",
-            "size": _format_size(500 * 1024**3),
-            "sizeBytes": 500 * 1024**3,
-            "type": "SSD",
-            "removable": False,
-            "partitions": [
-                {
-                    "name": "sda1",
-                    "sizeBytes": 512 * 1024**2,
-                    "fstype": "vfat",
-                    "partType": "efi",
-                },
-                {
-                    "name": "sda2",
-                    "sizeBytes": 499 * 1024**3,
-                    "fstype": "ext4",
-                    "partType": "linux",
-                },
-            ],
-        },
-        {
-            "name": "nvme0n1",
-            "model": "Mock NVMe 1T",
-            "size": _format_size(1024**4),
-            "sizeBytes": 1024**4,
-            "type": "SSD",
-            "removable": False,
-            "partitions": [],
-        },
-    ]
-    return [_finalize_mock_disk(d) for d in _disks]
-
-
-def _build_partition(child: dict[str, Any]) -> dict[str, Any]:
+def _build_partition(child: dict[str, Any], sector_size: int, disk_name: str) -> dict[str, Any]:
     """Build a single partition dict from an lsblk child node."""
+    name = child.get("name", "")
     fstype = child.get("fstype") or ""
     parttypename = child.get("parttypename") or ""
+    part_type_guid = (child.get("parttype") or "").lower()
     size_bytes = int(child.get("size", 0) or 0)
-    start_sector = int(child.get("start", 0) or 0)
-    size_sectors = size_bytes // _SECTOR_SIZE
+    start_sector = int(child.get("start", 0) or 0) * _SECTOR_SIZE // sector_size
+    size_sectors = size_bytes // sector_size
+    # a holder (opened LUKS, LVM, RAID) keeps the partition busy even with no mountpoint of its own
+    mounted = any(child.get("mountpoints") or []) or bool(child.get("children"))
     return {
-        "name": child.get("name", ""),
+        "name": name,
+        "path": child.get("path") or f"/dev/{name}",
+        "disk": disk_name,
+        "number": int(child.get("partn") or 0),
         "sizeBytes": size_bytes,
         "fstype": fstype,
         "partType": _classify_part_type(fstype, parttypename),
+        "partTypeGuid": part_type_guid,
+        "partUuid": child.get("partuuid") or "",
+        "partLabel": child.get("partlabel") or "",
+        "label": child.get("label") or "",
+        "isEsp": part_type_guid == ESP_TYPE_GUID,
+        "mounted": mounted,
+        "bitlocker": fstype == "BitLocker",
+        "osName": "",
+        **_resize_fields(fstype, mounted),
         "startSector": start_sector,
         "sizeSectors": size_sectors,
         "endSector": (start_sector + size_sectors - 1) if size_sectors else start_sector,
     }
 
 
-def _compute_segments(disk_sectors: int, partitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def compute_segments(
+    disk_sectors: int, partitions: list[dict[str, Any]], sector_size: int = _SECTOR_SIZE
+) -> list[dict[str, Any]]:
     """
     Interleave partitions and free-space regions across the whole disk.
 
@@ -221,20 +244,21 @@ def _compute_segments(disk_sectors: int, partitions: list[dict[str, Any]]) -> li
     are omitted so the UI only offers usable gaps.
     """
     segments: list[dict[str, Any]] = []
-    usable_end = max(0, disk_sectors - _GPT_TAIL)
-    cursor = _ALIGN
+    usable_end = last_usable_sector(disk_sectors, sector_size)
+    align = align_sectors(sector_size)
+    cursor = align
 
     def add_free(start: int, end: int) -> None:
         # Only surface gaps larger than the 1 MiB alignment unit; sub-MiB gaps
         # are padding (GPT headers, alignment) and never usable for a partition.
-        if end - start + 1 > _ALIGN:
+        if end - start + 1 > align:
             segments.append(
                 {
                     "kind": "free",
                     "startSector": start,
                     "endSector": end,
                     "sizeSectors": end - start + 1,
-                    "sizeBytes": (end - start + 1) * _SECTOR_SIZE,
+                    "sizeBytes": (end - start + 1) * sector_size,
                 }
             )
 
@@ -259,43 +283,55 @@ def _build_disk(device: dict[str, Any]) -> dict[str, Any]:
     is_rotational = _coerce_bool(device.get("rota"))
     removable = _coerce_bool(device.get("hotplug")) or _coerce_bool(device.get("rm"))
 
+    sector_size = int(device.get("log-sec") or _SECTOR_SIZE)
+    name = device.get("name", "")
     partitions = [
-        _build_partition(child)
+        _build_partition(child, sector_size, name)
         for child in device.get("children", [])
         if child.get("type") == "part"
     ]
 
-    disk_sectors = size_bytes // _SECTOR_SIZE
     return {
-        "name": device.get("name", ""),
+        "name": name,
         "model": model,
         "size": _format_size(size_bytes),
         "sizeBytes": size_bytes,
-        "sizeSectors": disk_sectors,
-        "sectorSize": _SECTOR_SIZE,
+        "sizeSectors": size_bytes // sector_size,
+        "sectorSize": sector_size,
+        "ptType": device.get("pttype") or "",
         "type": "HDD" if is_rotational else "SSD",
+        "transport": (device.get("tran") or "").lower(),
         "removable": removable,
         "partitions": partitions,
-        "segments": _compute_segments(disk_sectors, partitions),
     }
 
 
-def list_disks() -> list[dict[str, Any]]:
-    """
-    Enumerate installable disks, excluding the live system disk.
+def _probe_partitions(parts: list[dict[str, Any]]) -> None:
+    scratch = tempfile.mkdtemp(prefix="xen-scan-")
+    try:
+        for part in parts:
+            if part["mounted"]:
+                continue
+            result = probe.probe_partition(part, scratch)
+            part.update(result)
+            part["canShrink"] = part["canShrink"] and not part["resizeBlockedReason"]
+            if part["bitlocker"]:
+                part["canShrink"] = part["canGrow"] = False
+    finally:
+        # never rmtree: a failed umount would leave the scanned filesystem underneath
+        with suppress(OSError):
+            os.rmdir(scratch)
+    for path, name in probe.detect_os(parts).items():
+        for part in parts:
+            if part["path"] == path:
+                part["osName"] = name
 
-    Returns a list of dicts following the shared UI histobar contract::
 
-        {
-          "name": str, "model": str, "size": str, "sizeBytes": int,
-          "type": "SSD" | "HDD", "removable": bool,
-          "partitions": [
-            {"name": str, "sizeBytes": int, "fstype": str, "partType": str}
-          ]
-        }
+def list_disks(probe: bool = False) -> list[dict[str, Any]]:
+    """Installable disks (the live medium excluded) as UI dicts.
 
-    On any failure of ``lsblk`` (missing binary, non-zero exit, malformed JSON)
-    a mock list following the same contract is returned and a warning logged.
+    A failed lsblk gives [].
+    ``probe=True`` adds the slow read-only min-size and OS probes; call it off the UI thread.
     """
     try:
         result = subprocess.run(
@@ -303,17 +339,14 @@ def list_disks() -> list[dict[str, Any]]:
             check=False,
             capture_output=True,
             text=True,
+            timeout=_COMMAND_TIMEOUT,
         )
         if result.returncode != 0:
-            logger.warning("lsblk returned %d, using mock disks", result.returncode)
-            return _mock_disks()
+            raise OSError(f"lsblk returned {result.returncode}: {result.stderr.strip()}")
         data = json.loads(result.stdout)
-    except FileNotFoundError:
-        logger.warning("lsblk not found, using mock disks")
-        return _mock_disks()
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("lsblk output unusable (%s), using mock disks", exc)
-        return _mock_disks()
+    except (json.JSONDecodeError, OSError, subprocess.TimeoutExpired) as exc:
+        logger.error("Disk scan failed: %s", exc)
+        return []
 
     live_source = _live_source()
     candidates: list[dict[str, Any]] = []
@@ -345,4 +378,11 @@ def list_disks() -> list[dict[str, Any]]:
     elif len(non_live) < len(candidates):
         logger.debug("Excluded %d live disk(s)", len(candidates) - len(non_live))
 
-    return [_build_disk(device) for device in devices_to_show]
+    disks = [_build_disk(device) for device in devices_to_show]
+    if probe:
+        _probe_partitions([part for disk in disks for part in disk["partitions"]])
+    for disk in disks:
+        disk["segments"] = compute_segments(
+            disk["sizeSectors"], disk["partitions"], disk["sectorSize"]
+        )
+    return disks

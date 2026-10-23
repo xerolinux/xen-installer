@@ -4,11 +4,31 @@ Base Job interface for Xen Installer.
 All installation jobs must inherit from BaseJob and implement the required methods.
 """
 
+import logging
+import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def blkid_uuid(device: str) -> str | None:
+    """Get the filesystem/LUKS UUID of a raw device, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["blkid", "-s", "UUID", "-o", "value", device],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.warning(f"blkid failed for {device}: {e}")
+        return None
+    return result.stdout.strip() or None
 
 
 class JobStatus(Enum):
@@ -18,7 +38,6 @@ class JobStatus(Enum):
     RUNNING = auto()
     COMPLETED = auto()
     FAILED = auto()
-    SKIPPED = auto()
 
 
 @dataclass(frozen=True)
@@ -63,18 +82,10 @@ class JobContext:
     # Callback for progress updates (percent: 0-100, message: str)
     on_progress: Callable[[int, str], None] | None = None
 
-    # Callback for the indeterminate flag (progress without a reliable total)
-    on_indeterminate: Callable[[bool], None] | None = None
-
     def report_progress(self, percent: int, message: str = "") -> None:
         """Report progress to the UI."""
         if self.on_progress:
             self.on_progress(min(100, max(0, percent)), message)
-
-    def report_indeterminate(self, active: bool) -> None:
-        """Signale à l'UI que la progression est vivante mais sans total fiable."""
-        if self.on_indeterminate:
-            self.on_indeterminate(active)
 
 
 class BaseJob(ABC):

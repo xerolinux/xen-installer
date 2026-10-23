@@ -21,13 +21,15 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Check if lrelease is available
-if command -v pyside6-lrelease &> /dev/null; then
-    LRELEASE="pyside6-lrelease"
-elif command -v lrelease &> /dev/null; then
-    LRELEASE="lrelease"
-else
-    echo -e "${RED}❌ Error: Neither pyside6-lrelease nor lrelease found${NC}"
+LRELEASE=""
+for candidate in pyside6-lrelease lrelease6 /usr/lib/qt6/bin/lrelease lrelease; do
+    if command -v "$candidate" &> /dev/null; then
+        LRELEASE="$candidate"
+        break
+    fi
+done
+if [ -z "$LRELEASE" ]; then
+    echo -e "${RED}❌ Error: no Qt 6 lrelease found (pyside6-lrelease, lrelease6, lrelease)${NC}"
     echo "Install PySide6 or Qt6 linguist tools:"
     echo "  pip install PySide6"
     exit 1

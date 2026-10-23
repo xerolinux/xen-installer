@@ -20,6 +20,7 @@ Item {
     property string currentValue: ""
     property string placeholder: qsTr("Select...")
     property string searchPlaceholder: qsTr("Type to search...")
+    property real uiScale: 1.0
 
     // Theme colors (passed from parent)
     property color primaryColor: "#5597e6"
@@ -35,8 +36,8 @@ Item {
     property var filteredModel: model
     property int highlightedIndex: -1
 
-    implicitHeight: 40
-    implicitWidth: 200
+    implicitHeight: 40 * uiScale
+    implicitWidth: 200 * uiScale
 
     // Filter function with enhanced timezone search
     function filterItems(searchText) {
@@ -68,12 +69,11 @@ Item {
         highlightedIndex = filteredModel.length > 0 ? 0 : -1
     }
 
-    // Find display text
-    function getDisplayText() {
-        if (currentValue && currentValue.length > 0) {
-            return currentValue
-        }
-        return ""
+    // Never assigns currentValue: the parent binds it to engine state and
+    // an assignment here would sever that binding.
+    function _select(value) {
+        valueSelected(value)
+        popup.close()
     }
 
     // Main button
@@ -97,16 +97,16 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: getDisplayText() || placeholder
-                font.pixelSize: 14
-                color: getDisplayText() ? textColor : textMutedColor
+                text: currentValue || placeholder
+                font.pixelSize: 14 * uiScale
+                color: currentValue ? textColor : textMutedColor
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
             }
 
             Text {
                 text: popup.visible ? "\u25B2" : "\u25BC"
-                font.pixelSize: 10
+                font.pixelSize: 10 * uiScale
                 color: textMutedColor
             }
         }
@@ -120,6 +120,11 @@ Item {
                 } else {
                     searchField.text = ""
                     filterItems("")
+                    // Open upward when the list wouldn't fit below the
+                    // button inside the window (e.g. near a page's bottom).
+                    var below = mainButton.mapToItem(null, 0, mainButton.height).y
+                    var fitsBelow = below + 4 + popup.height <= root.Window.height
+                    popup.y = fitsBelow ? mainButton.height + 4 : -popup.height - 4
                     popup.open()
                     searchField.forceActiveFocus()
                 }
@@ -132,7 +137,7 @@ Item {
         id: popup
         y: mainButton.height + 4
         width: mainButton.width
-        height: Math.min(searchField.height + listView.contentHeight + 24, 350)
+        height: Math.min(searchField.height + listView.contentHeight + 24, 350 * uiScale)
         padding: 8
 
         background: Rectangle {
@@ -148,7 +153,7 @@ Item {
             // Search field
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 36
+                Layout.preferredHeight: 36 * uiScale
                 radius: 6
                 color: backgroundColor
                 border.color: searchField.activeFocus ? primaryColor : Qt.darker(surfaceColor, 1.3)
@@ -161,7 +166,7 @@ Item {
 
                     Text {
                         text: "\u{1F50D}"
-                        font.pixelSize: 14
+                        font.pixelSize: 14 * uiScale
                         color: textMutedColor
                     }
 
@@ -171,7 +176,7 @@ Item {
                         placeholderText: searchPlaceholder
                         placeholderTextColor: textMutedColor
                         color: textColor
-                        font.pixelSize: 14
+                        font.pixelSize: 14 * uiScale
                         background: Item {}
                         leftPadding: 0
                         rightPadding: 0
@@ -195,12 +200,8 @@ Item {
                         }
 
                         Keys.onReturnPressed: {
-                            if (highlightedIndex >= 0 && highlightedIndex < filteredModel.length) {
-                                var selectedValue = filteredModel[highlightedIndex]
-                                currentValue = selectedValue
-                                valueSelected(selectedValue)
-                                popup.close()
-                            }
+                            if (highlightedIndex >= 0 && highlightedIndex < filteredModel.length)
+                                root._select(filteredModel[highlightedIndex])
                         }
 
                         Keys.onEscapePressed: {
@@ -211,7 +212,7 @@ Item {
                     // Clear button
                     Text {
                         text: "\u2715"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * uiScale
                         color: searchField.text.length > 0 ? textMutedColor : "transparent"
                         visible: searchField.text.length > 0
 
@@ -233,7 +234,7 @@ Item {
                 text: filteredModel.length === model.length
                       ? qsTr("%1 items").arg(filteredModel.length)
                       : qsTr("%1 of %2 items").arg(filteredModel.length).arg(model.length)
-                font.pixelSize: 11
+                font.pixelSize: 11 * uiScale
                 color: textMutedColor
                 visible: searchField.text.length > 0
             }
@@ -243,7 +244,7 @@ Item {
                 id: listView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredHeight: Math.min(contentHeight, 250)
+                Layout.preferredHeight: Math.min(contentHeight, 250 * uiScale)
                 clip: true
                 model: filteredModel
 
@@ -265,7 +266,7 @@ Item {
 
                 delegate: Rectangle {
                     width: listView.width
-                    height: 36
+                    height: 36 * uiScale
                     radius: 4
                     color: {
                         if (index === highlightedIndex) {
@@ -287,7 +288,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: modelData
-                            font.pixelSize: 14
+                            font.pixelSize: 14 * uiScale
                             color: index === highlightedIndex || modelData === currentValue ? textColor : textMutedColor
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
@@ -295,7 +296,7 @@ Item {
 
                         Text {
                             text: "\u2713"
-                            font.pixelSize: 14
+                            font.pixelSize: 14 * uiScale
                             color: primaryColor
                             visible: modelData === currentValue
                         }
@@ -306,11 +307,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
 
-                        onClicked: {
-                            currentValue = modelData
-                            valueSelected(modelData)
-                            popup.close()
-                        }
+                        onClicked: root._select(modelData)
 
                         onEntered: {
                             highlightedIndex = index
@@ -322,7 +319,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: qsTr("No results found")
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * uiScale
                     color: textMutedColor
                     visible: filteredModel.length === 0
                 }
