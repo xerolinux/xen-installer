@@ -49,7 +49,7 @@ class TestParseKeyboardXml:
 
     def test_every_bundled_xml_file_parses_with_at_least_one_row(self) -> None:
         xml_files = sorted(DATA_DIR.glob("*.xml"))
-        assert len(xml_files) == 12, "expected the 12 Calamares-derived layout group files"
+        assert len(xml_files) == 12, "expected the 12 layout group files"
         for path in xml_files:
             rows = parse_keyboard_xml(path)
             assert len(rows) >= 1, f"{path.name} produced no rows"

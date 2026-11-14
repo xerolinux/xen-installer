@@ -89,7 +89,7 @@ def _find_locale_view(root: QObject) -> QObject | None:
 
 def _find_welcome_view(root: QObject) -> QObject | None:
     """Retrouve l'instance WelcomeView, qui porte le choix de la langue
-    système (comme la page d'accueil de Calamares)."""
+    système."""
     stack: list[QObject] = [root]
     while stack:
         obj = stack.pop()

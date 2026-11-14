@@ -651,7 +651,7 @@ ApplicationWindow {
 
     // Navigation functions
     function navigateBack() {
-        // Calamares' PartitionViewStep::back(): Back from the manual editor
+        // Back from the manual editor
         // returns to the choice page, it does not leave the Partition step.
         if (currentStep === 5 && partitionView.manualEditorActive) {
             partitionView.exitManualEditor()
@@ -669,7 +669,7 @@ ApplicationWindow {
     }
 
     function navigateNext() {
-        // Calamares' PartitionViewStep::next(): Next on the choice page,
+        // Next on the choice page,
         // with Manual selected, swaps in the editor instead of leaving the
         // step - see PartitionView.qml's enterManualEditor().
         if (currentStep === 5 && engine.partitionMode === "manual" && !partitionView.manualEditorActive) {
@@ -711,8 +711,7 @@ ApplicationWindow {
                 return usersView.isValid
             case 5:  // Partition
                 if (engine.partitionMode === "manual") {
-                    // Mirrors Calamares' PartitionViewStep::isNextEnabled():
-                    // on the choice page, Next just needs a disk picked (it
+                    // On the choice page, Next just needs a disk picked (it
                     // enters the editor); once the editor itself is active,
                     // Next needs a valid plan to actually proceed.
                     if (!partitionView.manualEditorActive)

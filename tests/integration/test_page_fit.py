@@ -25,7 +25,7 @@ from xen.gui.bridge import EngineBridge  # noqa: E402
 from xen.gui.translator_proxy import TranslatorProxy  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux.yaml"
+XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux.yaml"
 MAIN_QML = PROJECT_ROOT / "src" / "xen" / "gui" / "qml" / "Main.qml"
 
 WINDOW_SIZES = [(1024, 640), (1366, 700), (1582, 870), (1920, 1040), (2560, 1400)]

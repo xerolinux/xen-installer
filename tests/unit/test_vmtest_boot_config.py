@@ -6,7 +6,7 @@ from xen.core.engine import Engine
 
 ROOT = Path(__file__).resolve().parents[2]
 BOOT_CONFIG = ROOT / "scripts" / "vmtest" / "boot_config.yaml"
-PRODUCTION = ROOT / "config" / "examples" / "xerolinux.yaml"
+PRODUCTION = ROOT / "config" / "xerolinux" / "xerolinux.yaml"
 DROPPED = {"welcome", "packagechooser", "systemupdate"}
 
 

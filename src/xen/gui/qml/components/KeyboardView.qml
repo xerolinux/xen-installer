@@ -1,10 +1,8 @@
 /*
  * KeyboardView - Keyboard layout/variant selection with live preview + test.
  *
- * A separate wizard step from Locale, matching real Calamares (its
- * `locale`/`localeq` module and `keyboard`/`keyboardq` module are two
- * distinct ViewSteps/pages, never combined into one) - this used to be
- * folded into LocaleView.qml as one oversized page; split out here.
+ * A separate wizard step from Locale - this used to be folded into
+ * LocaleView.qml as one oversized page; split out here.
  */
 
 import QtQuick
@@ -108,9 +106,7 @@ Item {
                         }
                     }
 
-                    // Preview first, like Calamares' own KeyboardPage.ui
-                    // (KBPreviewLayout sits at the very top, above the
-                    // layout/variant pickers).
+                    // Preview first, above the layout/variant pickers.
                     OnScreenKeyboard {
                         id: oskeyboard
                         objectName: "onScreenKeyboard"

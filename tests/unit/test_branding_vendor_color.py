@@ -23,8 +23,8 @@ from xen.core.engine import Engine  # noqa: E402
 from xen.gui.bridge import BrandingProxy  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux.yaml"
-NVIDIA_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux-nvidia.yaml"
+XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux.yaml"
+NVIDIA_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux-nvidia.yaml"
 
 
 @pytest.fixture(scope="session")

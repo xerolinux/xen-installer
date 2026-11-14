@@ -317,7 +317,7 @@ def build_manual_plan(
 
 
 def _skip_claimed_subvolumes(plan: PartitionPlan) -> None:
-    # Calamares does the same: a separate partition wins over the subvolume for its mount point.
+    # A separate partition wins over the subvolume for its mount point.
     claimed = {t.mountpoint for t in plan.targets if not t.subvolumes}
     for target in plan.targets:
         if not any(str(sv.get("mountpoint") or "/") == "/" for sv in target.subvolumes):

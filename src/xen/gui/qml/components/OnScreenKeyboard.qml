@@ -1,27 +1,24 @@
 /*
- * OnScreenKeyboard - Calamares-style clickable on-screen keyboard with a
+ * OnScreenKeyboard - clickable on-screen keyboard with a
  * physical-keypress test highlight.
  *
- * Restyled/restructured port of Calamares' keyboardq/data/Keyboard.qml,
- * using the same per-language-GROUP XML data files (keyboard_data/*.xml,
- * adapted from Calamares, GPL-3.0-or-later - see that directory), but:
+ * Port of Keyboard.qml from https://calamares.io (GPL-3.0-or-later),
+ * using per-language-GROUP XML data files (keyboard_data/*.xml), but:
  *   - grouped by real XKB layout code (this app's own keymapsModel
- *     values), not Calamares' fuzzy label-prefix match
- *   - restyled via OnScreenKey instead of Calamares' pixmap-backed Key
+ *     values), not a fuzzy label-prefix match
+ *   - restyled via OnScreenKey instead of a pixmap-backed Key
  *   - the XML is parsed in Python (engine.keyboardLayoutRows(), see
  *     xen.utils.keyboard_data) and handed to QML as JSON, not parsed in
  *     QML - this Qt6 install blocks QML's XMLHttpRequest from reading
  *     local files by default, and separately, Qt6's QtQml.XmlListModel
- *     dropped the XPath `query`-based role extraction Calamares' Qt5-era
- *     approach relies on (XmlListModelRole now only exposes
+ *     dropped XPath `query`-based role extraction (XmlListModelRole now
+ *     only exposes
  *     name/elementName/attributeName). Python's stdlib xml.etree sidesteps
  *     both and matches this app's established pattern of parsing on the
  *     Python side and exposing plain data to QML (e.g. btrfsSubvolumes).
  *   - adds flashKeyForChar(), so physically typing into the paired test
  *     field (see KeyboardView.qml) highlights the matching on-screen key,
  *     confirming the live layout actually produces the expected character
- *     - Calamares' own keyboard is click-to-type only and has no such
- *       physical-keypress feedback
  */
 
 import QtQuick

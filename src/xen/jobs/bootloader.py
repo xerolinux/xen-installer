@@ -417,8 +417,7 @@ options {crypt_param}root=UUID={root_partition} rw {kernel_params}
 
         # The inherited live-ISO default has GRUB_SAVEDEFAULT="true", so
         # every boot entry writes to grubenv on every boot - same failure
-        # mode as GRUB_DEFAULT=saved above. Matches Calamares's own
-        # grubcfg module (forces false for btrfs/f2fs/zfs).
+        # mode as GRUB_DEFAULT=saved above.
         if context.selections.get("filesystem") == "btrfs":
             content = self._set_grub_default_key(content, "GRUB_SAVEDEFAULT", "false")
 

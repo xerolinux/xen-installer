@@ -40,7 +40,7 @@ from xen.gui.translator_proxy import TranslatorProxy  # noqa: E402
 from xen.utils import disk_detector  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux.yaml"
+XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux.yaml"
 MAIN_QML = PROJECT_ROOT / "src" / "xen" / "gui" / "qml" / "Main.qml"
 
 

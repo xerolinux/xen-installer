@@ -47,8 +47,7 @@ Item {
 
     // Auto-mode option lists, hoisted to root (see feedback-qtquick-gotchas:
     // a readonly property on a non-root Item isn't reliably visible to its
-    // unqualified descendants) - Calamares offers these as combo boxes, not
-    // radio rows, so these back OptionCombo models below.
+    // unqualified descendants) - these back OptionCombo models below.
     readonly property var fsChoices: btrfsAvailable ? ["ext4", "xfs", "btrfs"] : ["ext4", "xfs"]
     readonly property var swapChoices: ["file", "none", "hibernate"]
     readonly property var swapChoiceLabels: [qsTr("File (auto)"), qsTr("None"), qsTr("Hibernation")]
@@ -163,7 +162,7 @@ Item {
 
     readonly property bool canProceed: selectedDisk !== "" && encryptionPassValid && engine.planValid
 
-    // Calamares' partition module is a QStackedWidget of two pages:
+    // Two pages:
     // ChoicePage (disk + Erase/Manual choice) then, only once Manual is
     // picked and Next is clicked, PartitionPage takes over the WHOLE
     // window (PartitionViewStep::next()/back() swap between them - see
@@ -171,8 +170,7 @@ Item {
     // mirrors that: the wizard's own Next/Back (Main.qml) call
     // enterManualEditor()/exitManualEditor() instead of advancing/
     // retreating a step, so the editor gets the full page - not squeezed
-    // under the disk card (which overflowed) and not a popup (which
-    // isn't how Calamares does it).
+    // under the disk card (which overflowed) and not a popup.
     property bool manualEditorActive: false
     onPartitionModeChanged: if (partitionMode !== "manual") manualEditorActive = false
     function enterManualEditor() { manualEditorActive = true }
@@ -542,7 +540,7 @@ Item {
                     color: textColor
                 }
 
-                // Calamares' ChoicePage: a plain list of radio rows, each
+                // ChoicePage: a plain list of radio rows, each
                 // with its options nested directly under it.
                 component ModeChoice: Item {
                     id: choice
@@ -581,7 +579,7 @@ Item {
                         }
                     }
 
-                    // Calamares' ClickableLabel+buddy: the whole row is clickable.
+                    // The whole row is clickable.
                     MouseArea {
                         anchors.fill: parent
                         onClicked: engine.setPartitionMode(choice.mode)
@@ -774,7 +772,7 @@ Item {
                     }
                 }
 
-                // Calamares' hLine: a plain separator between the choice
+                // A plain separator between the choice
                 // list and the encryption toggle below it.
                 Rectangle {
                     Layout.fillWidth: true
@@ -911,7 +909,7 @@ Item {
         commit: function(subvolumesJson) { return engine.setBtrfsSubvolumes(subvolumesJson) }
     }
 
-    // Calamares' PartitionPage: swapped in by the wizard's own Next/Back
+    // PartitionPage: swapped in by the wizard's own Next/Back
     // (enterManualEditor()/exitManualEditor()) so it gets the full page.
     ManualPartitionPage {
         anchors.fill: parent

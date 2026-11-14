@@ -1,4 +1,4 @@
-# The production job list (config/examples/xerolinux.yaml) for the VM boot suite.
+# The production job list (config/xerolinux/xerolinux.yaml) for the VM boot suite.
 # Dropped: welcome and packagechooser (GUI-only) and systemupdate (a full
 # network upgrade, not needed to boot). Added: console=ttyS0 so the installed
 # system logs to the serial port and systemd starts a serial getty there.
@@ -83,10 +83,9 @@ jobs:
         - ckbcomp
         - qt6-doc
         - qt6-examples
+        - memtest86+
         - memtest86+-efi
         - live-launcher
-        - calamaresx-app
-        - calamaresx-cfg
         - xen-app
         - xen-cfg-xerolinux
       btrfs_packages:

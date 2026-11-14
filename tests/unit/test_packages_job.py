@@ -479,9 +479,7 @@ class TestPackagesJobValidate:
 
 
 class TestSkipsRedundantSyncWhenAlreadySynced:
-    """Deliberate speed deviation from Calamares (which unconditionally
-    re-syncs here even right after shellprocess@update's own -Syy):
-    packages.py skips its own repo sync when systemupdate.py already did
+    """packages.py skips its own repo sync when systemupdate.py already did
     one this run, avoiding a second full repo re-download."""
 
     @patch.object(PackagesJob, "_install_packages_with_retry")
@@ -527,8 +525,8 @@ class TestSkipsInstallWhenOffline:
     archives (both stripped from the squashfs at build time) - there is no
     local source pacman could install anything new from offline. base/linux/
     etc. are already on disk from install.py's squashfs extraction, so both
-    the repo sync AND the package install must be skipped offline, matching
-    real Calamares's packages-offline.conf (remove-only, no install op)."""
+    the repo sync AND the package install must be skipped offline
+    (remove-only, no install op)."""
 
     @patch.object(PackagesJob, "_remove_packages")
     @patch.object(PackagesJob, "_install_packages_with_retry")
@@ -995,8 +993,8 @@ class TestRemovePackagesFiltersToInstalled:
 
 
 class TestRemovePackagesFalkonOnlineOfflineSplit:
-    """falkon: Calamares removes it only when online (packages.conf), keeps
-    it offline (packages-offline.conf, fallback browser). packages.py
+    """falkon: removed only when online, kept offline (fallback
+    browser). packages.py
     applies that split at runtime from context.selections["has_internet"]
     since Xen shares one remove list across both cases."""
 

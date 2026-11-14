@@ -33,8 +33,7 @@ pytestmark = pytest.mark.skipif(
     reason="Required dependencies (yaml, xen) not available",
 )
 
-# Path to config examples directory
-EXAMPLES_DIR = Path(__file__).parent.parent.parent / "config" / "examples"
+CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
 
 
 class TestInlineBrandingConfigs:
@@ -43,7 +42,7 @@ class TestInlineBrandingConfigs:
     @pytest.fixture
     def xerolinux_path(self) -> Path:
         """Path to the XeroLinux configuration (single profile, online+offline)."""
-        return EXAMPLES_DIR / "xerolinux.yaml"
+        return CONFIG_DIR / "xerolinux" / "xerolinux.yaml"
 
     def test_xerolinux_config_exists(self, xerolinux_path: Path) -> None:
         """XeroLinux config file should exist."""
@@ -62,13 +61,13 @@ class TestConfigThemeIntegration:
 
     def test_engine_loads_xerolinux_config(self) -> None:
         """Engine should load the XeroLinux config without errors."""
-        config_path = EXAMPLES_DIR / "xerolinux.yaml"
+        config_path = CONFIG_DIR / "xerolinux" / "xerolinux.yaml"
         engine = Engine.from_config_file(config_path)
         assert engine.config.branding.name == "XeroLinux"
 
     def test_xerolinux_theme_path_is_empty(self) -> None:
         """Engine should report an empty theme path for inline-branding configs."""
-        config_path = EXAMPLES_DIR / "xerolinux.yaml"
+        config_path = CONFIG_DIR / "xerolinux" / "xerolinux.yaml"
         engine = Engine.from_config_file(config_path)
         assert engine.get_theme_path() == ""
 
@@ -78,11 +77,11 @@ class TestMultipleConfigs:
 
     @pytest.mark.parametrize(
         "config_name",
-        ["xerolinux.yaml", "xerolinux-nvidia.yaml", "minimal.yaml"],
+        ["xerolinux/xerolinux.yaml", "xerolinux/xerolinux-nvidia.yaml", "examples/minimal.yaml"],
     )
     def test_example_config_is_valid(self, config_name: str) -> None:
         """All example configs should be valid."""
-        config_path = EXAMPLES_DIR / config_name
+        config_path = CONFIG_DIR / config_name
         if not config_path.exists():
             pytest.skip(f"Config {config_name} not found")
 

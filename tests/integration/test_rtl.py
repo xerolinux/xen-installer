@@ -21,7 +21,7 @@ from xen.gui.bridge import EngineBridge  # noqa: E402
 from xen.gui.translator_proxy import TranslatorProxy  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / "config" / "examples" / "xerolinux.yaml"
+CONFIG = ROOT / "config" / "xerolinux" / "xerolinux.yaml"
 
 
 def _settle(app: QApplication) -> None:

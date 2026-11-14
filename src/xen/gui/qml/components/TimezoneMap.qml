@@ -1,6 +1,6 @@
 /*
  * TimezoneMap - real interactive world map (tiled, via QtLocation's "osm"
- * plugin, the same mechanism as Calamares' locale/localeq Map.qml).
+ * plugin).
  *
  * Needs the qt6-location package (QtLocation + QtPositioning QML modules,
  * plus the "osm" geoservices plugin) - see packaging/xen-installer/
@@ -302,8 +302,7 @@ Item {
                         onClicked: root._pickAt(clickCoordinate.latitude, clickCoordinate.longitude)
                     }
 
-                    // Same pan/zoom gestures as Calamares' Map-qt6.qml. A
-                    // plain MouseArea with no drag.target only fires
+                    // A plain MouseArea with no drag.target only fires
                     // onClicked for a real tap, so dragging never drops a
                     // pin. Wheel zoom moves in whole steps (tiles are never
                     // scaled, see the header) - a touchpad's many small

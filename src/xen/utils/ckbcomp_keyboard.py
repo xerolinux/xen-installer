@@ -1,8 +1,6 @@
 """Real, per-layout on-screen keyboard rows via `ckbcomp` (Debian's
 console-setup, GPL-2.0-or-later, https://salsa.debian.org/installer-team/
-console-setup) - the same tool the real Calamares keyboard module shells
-out to for its own preview (see keyboard/keyboardwidget/keyboardpreview.cpp
-upstream). Replaces the earlier hand-authored, per-language-GROUP XML
+console-setup). Replaces the earlier hand-authored, per-language-GROUP XML
 approximation (xen.utils.keyboard_data) with the exact key mapping the
 selected XKB layout+variant will actually produce.
 

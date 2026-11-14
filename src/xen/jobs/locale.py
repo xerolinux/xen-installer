@@ -24,7 +24,7 @@ _LOCALE_RE = re.compile(r"^[a-z]{2,3}(_[A-Z]{2})?\.[A-Za-z0-9-]+(@[A-Za-z0-9]+)?
 _XKB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 # X11 layout -> kbd console keymap, from systemd's kbd-model-map (what
-# Calamares and localectl use). Layouts with no console equivalent fall back
+# localectl uses). Layouts with no console equivalent fall back
 # to "us" (the console can't render their scripts anyway).
 _CONSOLE_KEYMAPS = {
     "us": "us",

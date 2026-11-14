@@ -13,9 +13,9 @@ import yaml
 from xen.core.engine import Engine
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux.yaml"
-NVIDIA_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux-nvidia.yaml"
-PACKAGES_OPTIONAL = PROJECT_ROOT / "config" / "examples" / "packages-optional.yaml"
+XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux.yaml"
+NVIDIA_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux-nvidia.yaml"
+PACKAGES_OPTIONAL = PROJECT_ROOT / "config" / "xerolinux" / "packages-optional.yaml"
 
 ALL_CONFIGS = [XEROLINUX_CONFIG, NVIDIA_CONFIG]
 
@@ -50,14 +50,14 @@ class TestXerolinuxConfig:
         assert job_names.index("systemconfig") < job_names.index("users")
 
 
-class TestAllXerolinuxConfigsMatchCalamaresJobOrdering:
+class TestAllXerolinuxConfigsJobOrdering:
     """Regression: locale.py used to run before partition/install, writing
     locale.conf/timezone/keyboard/hwclock to a target that wasn't mounted
     yet - the files landed on the live session's own filesystem and got
     buried once partition later mounted the real disk over that path.
 
     Also locks in the "before" (shellprocess@before) and "removeuser"
-    steps ported from Calamares's real exec sequence, at the positions
+    steps at the positions
     their actions actually require.
     """
 
@@ -109,7 +109,7 @@ class TestAllXerolinuxConfigsMatchCalamaresJobOrdering:
 
 
 class TestAllXerolinuxConfigsUseGrub:
-    """XeroLinux's real Calamares bootloader.conf uses GRUB, not systemd-boot."""
+    """XeroLinux uses GRUB, not systemd-boot."""
 
     def test_bootloader_type_is_grub(self) -> None:
         for config_path in ALL_CONFIGS:

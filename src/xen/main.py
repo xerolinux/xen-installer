@@ -126,9 +126,9 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
     Search order:
     1. Explicit path from --config
     2. xen.yaml in current directory
-    3. config/examples/xerolinux.yaml relative to the current directory
+    3. config/xerolinux/xerolinux.yaml relative to the current directory
     4. /etc/xen/xerolinux.yaml (installed by the xen-cfg-* packages)
-    5. config/examples/xerolinux.yaml in the source checkout containing this module
+    5. config/xerolinux/xerolinux.yaml in the source checkout containing this module
     """
     if explicit_path is not None:
         if explicit_path.exists():
@@ -140,12 +140,12 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
 
     candidates = [
         Path("xen.yaml"),
-        Path("config/examples/xerolinux.yaml"),
+        Path("config/xerolinux/xerolinux.yaml"),
         Path("/etc/xen/xerolinux.yaml"),
     ]
     here = Path(__file__).resolve()
     for base in list(here.parents)[:6]:
-        candidates.append(base / "config" / "examples" / "xerolinux.yaml")
+        candidates.append(base / "config" / "xerolinux" / "xerolinux.yaml")
 
     for candidate in candidates:
         if candidate.exists():
@@ -154,7 +154,7 @@ def find_config_file(explicit_path: Path | None = None) -> Path:
     raise ConfigurationError(
         "No configuration file found.\n"
         "Create one with: cp xen.yaml.example xen.yaml\n"
-        "Or specify: xen --config config/examples/xerolinux.yaml"
+        "Or specify: xen --config config/xerolinux/xerolinux.yaml"
     )
 
 

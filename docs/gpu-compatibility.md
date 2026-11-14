@@ -13,7 +13,7 @@ The Xen Installer includes a GPU compatibility checker that:
 
 ## Configuration
 
-GPU requirements are configured in the distribution's config file (e.g., `config/examples/xerolinux.yaml`) under the `jobs` section for the `welcome` job:
+GPU requirements are configured in the distribution's config file (e.g., `config/xerolinux/xerolinux.yaml`) under the `jobs` section for the `welcome` job:
 
 ```yaml
 jobs:

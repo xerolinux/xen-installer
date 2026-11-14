@@ -2,7 +2,7 @@
 # Xen Installer - Configuration Template
 # =============================================================================
 # Copiez ce fichier vers xen.yaml et personnalisez-le pour votre distribution.
-# Voir config/examples/ pour des configurations complètes.
+# Voir config/xerolinux/ pour une configuration complète.
 
 version: "1.0"
 

@@ -7,8 +7,8 @@
 
 pkgbase=xen-installer
 pkgname=(xen-app xen-cfg-xerolinux xen-cfg-xerolinux-nvidia)
-pkgver=0.2.0
-pkgrel=9
+pkgver=0.2.1
+pkgrel=1
 arch=('any')
 url="https://xerolinux.xyz"
 license=('GPL-3.0-or-later')
@@ -29,7 +29,7 @@ build() {
 }
 
 package_xen-app() {
-	pkgdesc="Distribution-independent installer framework (Python/PySide6, Calamares alternative)"
+	pkgdesc="Distribution-independent installer framework (Python/PySide6)"
 	depends=(
 		python
 		pyside6
@@ -57,7 +57,6 @@ package_xen-app() {
 		qt6-wayland
 	)
 	provides=('xen')
-	conflicts=('calamares')
 	options=(!strip)
 
 	cd "${_repo_root}"
@@ -78,7 +77,7 @@ package_xen-app() {
 
 	# Desktop entry, its pkexec wrapper and the root-side launcher the
 	# policy's exec.path points to: the whole app runs as one elevated
-	# process, same model as XeroLinux's Calamares.
+	# process.
 	install -Dm644 data/xen.desktop \
 		"${pkgdir}/usr/share/applications/xen.desktop"
 	install -Dm755 data/xen-polkit \
@@ -104,20 +103,20 @@ package_xen-cfg-xerolinux() {
 
 	install -dm755 "${pkgdir}${_etc_dir}"
 
-	install -Dm644 "${_repo_root}/config/examples/xerolinux.yaml" \
+	install -Dm644 "${_repo_root}/config/xerolinux/xerolinux.yaml" \
 		"${pkgdir}${_etc_dir}/xerolinux.yaml"
-	install -Dm644 "${_repo_root}/config/examples/packages-optional.yaml" \
+	install -Dm644 "${_repo_root}/config/xerolinux/packages-optional.yaml" \
 		"${pkgdir}${_etc_dir}/packages-optional.yaml"
 
 	# Branding logo referenced by branding.assets.logo (relative to the
 	# config dir at runtime).
-	install -Dm644 "${_repo_root}/config/examples/assets/xerolinux-logo.png" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/xerolinux-logo.png" \
 		"${pkgdir}${_etc_dir}/assets/xerolinux-logo.png"
 
 	# LibreOffice Suite screenshot shown on the Optional Software page.
-	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/libreoffice-screenshot.png" \
 		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
-	install -Dm644 "${_repo_root}/config/examples/assets/ATTRIBUTION.md" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/ATTRIBUTION.md" \
 		"${pkgdir}${_etc_dir}/assets/ATTRIBUTION.md"
 }
 
@@ -135,16 +134,16 @@ package_xen-cfg-xerolinux-nvidia() {
 	# (/etc/xen/xerolinux.yaml) works unchanged on both ISO profiles - only
 	# the content (nvidia-suspend/hibernate/resume services, nvramfs
 	# finalize script) differs.
-	install -Dm644 "${_repo_root}/config/examples/xerolinux-nvidia.yaml" \
+	install -Dm644 "${_repo_root}/config/xerolinux/xerolinux-nvidia.yaml" \
 		"${pkgdir}${_etc_dir}/xerolinux.yaml"
-	install -Dm644 "${_repo_root}/config/examples/packages-optional.yaml" \
+	install -Dm644 "${_repo_root}/config/xerolinux/packages-optional.yaml" \
 		"${pkgdir}${_etc_dir}/packages-optional.yaml"
 
-	install -Dm644 "${_repo_root}/config/examples/assets/xerolinux-logo.png" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/xerolinux-logo.png" \
 		"${pkgdir}${_etc_dir}/assets/xerolinux-logo.png"
 
-	install -Dm644 "${_repo_root}/config/examples/assets/libreoffice-screenshot.png" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/libreoffice-screenshot.png" \
 		"${pkgdir}${_etc_dir}/assets/libreoffice-screenshot.png"
-	install -Dm644 "${_repo_root}/config/examples/assets/ATTRIBUTION.md" \
+	install -Dm644 "${_repo_root}/config/xerolinux/assets/ATTRIBUTION.md" \
 		"${pkgdir}${_etc_dir}/assets/ATTRIBUTION.md"
 }

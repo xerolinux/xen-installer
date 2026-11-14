@@ -342,7 +342,7 @@ class TestBootloaderSelectionSeeding:
     on a `type: grub` profile it fell back to "systemd-boot", kept Argon2id,
     and produced a volume GRUB cannot unlock."""
 
-    XEROLINUX_CONFIG = Path(__file__).parents[2] / "config" / "examples" / "xerolinux.yaml"
+    XEROLINUX_CONFIG = Path(__file__).parents[2] / "config" / "xerolinux" / "xerolinux.yaml"
 
     def test_xerolinux_profile_seeds_grub_for_earlier_jobs(
         self, monkeypatch: pytest.MonkeyPatch

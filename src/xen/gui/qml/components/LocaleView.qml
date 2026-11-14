@@ -1,10 +1,8 @@
 /*
  * LocaleView - Timezone (interactive map + search)
  *
- * System language is picked on the Welcome page (as in Calamares), and
- * keyboard layout/variant is its own wizard step - see KeyboardView.qml -
- * matching real Calamares, whose `locale`/`localeq` and `keyboard`/
- * `keyboardq` modules are two separate ViewSteps, never one combined page.
+ * System language is picked on the Welcome page, and keyboard
+ * layout/variant is its own wizard step - see KeyboardView.qml.
  */
 
 import QtQuick

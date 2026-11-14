@@ -71,7 +71,7 @@ polkit.addRule(function(action, subject) {
 Seul `liveuser`, dans une session locale et active, est dispensé
 d'authentification. Le paquet `xen-app` (règle comprise) est retiré du
 système installé par le job `packages` (liste `remove` de
-`config/examples/xerolinux*.yaml`), donc la règle ne persiste pas après
+`config/xerolinux/xerolinux*.yaml`), donc la règle ne persiste pas après
 l'installation.
 
 ## Vérification
@@ -91,7 +91,7 @@ plugin `wayland` sous une session Wayland.
 Pas besoin de polkit pour travailler sur l'interface :
 
 ```bash
-PYTHONPATH=src python -m xen.main --dry-run --config config/examples/xerolinux.yaml
+PYTHONPATH=src python -m xen.main --dry-run --config config/xerolinux/xerolinux.yaml
 ```
 
 `--dry-run` n'exécute aucune commande système et lève l'exigence root.

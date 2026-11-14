@@ -1,20 +1,24 @@
 # =============================================================================
-# Xen Installer - Configuration XeroLinux
+# Xen Installer - Configuration XeroLinux nVidia
 # =============================================================================
-# Single profile for both online and offline installs: connectivity is
-# probed once at startup (EngineBridge, via NetworkHelper) and stored in
-# selections as "has_internet". The packagechooser and systemupdate jobs
-# read that and skip themselves cleanly when offline - no network access is
-# ever required, but the extra packages and repo sync happen automatically
-# whenever a connection is available. The Welcome page shows an offline
-# notice instead of blocking installation.
+#
+# Same pipeline as xerolinux.yaml, for the nVidia ISO profile:
+# nvidia-suspend/hibernate/resume services enabled, and the finalization
+# step runs nvramfs (mkinitcpio + GRUB nvidia-drm.modeset + power/env
+# tuning) instead of nouveau (nouveau blacklist only). The GPU driver
+# packages themselves (nvidia-open-dkms, nvidia-utils, ...) ship on the
+# nVidia live ISO's own squashfs and land on the target via the install
+# job's squashfs extraction - no package-list difference belongs in this config.
+#
+# Single profile for both online and offline installs - see xerolinux.yaml's
+# header for how the packagechooser/systemupdate offline-skip works.
 
 version: "1.0"
 
 branding:
   name: "XeroLinux"
-  version: "2025"
-  edition: ""
+  version: "2026"
+  edition: "nVidia"
 
   assets:
     logo: "assets/xerolinux-logo.png"
@@ -83,18 +87,18 @@ jobs:
 
   - name: install
     # Extracts the live ISO's own squashfs image (InstallJob's built-in
-    # default, matching Calamares's unpackfs module) - auto-detected from
+    # default) - auto-detected from
     # the standard archiso runtime mount, so no config is needed here.
 
   - name: luksbootkeyfile
-    # Mirrors Calamares's luksbootkeyfile module: embeds a keyfile in the
+    # Embeds a keyfile in the
     # initramfs and adds it as an extra LUKS keyslot, so an encrypted root
     # only prompts for the passphrase once (at GRUB), not again when the
     # kernel's "encrypt" hook mounts root. No-op when encryption is off.
     # Must run before systemconfig rebuilds the initramfs.
 
   - name: before
-    # Mirrors Calamares's shellprocess@before: re-inits the pacman keyring,
+    # Re-inits the pacman keyring,
     # installs the GRUB theme, and swaps in the real mkinitcpio preset -
     # must run before systemconfig rewrites HOOKS and rebuilds the initramfs.
     config:
@@ -118,7 +122,7 @@ jobs:
     # live-session/build-specific.
 
   - name: removeuser
-    # Mirrors Calamares's removeuser: deletes archiso's default "liveuser"
+    # Deletes archiso's default "liveuser"
     # account baked into the live image before the users job creates the
     # real account - otherwise the new user doesn't get UID 1000.
     config:
@@ -131,7 +135,7 @@ jobs:
   - name: services
     config:
       units:
-        # Mirrors Calamares's separate displaymanager module: without this
+        # Without this
         # enabled, the installed system boots to a text console, not a
         # graphical login (matches the plasma-login-manager package in
         # ~/XeroBuild's packages.x86_64 - XeroLinux ships no sddm package).
@@ -177,15 +181,23 @@ jobs:
         - name: "fstrim.timer"
           action: enable
           mandatory: true
+        - name: "nvidia-suspend"
+          action: enable
+          mandatory: true
+        - name: "nvidia-hibernate"
+          action: enable
+          mandatory: true
+        - name: "nvidia-resume"
+          action: enable
+          mandatory: true
         - name: "xero-gpu-check"
           action: enable
           mandatory: false
 
   - name: systemupdate
     # Skips cleanly offline (nothing to sync/upgrade without a connection).
-    # Ranks mirrors (reflector) before the first sync - a deliberate
-    # deviation from Calamares, which only runs reflector as a one-shot
-    # service after first boot (see the "reflector" unit above).
+    # Ranks mirrors (reflector) before the first sync; the "reflector"
+    # unit above ranks them again after first boot.
     config:
       timeout_syncdb: 600
       timeout_keyring: 300
@@ -199,24 +211,20 @@ jobs:
         - os-prober
         - ntfs-3g
       remove:
-        # falkon: Calamares removes it only when online (packages.conf) and
-        # keeps it offline (packages-offline.conf, fallback browser since
-        # packagechooser's options aren't reachable without a connection).
-        # packages.py applies that same online/offline split at runtime.
+        # falkon is removed only when online; offline it stays as the
+        # fallback browser. packages.py applies that split at runtime.
         - falkon
         - ckbcomp
         - qt6-doc
         - qt6-examples
+        - memtest86+
         - memtest86+-efi
         - live-launcher
-        - calamaresx-app
-        - calamaresx-cfg
-        # Xen removes itself from the freshly installed system too, same
-        # principle Calamares applies to its own packages above. Safe to
+        # Xen removes itself from the freshly installed system too. Safe to
         # list a package that isn't actually installed - packages.py only
         # ever asks pacman to remove what's actually present.
         - xen-app
-        - xen-cfg-xerolinux
+        - xen-cfg-xerolinux-nvidia
       # Only installed when filesystem: btrfs was chosen (packages.py
       # merges this in - see src/xen/jobs/packages.py's _get_package_list).
       btrfs_packages:
@@ -250,6 +258,6 @@ jobs:
         - "/usr/local/bin/ucode"
         - "/usr/local/bin/igpudetect"
         - "/usr/local/bin/fsprogschk"
-        - "/usr/local/bin/nouveau"
+        - "/usr/local/bin/nvramfs"
 
   - name: finished

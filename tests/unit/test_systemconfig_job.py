@@ -19,8 +19,7 @@ ENC_ROOT = {"path": "/dev/mapper/cryptroot", "raw_path": "/dev/vda2", "mountpoin
 
 
 class TestGenerateCrypttab:
-    """Mirrors Calamares's fstab module (crypttabOptions: luks): a
-    crypttab entry for the encrypted root, alongside the kernel cmdline
+    """A crypttab entry for the encrypted root, alongside the kernel cmdline
     cryptdevice= param bootloader.py already sets."""
 
     @patch("subprocess.run")
@@ -430,8 +429,7 @@ class TestGenerateCrypttab:
 
 
 class TestGenerateMachineId:
-    """Mirrors Calamares's machineid.conf (dbus: true, dbus-symlink:
-    true): /var/lib/dbus/machine-id must be a symlink to /etc/machine-id,
+    """/var/lib/dbus/machine-id must be a symlink to /etc/machine-id,
     not a separate copy that can drift after a later regeneration."""
 
     @patch("subprocess.run")

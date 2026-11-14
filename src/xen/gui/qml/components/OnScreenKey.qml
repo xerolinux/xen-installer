@@ -1,12 +1,10 @@
 /*
  * OnScreenKey - a single key on OnScreenKeyboard.
  *
- * Restyled port of Calamares' keyboardq/data/Key.qml (same
- * mainLabel/secondaryLabels/keyColor/keyPressedColor property shape, so
- * OnScreenKeyboard.qml can drive it the same way Calamares' own
- * Keyboard.qml drives Key.qml) - adapted to this app's own theme colors
- * instead of Calamares' hardcoded hex values, with the pixmap-background
- * mechanism (keyImageLeft/Right/Center) dropped in favor of a plain
+ * Port of Key.qml from https://calamares.io (GPL-3.0-or-later), using
+ * this app's theme colors instead of hardcoded hex values, with the
+ * pixmap-background mechanism (keyImageLeft/Right/Center) dropped in
+ * favor of a plain
  * rounded Rectangle, and a `flashed` state added for the keyboard test
  * field to highlight a key on physical keypress (see flashKeyForChar in
  * OnScreenKeyboard.qml).

@@ -2,7 +2,7 @@
 layout codes to the layout-group file that best approximates them.
 
 The XML files (``src/xen/gui/qml/components/keyboard_data/*.xml``) are
-adapted from Calamares' own ``keyboardq/data/*.xml`` (GPL-3.0-or-later) -
+GPL-3.0-or-later (see each file's header) -
 each one is a visual approximation covering a *group* of related languages,
 not an exact per-XKB-layout rendering. Parsed here in Python (not QML's
 XMLHttpRequest, which this Qt6 install blocks for local files by default,
@@ -23,8 +23,7 @@ _DATA_DIR = (
 )
 
 # Real XKB layout code -> bundled layout-group XML file (without extension).
-# Grouped by real codes (this project's own LocaleJob.COMMON_KEYMAPS),
-# not Calamares' fuzzy label-prefix match.
+# Grouped by real codes (this project's own LocaleJob.COMMON_KEYMAPS).
 GROUP_FOR_LAYOUT: dict[str, str] = {
     "us": "en",
     "gb": "en",
@@ -110,8 +109,7 @@ def keyboard_rows_for_layout(xkb_layout: str, xkb_variant: str = "") -> list[lis
     """Return the on-screen keyboard rows for an XKB layout+variant.
 
     Prefers the real, exact mapping from `ckbcomp` (xen.utils.
-    ckbcomp_keyboard) - the same tool real Calamares shells out to for its
-    own keyboard preview. Falls back to the approximate, hand-authored
+    ckbcomp_keyboard). Falls back to the approximate, hand-authored
     per-language-GROUP XML data (this module) only if ckbcomp is missing
     or fails for the given layout/variant.
     """

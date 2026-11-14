@@ -66,7 +66,7 @@ Tests des composants de base :
 ```python
 # Exemple: Test de chargement de configuration
 def test_branding_loaded():
-    engine = Engine.from_config_file("config/examples/xerolinux.yaml")
+    engine = Engine.from_config_file("config/xerolinux/xerolinux.yaml")
     assert engine.config.branding.name == "XeroLinux"
 ```
 

@@ -39,7 +39,7 @@ from xen.core.engine import Engine  # noqa: E402
 from xen.gui.bridge import EngineBridge  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "examples" / "xerolinux.yaml"
+XEROLINUX_CONFIG = PROJECT_ROOT / "config" / "xerolinux" / "xerolinux.yaml"
 COMPONENTS_DIR = PROJECT_ROOT / "src" / "xen" / "gui" / "qml" / "components"
 
 _HARNESS_QML = """

@@ -827,7 +827,7 @@ class TestDisableEfiBootnextScript:
 
 
 class TestWriteGrubDefaults:
-    """Mirrors XeroLinux's Calamares grubcfg.conf: GRUB_TIMEOUT,
+    """XeroLinux GRUB defaults: GRUB_TIMEOUT,
     GRUB_DEFAULT, GRUB_DISABLE_SUBMENU, GRUB_DISABLE_RECOVERY,
     GRUB_EARLY_INITRD_LINUX_STOCK, and the kernel_params list."""
 
@@ -877,8 +877,7 @@ class TestWriteGrubDefaults:
         GRUB_SAVEDEFAULT="true" - every generated boot entry then calls
         the `savedefault` function (writes to grubenv on EVERY boot),
         hitting the exact grubenv-write path GRUB_DEFAULT=0 alone doesn't
-        avoid. Matches Calamares's own real grubcfg module, which forces
-        GRUB_SAVEDEFAULT=false whenever root/boot is btrfs/f2fs/zfs."""
+        avoid, so GRUB_SAVEDEFAULT is forced false on btrfs."""
         grub_default = tmp_path / "etc" / "default" / "grub"
         grub_default.parent.mkdir(parents=True)
         grub_default.write_text('GRUB_SAVEDEFAULT="true"\n')
@@ -1178,7 +1177,7 @@ UUID=9999-0000-ffff /boot/efi vfat defaults 0 2
 
 class TestGetBootloaderType:
     """Regression: the yaml profile's `type:` (e.g. xerolinux.yaml's
-    `type: grub`, matching Calamares's efiBootLoader: "grub") was never
+    `type: grub`) was never
     actually read - run()/validate() only checked
     context.selections["bootloader"], a key nothing ever sets, so every
     profile silently ran systemd-boot regardless of its yaml config."""

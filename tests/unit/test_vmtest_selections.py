@@ -34,7 +34,7 @@ def bridge() -> EngineBridge:
     engine = Engine.from_config_file(fixtures.BOOT_CONFIG)
     with patch("xen.gui.bridge.NetworkHelper.check_internet_connectivity", return_value=True):
         obj = EngineBridge(
-            engine, ROOT / "config" / "examples", dry_run=True, skip_requirements=True
+            engine, ROOT / "config" / "xerolinux", dry_run=True, skip_requirements=True
         )
     obj._on_disk_scan_finished(mock_disks())
     obj.setSelectedLocale("en_US.UTF-8")

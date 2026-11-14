@@ -3,8 +3,8 @@
 timezone_at() resolves a clicked (lat, lon) to the IANA zone that actually
 contains it, using bundled zone boundaries (data/timezone_boundaries.json.gz,
 built by scripts/build_timezone_boundaries.py from timezone-boundary-builder).
-Picking the zone with the nearest reference city instead (zone1970.tab, as
-Calamares' offline fallback does) gets whole regions wrong - Lyon resolved to
+Picking the zone with the nearest reference city instead (zone1970.tab)
+gets whole regions wrong - Lyon resolved to
 Zurich, central Kentucky to America/Indiana/Vevay.
 
 coordinate_for_timezone() goes the other way, giving a zone's reference

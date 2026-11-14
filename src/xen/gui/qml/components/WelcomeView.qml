@@ -21,8 +21,8 @@ Item {
     signal configureNetworkRequested()
     signal localeSelected(string locale)
 
-    // System language picker (lives here, like Calamares' welcome page,
-    // so the rest of the installer is already in the chosen language).
+    // System language picker (lives here so the rest of the installer is
+    // already in the chosen language).
     property var localesModel: []
     property var localesModelNative: []  // [{code, name}]
     // Read-only mirror of engine state; selection goes out through

@@ -43,7 +43,7 @@ XeroLinux (Arch Linux) au lieu de la distribution NixOS d'origine.
   GRUB (os-prober) ajoute l'autre système au menu de démarrage. Les volumes
   BitLocker et Windows en hibernation (démarrage rapide) sont refusés avec
   la raison affichée.
-- Page de partitionnement manuel refaite dans le style Calamares : table
+- Page de partitionnement manuel refaite : table
   des partitions, barre de disque, dialogues Créer/Modifier, guide
   intégré et liste de contrôle en direct (racine, ESP). Redimensionnement
   ext4, Btrfs et NTFS ; XFS n'est jamais réduit.

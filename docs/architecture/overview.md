@@ -8,7 +8,7 @@
 
 Xen tourne dans **un seul processus** : l'interface QML (PySide6) et
 l'exécution des Jobs partagent le même processus Python, lancé en root via
-polkit. C'est le même modèle que Calamares sur XeroLinux.
+polkit.
 
 ```
 xen.desktop ──► xen-polkit ──► pkexec ──► /usr/lib/xen/xen-root-launch ──► /usr/bin/xen
@@ -84,9 +84,12 @@ Chaque distribution fournit son propre fichier de configuration + thème :
 
 ```
 config/
-├── examples/                # Configurations par distribution
+├── xerolinux/               # Configuration de production XeroLinux
 │   ├── xerolinux.yaml         # XeroLinux (online + offline)
 │   ├── xerolinux-nvidia.yaml  # XeroLinux nVidia (online + offline)
+│   ├── packages-optional.yaml # Groupes de paquets optionnels
+│   └── assets/                # Logo, captures
+├── examples/
 │   └── minimal.yaml           # Template minimal
 └── themes/                  # Assets visuels (optionnel, thème séparé)
 ```
@@ -99,7 +102,7 @@ version: "1.0"
 # Branding déclaré en ligne (pas de theme: séparé) - voir plus bas
 branding:
   name: "XeroLinux"
-  version: "2025"
+  version: "2026"
 
   # Couleurs de l'interface
   colors:
