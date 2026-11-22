@@ -8,7 +8,7 @@
 pkgbase=xen-installer
 pkgname=(xen-app xen-cfg-xerolinux xen-cfg-xerolinux-nvidia)
 pkgver=0.2.1
-pkgrel=1
+pkgrel=2
 arch=('any')
 url="https://xerolinux.xyz"
 license=('GPL-3.0-or-later')
